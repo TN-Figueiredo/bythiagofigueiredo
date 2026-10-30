@@ -3,7 +3,7 @@
  * Só LÊ a forja, pela montagem `ro`; nada aqui escreve no NAS. Usada por `pendencias-main.ts`.
  */
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,7 +45,7 @@ export function lerDoNasVia(ssh: Ssh) {
   }
 }
 
-const Meta = z.object({ sha256: z.string().regex(SHA_RE), filho: z.enum(['numerico', 'texto']), caminho: z.string().regex(CAMINHO_SEGURO), itemId: z.string() }).strict()
+const Meta = z.object({ sha256: z.string().regex(SHA_RE), filho: z.enum(['numerico', 'texto']), caminho: z.string().regex(CAMINHO_SEGURO).optional(), itemId: z.string(), pendente: z.literal(true).optional() }).strict()
 
 /** Raiz do repositório (onde está `.git`, arquivo ou pasta), a partir deste módulo: não depende do `cwd` de quem roda. */
 export function raizDoRepositorio(inicio: string = dirname(fileURLToPath(import.meta.url))): string {
@@ -66,20 +66,41 @@ export function guardarEm(pasta: string): DepsExpurgo['guardar'] {
   const lerMeta = async (n: string) => { try { const m = Meta.safeParse(JSON.parse(await readFile(join(pasta, n), 'utf8'))); return m.success ? m.data : null } catch { return null } }
   return {
     async ler(sha) { try { return await readFile(join(pasta, `${sha}.gz`)) } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; throw e } },
-    async gravarDados(sha, dados) {
+    async gravarDados(sha, dados, pendente) {
       await mkdir(pasta, { recursive: true, mode: 0o700 })
       await writeFile(join(pasta, `${sha}.gz`), dados, { mode: 0o600 })
+      const tmp = join(pasta, `${sha}.json.tmp`)
+      await writeFile(tmp, JSON.stringify({ sha256: sha, itemId: pendente.itemId, filho: pendente.filho, pendente: true }), { mode: 0o600 })
+      await rename(tmp, join(pasta, `${sha}.json`))
     },
-    async apagarDados(sha) { await sumir(join(pasta, `${sha}.gz`)) },
+    async apagarDados(sha) {
+      const m = await lerMeta(`${sha}.json`)
+      if (m && !m.pendente) return          // índice completo: a cópia é de um registro vivo
+      await sumir(join(pasta, `${sha}.gz`)); await sumir(join(pasta, `${sha}.json`))
+    },
     async gravar(sha, dados, meta) {
-      await this.gravarDados(sha, dados)
+      await mkdir(pasta, { recursive: true, mode: 0o700 })
+      await writeFile(join(pasta, `${sha}.gz`), dados, { mode: 0o600 })
       const tmp = join(pasta, `${sha}.json.tmp`)
       await writeFile(tmp, JSON.stringify({ sha256: sha, ...meta }), { mode: 0o600 })
       await rename(tmp, join(pasta, `${sha}.json`))
     },
+    async varrer(antesDe) {
+      const nomes = await readdir(pasta).catch((e: NodeJS.ErrnoException) => { if (e.code === 'ENOENT') return [] as string[]; throw e })
+      const set = new Set(nomes)
+      for (const n of nomes) {
+        const velho = async () => (await stat(join(pasta, n)).catch(() => null))?.mtime.getTime() ?? Infinity
+        if (n.endsWith('.tmp') || (n.endsWith('.gz') && !set.has(`${n.slice(0, -3)}.json`))) {
+          if ((await velho()) < antesDe.getTime()) await sumir(join(pasta, n))
+        } else if (n.endsWith('.json') && (await velho()) < antesDe.getTime()) {
+          const m = await lerMeta(n)
+          if (m?.pendente) { await sumir(join(pasta, `${m.sha256}.gz`)); await sumir(join(pasta, n)) }
+        }
+      }
+    },
     async daItem(itemId) {
       const out: CopiaGuardada[] = []
-      for (const n of await nomesJson()) { const m = await lerMeta(n); if (m && m.itemId === itemId) out.push({ sha256: m.sha256, filho: m.filho, caminho: m.caminho }) }
+      for (const n of await nomesJson()) { const m = await lerMeta(n); if (m && m.itemId === itemId && m.caminho !== undefined) out.push({ sha256: m.sha256, filho: m.filho, caminho: m.caminho }) }
       return out
     },
     async itensGuardados() {

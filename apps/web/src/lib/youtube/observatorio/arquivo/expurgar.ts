@@ -31,10 +31,12 @@ export interface DepsExpurgo {
     ler(sha: string): Promise<Buffer | null>
     /** `meta` vira o índice para reemitir a cópia numa execução seguinte (o `abrir` não devolve alvo já registrado). */
     gravar(sha: string, dados: Buffer, meta: { itemId: string; filho: Filho; caminho: string }): Promise<void>
-    /** Só o `.gz` (nome = sha), ANTES do `registrar`: se o processo morre depois do registro, a cópia já está no Mac. */
-    gravarDados(sha: string, dados: Buffer): Promise<void>
-    /** Apaga o `.gz` solto (registro recusado de vez). */
+    /** O `.gz` (nome = sha) e um índice `.json` PENDENTE (sem caminho: ele só vem na resposta), ANTES do `registrar`. */
+    gravarDados(sha: string, dados: Buffer, pendente: { itemId: string; filho: Filho }): Promise<void>
+    /** Apaga o `.gz` e o índice pendente (registro recusado de vez, ou alvo sem linhas). Nunca toca um índice já completo. */
     apagarDados(sha: string): Promise<void>
+    /** Apaga `.tmp`, `.gz` sem `.json` e índice pendente com mais de 24 h (`antesDe` = agora - 24 h). */
+    varrer(antesDe: Date): Promise<void>
     daItem(itemId: string): Promise<CopiaGuardada[]>
     /** Itens que têm cópia guardada, para a limpeza (LGPD: comentários de terceiros). */
     itensGuardados(): Promise<string[]>
@@ -49,6 +51,7 @@ const vazia: UnidadeLida = { colunas: ['id', 'video_id', 'parent_id'], linhas: [
 const aguardaCopia = (i: PendenciaDoDono): boolean => i.tempo === 'sem_comando' && (i.falta === 'unidade_no_nas' || i.falta === 'resumo')
 /** Tempos em que a cópia do Mac já cumpriu o papel (ou não vai mais ser usada): ela some do Mac (LGPD). */
 const copiaSemUso = (i: PendenciaDoDono | undefined): boolean => i === undefined || i.tempo === 'apagar_antigas' || i.tempo === 'conferir_b2' || i.tempo === 'bloqueado'
+/** Em `bloqueado`, a cópia já registrada (índice completo no Mac = alvo em `aguardando_nova` no site) fica: o desbloqueio precisa dela. */
 
 /** `todos` é a lista inteira de pendências (com `--item`, `itens` traz só um; a limpeza precisa ver todos). */
 export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, tetoTotal: number = TETO_TOTAL_BYTES, todos: PendenciaDoDono[] = itens): Promise<{ copias: Copia[]; avisos: string[]; nasFora: boolean }> {
@@ -59,8 +62,12 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
   const filhoOk = async (f: Filho): Promise<boolean> => { if (!montado.has(f)) montado.set(f, await d.nasMontado(f)); return montado.get(f)! }
 
   // 0. LGPD: a cópia guardada no Mac some quando o item concluiu (sumiu da lista), ficou bloqueado ou o NAS já a recebeu
+  await d.guardar.varrer(new Date(d.agora().getTime() - 24 * 3_600_000))
   for (const id of await d.guardar.itensGuardados()) {
-    if (copiaSemUso(todos.find(i => i.itemId === id))) await d.guardar.apagarDoItem(id)
+    const it = todos.find(i => i.itemId === id)
+    if (!copiaSemUso(it)) continue
+    if (it?.tempo === 'bloqueado' && (await d.guardar.daItem(id)).length > 0) continue
+    await d.guardar.apagarDoItem(id)
   }
 
   // 1. reemissão: cópia já registrada e ainda não recebida sai do guardado, sem reler o NAS (o script é idempotente)
@@ -165,8 +172,8 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
       const arq = (p: 'canal' | 'video') => resumo.arquivos.find(x => x.papel === p) ?? null
       // a cópia fica no Mac ANTES do registro: o site só espera cópia que este Mac já tem
       const gzs: string[] = []
-      for (const u of unidades) if (u.ser.gz && u.ser.sha256_bytes !== null) { await d.guardar.gravarDados(u.ser.sha256_bytes, u.ser.gz); gzs.push(u.ser.sha256_bytes) }
-      for (const f of resumo.arquivos) { await d.guardar.gravarDados(f.sha256, f.gz); gzs.push(f.sha256) }
+      for (const u of unidades) if (u.ser.gz && u.ser.sha256_bytes !== null) { await d.guardar.gravarDados(u.ser.sha256_bytes, u.ser.gz, { itemId: it.itemId, filho: g.filho }); gzs.push(u.ser.sha256_bytes) }
+      for (const f of resumo.arquivos) { await d.guardar.gravarDados(f.sha256, f.gz, { itemId: it.itemId, filho: g.filho }); gzs.push(f.sha256) }
       const resp = await d.site({
         passo: 'registrar', item_id: it.itemId, classe: g.classe, canal: g.canal, mes: g.mes,
         alvos: g.alvos.map(a => {
@@ -187,18 +194,20 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
       const ok = RespostaRegistrar.parse(resp.corpo)
       if (ok.status === 'recusado') { avisos.push(`obs:arquivo: ${it.itemId} ${g.classe}/${g.mes}: recusado pelo site (${ok.motivo}); sigo com os outros grupos`); for (const h of gzs) await d.guardar.apagarDados(h); continue }
       total += bytesDoGrupo
+      const gravados = new Set<string>()
       for (const u of ok.alvos) {
         const x = unidades.find(y => y.alvo_id === u.alvo_id)
         if (!x || !x.ser.gz || x.ser.sha256_bytes === null || u.versao === undefined) continue
         const caminho = `${g.classe}/canais/${g.canal}/${x.tabela}/${g.mes}.v${u.versao}.csv.gz`
-        await d.guardar.gravar(x.ser.sha256_bytes, x.ser.gz, { itemId: it.itemId, filho: g.filho, caminho })
+        await d.guardar.gravar(x.ser.sha256_bytes, x.ser.gz, { itemId: it.itemId, filho: g.filho, caminho }); gravados.add(x.ser.sha256_bytes)
         copias.push({ itemId: it.itemId, filho: g.filho, caminho, sha256: x.ser.sha256_bytes, base64: x.ser.gz.toString('base64') })
       }
       if (ok.resumo) for (const f of resumo.arquivos) {
         const caminho = `${g.classe}/canais/${g.canal}/resumo/${g.mes}.v${ok.resumo.versao}.${f.papel}.csv.gz`
-        await d.guardar.gravar(f.sha256, f.gz, { itemId: it.itemId, filho: g.filho, caminho })
+        await d.guardar.gravar(f.sha256, f.gz, { itemId: it.itemId, filho: g.filho, caminho }); gravados.add(f.sha256)
         copias.push({ itemId: it.itemId, filho: g.filho, caminho, sha256: f.sha256, base64: f.gz.toString('base64') })
       }
+      for (const h of gzs) if (!gravados.has(h)) await d.guardar.apagarDados(h)   // sem versão devolvida (sem_linhas): nada a esperar
     }
   }
   return { copias, avisos, nasFora: false }

@@ -25,7 +25,7 @@ function item(o: Partial<PendenciaDoDono> = {}): PendenciaDoDono {
     apagar: [], b2Nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshotMaisAntigo: null, snapEsperaDesde: null, snapLiberaEm: null, snapBloqueio: null, ...o }
 }
 
-interface Mundo { nas: Map<string, Buffer>; montado: Record<string, boolean>; passos: Array<Record<string, unknown>>; guardado: Map<string, Buffer>; indice: Array<CopiaGuardada & { itemId: string }>; deps: DepsExpurgo }
+interface Mundo { nas: Map<string, Buffer>; montado: Record<string, boolean>; passos: Array<Record<string, unknown>>; guardado: Map<string, Buffer>; indice: Array<CopiaGuardada & { itemId: string }>; pendentes: Map<string, string>; varridoAntes: Date | null; deps: DepsExpurgo }
 function mundo(o: { unidades?: Record<string, UnidadeLida>; alvosExtra?: boolean; responder?: (p: Record<string, unknown>, n: number) => { status: number; corpo: unknown } } = {}): Mundo {
   const nas = new Map<string, Buffer>()
   const mk = (t: string, u: UnidadeLida) => { const s = serializarUnidade(u, null); nas.set(caminhoDe(t), s.gz!); return { sha: s.sha256_bytes!, hash: s.hash_conteudo } }
@@ -35,7 +35,7 @@ function mundo(o: { unidades?: Record<string, UnidadeLida>; alvosExtra?: boolean
       refs: [], arquivos: [{ caminho: caminhoDe('competitor_video_daily'), sha256: d.sha, parte: 1 }] }],
     outras: [{ tabela: 'competitor_video_hourly', unidade_id: 12, versao: 1, linhas: 2, hash_conteudo: h.hash, arquivos: [{ caminho: caminhoDe('competitor_video_hourly'), sha256: h.sha, parte: 1 }] }],
     vazias: [], resumo: { versao: 1, canal: null, video: null }, mes_online: true, dias_do_mes: 30 }], esperando: 0 }
-  const w: Mundo = { nas, montado: { numerico: true, texto: true }, passos: [], guardado: new Map(), indice: [], deps: null as unknown as DepsExpurgo }
+  const w: Mundo = { nas, montado: { numerico: true, texto: true }, passos: [], guardado: new Map(), indice: [], pendentes: new Map(), varridoAntes: null, deps: null as unknown as DepsExpurgo }
   let n = 0
   w.deps = {
     nasMontado: async f => w.montado[f]!, lerDoNas: async (_f, c) => nas.get(c) ?? null, agora: () => AGORA,
@@ -48,10 +48,11 @@ function mundo(o: { unidades?: Record<string, UnidadeLida>; alvosExtra?: boolean
     },
     guardar: {
       ler: async s => w.guardado.get(s) ?? null,
-      gravar: async (s, b, m) => { w.guardado.set(s, b); w.indice.push({ sha256: s, ...m }) },
+      gravar: async (s, b, m) => { w.guardado.set(s, b); w.pendentes.delete(s); w.indice.push({ sha256: s, ...m }) },
       daItem: async id => w.indice.filter(i => i.itemId === id),
-      gravarDados: async (sh, b) => { w.guardado.set(sh, b) },
-      apagarDados: async sh => { w.guardado.delete(sh) },
+      gravarDados: async (sh, b, p) => { w.guardado.set(sh, b); w.pendentes.set(sh, p.itemId) },
+      apagarDados: async sh => { w.guardado.delete(sh); w.pendentes.delete(sh) },
+      varrer: async antes => { w.varridoAntes = antes },
       itensGuardados: async () => [...new Set(w.indice.map(i => i.itemId))],
       apagarDoItem: async id => { for (const i of w.indice.filter(x => x.itemId === id)) w.guardado.delete(i.sha256); w.indice = w.indice.filter(x => x.itemId !== id) },
     },
@@ -212,20 +213,44 @@ describe('prepararCopias: o tempo copiar', () => {
     expect(r.avisos.join('\n')).toContain('não consegui bloquear')
   })
 
-  it('LGPD: a cópia guardada some quando o item conclui, fica bloqueado ou o NAS já a recebeu; fica enquanto espera', async () => {
+  it('LGPD: a cópia guardada some quando o item conclui ou o NAS já a recebeu; fica enquanto espera', async () => {
     const w = mundo()
     await prepararCopias([item()], w.deps)
     expect(w.guardado.size).toBe(3)
     await prepararCopias([item({ tempo: 'sem_comando', falta: 'unidade_no_nas' })], w.deps)
     expect(w.guardado.size).toBe(3)                                               // ainda espera o NAS
-    await prepararCopias([item({ tempo: 'bloqueado' })], w.deps)
-    expect(w.guardado.size).toBe(0)
     const w2 = mundo(); await prepararCopias([item()], w2.deps)
     await prepararCopias([], w2.deps)                                             // item concluído: sumiu da lista
     expect(w2.guardado.size).toBe(0)
     const w3 = mundo(); await prepararCopias([item()], w3.deps)
     await prepararCopias([item({ tempo: 'apagar_antigas' })], w3.deps)
     expect(w3.guardado.size).toBe(0)
+  })
+
+  it('bloqueado: com cópia já registrada (aguardando_nova) o Mac a mantém; sem ela, apaga', async () => {
+    const w = mundo(); await prepararCopias([item()], w.deps)
+    expect(w.guardado.size).toBe(3)
+    await prepararCopias([item({ tempo: 'bloqueado', motivo: 'antiga_divergente' })], w.deps)
+    expect(w.guardado.size).toBe(3)                                               // o desbloqueio precisa dela
+    await prepararCopias([item({ tempo: 'apagar_antigas' })], w.deps)
+    expect(w.guardado.size).toBe(0)
+    // sem alvo aguardando: só sobrou o pendente de um registro que não saiu; bloqueado apaga
+    const w2 = mundo(); w2.pendentes.set('f'.repeat(64), 'item:7'); w2.guardado.set('f'.repeat(64), Buffer.from('x'))
+    w2.deps.guardar.itensGuardados = async () => ['item:7']
+    w2.deps.guardar.apagarDoItem = async () => { w2.guardado.clear() }
+    await prepararCopias([item({ tempo: 'bloqueado', motivo: 'antiga_divergente' })], w2.deps)
+    expect(w2.guardado.size).toBe(0)
+  })
+
+  it('o índice entra antes do registrar (pendente) e a varredura de 24 h roda a cada execução', async () => {
+    const w = mundo()
+    let pendentesNoRegistrar = 0
+    const orig = w.deps.site
+    w.deps.site = async p => { if ((p as { passo: string }).passo === 'registrar') pendentesNoRegistrar = w.pendentes.size; return orig(p) }
+    await prepararCopias([item()], w.deps)
+    expect(pendentesNoRegistrar).toBe(3)
+    expect(w.pendentes.size).toBe(0)                                              // completos pelo gravar
+    expect(w.varridoAntes!.getTime()).toBe(AGORA.getTime() - 24 * 3_600_000)
   })
 
   it('LGPD com --item: os outros itens da lista inteira não perdem a cópia', async () => {

@@ -3,7 +3,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { existsSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { guardarEm, raizDoRepositorio, criarDepsExpurgo, lerDoNasVia, nasMontadoVia, siteVia, type Ssh } from '@/lib/youtube/observatorio/arquivo/expurgar-borda'
 
@@ -60,6 +60,32 @@ describe('borda do expurgo', () => {
     await g.apagarDoItem('item:1')
     expect(readdirSync(pasta).filter(n => n.startsWith('c'))).toEqual([])
     expect(await g.daItem('item:2')).toHaveLength(1)
+  })
+  it('guardar: gravarDados deixa índice pendente; apagarDados o tira, mas não toca índice completo', async () => {
+    const pasta = join(mkdtempSync(join(tmpdir(), 'cop-')), 'copias')
+    const g = guardarEm(pasta)
+    const a = 'a'.repeat(64), b = 'b'.repeat(64)
+    await g.gravarDados(a, Buffer.from('1'), { itemId: 'item:1', filho: 'numerico' })
+    expect(await g.itensGuardados()).toEqual(['item:1'])
+    expect(await g.daItem('item:1')).toEqual([])                                  // pendente não é cópia reemitível
+    await g.apagarDados(a)
+    expect(readdirSync(pasta)).toEqual([])
+    await g.gravar(b, Buffer.from('2'), { itemId: 'item:2', filho: 'texto', caminho: 'serie/y.csv.gz' })
+    await g.apagarDados(b)
+    expect(readdirSync(pasta).sort()).toEqual([`${b}.gz`, `${b}.json`])
+  })
+  it('guardar: varrer apaga .gz/.tmp sem .json e pendente com mais de 24 h; mantém o recente e o completo', async () => {
+    const pasta = join(mkdtempSync(join(tmpdir(), 'cop-')), 'copias')
+    const g = guardarEm(pasta)
+    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(x => x.repeat(64))
+    await g.gravar(a!, Buffer.from('1'), { itemId: 'item:1', filho: 'numerico', caminho: 'serie/x.csv.gz' })
+    await g.gravarDados(b!, Buffer.from('2'), { itemId: 'item:1', filho: 'numerico' })
+    writeFileSync(join(pasta, `${c}.gz`), 'orfao'); writeFileSync(join(pasta, `${d}.json.tmp`), '{')
+    const velho = new Date(Date.now() - 48 * 3_600_000)
+    for (const n of [`${b}.gz`, `${b}.json`, `${c}.gz`, `${d}.json.tmp`]) utimesSync(join(pasta, n), velho, velho)
+    writeFileSync(join(pasta, `${'e'.repeat(64)}.gz`), 'recente')
+    await g.varrer(new Date(Date.now() - 24 * 3_600_000))
+    expect(readdirSync(pasta).sort()).toEqual([`${a}.gz`, `${a}.json`, `${'e'.repeat(64)}.gz`])
   })
   it('a pasta de cópias vem da raiz do repositório, não do cwd', () => {
     const antes = process.cwd()
