@@ -18,6 +18,9 @@ const captureMessage = vi.fn()
 const captureException = vi.fn()
 let negado = false
 let semEdicao = false
+const lerLista = vi.fn()
+/** Troca só a resposta do decide, mantendo a função de estado do canal em `removido: true`. */
+const rpcDecide = (r: unknown): void => { rpc.mockImplementation(async (nome: string) => (nome === 'obs_archive_channel_is_removed' ? { data: { removido: true }, error: null } : r)) }
 let lista: { ok: true; lista: Array<Record<string, unknown>> } | { ok: false } = { ok: true, lista: [{ channel_ref: REF, nome: 'Canal Ção X' }] }
 
 function carregar() {
@@ -34,13 +37,14 @@ function carregar() {
   vi.doMock('@sentry/nextjs', () => ({ captureException, captureMessage }))
   vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { clienteCriado(); return { rpc } } }))
-  vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/canais-removidos', () => ({ lerCanaisRemovidos: async () => lista }))
+  vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/canais-removidos', () => ({ lerCanaisRemovidos: async (_sb: unknown, siteId: string) => lerLista(siteId) ?? lista }))
   return import('@/app/cms/(authed)/youtube/competitors/_arquivo/actions-canal')
 }
 
 beforeEach(() => {
-  for (const f of [rpc, clienteCriado, invalidate, revalidate, revalidateTag, captureMessage, captureException]) f.mockReset()
-  rpc.mockResolvedValue({ data: { status: 'ok' }, error: null })
+  for (const f of [rpc, clienteCriado, invalidate, revalidate, revalidateTag, captureMessage, captureException, lerLista]) f.mockReset()
+  // a função de estado do canal (removido) e o decide: por nome da função
+  rpc.mockImplementation(async (nome: string) => (nome === 'obs_archive_channel_is_removed' ? { data: { removido: true, decisao: 'guardar', sem_destino: false }, error: null } : { data: { status: 'ok' }, error: null }))
   negado = false; semEdicao = false
   lista = { ok: true, lista: [{ channel_ref: REF, nome: 'Canal Ção X' }] }
   process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'on'
@@ -103,18 +107,18 @@ describe('M9b T2: ações do canal removido', () => {
   })
 
   it('ja_pedido do banco vira ok com status ja_pedido', async () => {
-    rpc.mockResolvedValue({ data: { status: 'ja_pedido' }, error: null })
+    rpcDecide({ data: { status: 'ja_pedido' }, error: null })
     const m = await carregar()
     expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: true, status: 'ja_pedido' })
   })
 
   it('erros do banco: canal_nao_encontrado e sem_direito traduzidos; desconhecido vira interno, com Sentry e sem a mensagem', async () => {
     const m = await carregar()
-    rpc.mockResolvedValue({ data: null, error: { message: 'canal_nao_encontrado' } })
+    rpcDecide({ data: null, error: { message: 'canal_nao_encontrado' } })
     expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'canal_nao_encontrado' })
-    rpc.mockResolvedValue({ data: null, error: { message: 'sem_direito' } })
+    rpcDecide({ data: null, error: { message: 'sem_direito' } })
     expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'sem_permissao' })
-    rpc.mockResolvedValue({ data: null, error: { message: 'segredo do banco' } })
+    rpcDecide({ data: null, error: { message: 'segredo do banco' } })
     const r = await m.apagarDoArquivoAction(REF, 'Canal Ção X')
     expect(r).toEqual({ ok: false, erro: 'interno' })
     expect(JSON.stringify(r)).not.toContain('segredo')
@@ -122,7 +126,7 @@ describe('M9b T2: ações do canal removido', () => {
   })
 
   it('o cache é solto mesmo quando o banco falha', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'x' } })
+    rpcDecide({ data: null, error: { message: 'x' } })
     const m = await carregar()
     await m.apagarDoArquivoAction(REF, 'Canal Ção X')
     expect(invalidate).toHaveBeenCalledWith('s1')
@@ -148,8 +152,49 @@ describe('M9b T2: ações do canal removido', () => {
   })
 
   it('marcar com erro do banco: interno', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'x' } })
+    rpcDecide({ data: null, error: { message: 'x' } })
     const m = await carregar()
     expect(await m.marcarRodado('item:12')).toEqual({ ok: false, erro: 'interno' })
+  })
+
+  it('conserto 2: canal VIVO (removido:false), erro ou resposta torta na função de estado: canal_existe, decide nunca chamado, cache não solto', async () => {
+    const m = await carregar()
+    for (const resp of [{ data: { removido: false }, error: null }, { data: null, error: { message: 'x' } }, { data: null, error: null }, { data: 'lixo', error: null }]) {
+      rpc.mockReset(); invalidate.mockReset()
+      rpc.mockResolvedValue(resp)
+      expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'canal_existe' })
+      expect(rpc).toHaveBeenCalledTimes(1)
+      expect(rpc).toHaveBeenCalledWith('obs_archive_channel_is_removed', { p_site: 's1', p_channel_ref: REF })
+      expect(invalidate).not.toHaveBeenCalled()
+    }
+  })
+
+  it('conserto 4: lista com 2 canais, a leitura é do site da sessão e acha o canal certo (não lista[0])', async () => {
+    const OUTRO = '22222222-2222-4222-8222-222222222222'
+    lerLista.mockImplementation(() => ({ ok: true, lista: [{ channel_ref: OUTRO, nome: 'Primeiro' }, { channel_ref: REF, nome: 'Segundo' }] }))
+    const m = await carregar()
+    expect(await m.apagarDoArquivoAction(REF, 'Primeiro')).toEqual({ ok: false, erro: 'nome_nao_confere' })
+    expect(await m.apagarDoArquivoAction(REF, 'Segundo')).toEqual({ ok: true, status: 'ok' })
+    expect(lerLista).toHaveBeenCalledWith('s1')
+  })
+
+  it('conserto 4: requireSiteScope negado: sem_permissao nas três e nada chamado', async () => {
+    semEdicao = true
+    const m = await carregar()
+    expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'sem_permissao' })
+    expect(await m.marcarRodado('item:5')).toMatchObject({ ok: false, erro: 'sem_permissao' })
+    expect(await m.desfazerRodado('item:5')).toMatchObject({ ok: false, erro: 'sem_permissao' })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('conserto 5: o cache só é solto quando o decide foi chamado; erro desconhecido leva o code ao Sentry', async () => {
+    let m = await carregar()
+    await m.apagarDoArquivoAction(REF, 'errado'); await m.apagarDoArquivoAction(`${REF}'`, 'x')
+    expect(invalidate).not.toHaveBeenCalled()
+    rpcDecide({ data: null, error: { message: 'x', code: '40001' } })
+    m = await carregar()
+    await m.apagarDoArquivoAction(REF, 'Canal Ção X')
+    expect(invalidate).toHaveBeenCalledWith('s1')
+    expect(JSON.stringify(captureMessage.mock.calls)).toContain('40001')
   })
 })

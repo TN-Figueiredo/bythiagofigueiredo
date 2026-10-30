@@ -264,4 +264,15 @@ describe.skipIf(skipIfNoLocalDb())('M9b T6: canal removido de guardado/sem_desti
       expect((await removal(c)).completed_at).not.toBeNull()                // g.n = 0: concluiu sem nenhuma conferência
     })
   })
+
+  it('conserto 2: canal guardado e RECARREGADO com o mesmo id aparece guardado, o decide purgaria, e obs_archive_channel_is_removed diz removido:false (a ação recusa antes)', async () => {
+    await emTx(async c => {
+      await canalGuardado(c)
+      expect((await pg.query(`select public.obs_archive_channel_is_removed($1, $2) as r`, [c.site, c.canal])).rows[0].r).toMatchObject({ removido: true, decisao: 'guardar' })
+      // a recarga real devolve a linha do canal com o mesmo id
+      await pg.query(`insert into public.competitor_channels (id, site_id, channel_id, channel_name, added_at) values ($1::uuid, $2, 'UC' || substr(md5($1::text), 1, 22), 'recarregado', now())`, [c.canal, c.site])
+      expect((await lista(c)).estado).toBe('guardado')                      // o defeito: a lista ainda o mostra, e o decide dá ok e purga
+      expect((await pg.query(`select public.obs_archive_channel_is_removed($1, $2) as r`, [c.site, c.canal])).rows[0].r).toMatchObject({ removido: false })
+    })
+  })
 })

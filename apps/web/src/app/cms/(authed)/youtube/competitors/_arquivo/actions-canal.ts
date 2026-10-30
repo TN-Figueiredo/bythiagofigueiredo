@@ -14,7 +14,7 @@ import { soltarCache } from '../_canais/solta-cache'
 /** M9b T2: "Apagar do arquivo" de um canal removido, e "Já rodei"/"Desfazer" do painel. Tudo no servidor: admin, Zod, nome relido do banco. */
 export type RespostaApagar =
   | { ok: true; status: 'ok' | 'ja_pedido' }
-  | { ok: false; erro: 'sem_permissao' | 'forma' | 'desligado' | 'nome_nao_confere' | 'canal_nao_encontrado' | 'interno' }
+  | { ok: false; erro: 'sem_permissao' | 'forma' | 'desligado' | 'nome_nao_confere' | 'canal_nao_encontrado' | 'canal_existe' | 'interno' }
 export type RespostaMarcar = { ok: true } | { ok: false; erro: string }
 
 const CanalRef = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
@@ -33,11 +33,11 @@ async function guarda(acao: string): Promise<Guarda> {
   }
 }
 
-function erroDoBanco(e: { message?: string } | null | undefined): 'sem_permissao' | 'canal_nao_encontrado' | 'interno' {
+function erroDoBanco(e: { message?: string; code?: string } | null | undefined): 'sem_permissao' | 'canal_nao_encontrado' | 'interno' {
   const m = e?.message ?? ''
   if (m.includes('sem_direito')) return 'sem_permissao'
   if (m.includes('canal_nao_encontrado')) return 'canal_nao_encontrado'
-  Sentry.captureMessage('obs_archive_channel_removal_decide falhou', 'error')
+  Sentry.captureMessage('obs_archive_channel_removal_decide falhou', { level: 'error', tags: { code: e?.code ?? 'sem_code' } })
   return 'interno'
 }
 
@@ -48,6 +48,7 @@ export async function apagarDoArquivoAction(channelRef: string, digitado: string
   const ref = CanalRef.safeParse(channelRef)
   if (!ref.success) return { ok: false, erro: 'forma' }
   const sb = getSupabaseServiceClient()
+  let chamouDecide = false
   try {
     // o nome esperado vem do banco, nunca do client
     const lida = await lerCanaisRemovidos(sb, g.siteId)
@@ -56,6 +57,11 @@ export async function apagarDoArquivoAction(channelRef: string, digitado: string
     if (!linha) return { ok: false, erro: 'canal_nao_encontrado' }
     const esperado = linha.nome ?? ref.data.slice(0, 8).toUpperCase()
     if (!nomeConfere(String(digitado ?? ''), esperado)) return { ok: false, erro: 'nome_nao_confere' }
+    // o canal tem de estar mesmo removido: um canal VIVO recarregado com o mesmo id aparece `guardado` na lista e o decide purgaria o arquivo (irreversível)
+    const vivo = await sb.rpc('obs_archive_channel_is_removed', { p_site: g.siteId, p_channel_ref: ref.data })
+    const est = vivo.data as { removido?: unknown } | null
+    if (vivo.error || est === null || typeof est !== 'object' || est.removido !== true) return { ok: false, erro: 'canal_existe' }
+    chamouDecide = true
     const r = await sb.rpc('obs_archive_channel_removal_decide', { p_site: g.siteId, p_channel_ref: ref.data, p_actor: g.userId })
     if (r.error) return { ok: false, erro: erroDoBanco(r.error) }
     const status = (r.data as { status?: string } | null)?.status
@@ -64,7 +70,7 @@ export async function apagarDoArquivoAction(channelRef: string, digitado: string
     Sentry.captureException(e)
     return { ok: false, erro: 'interno' }
   } finally {
-    soltarCache(g.siteId)
+    if (chamouDecide) soltarCache(g.siteId)
   }
 }
 
@@ -75,7 +81,7 @@ async function marcar(itemId: string, desfazer: boolean): Promise<RespostaMarcar
   if (!id.success) return { ok: false, erro: 'forma' }
   try {
     const r = await getSupabaseServiceClient().rpc('obs_archive_marcar_rodado', { p_site: g.siteId, p_item_id: id.data, p_actor: g.userId, p_desfazer: desfazer })
-    if (r.error) { Sentry.captureMessage('obs_archive_marcar_rodado falhou', 'error'); return { ok: false, erro: 'interno' } }
+    if (r.error) { Sentry.captureMessage('obs_archive_marcar_rodado falhou', { level: 'error', tags: { code: r.error.code ?? 'sem_code' } }); return { ok: false, erro: 'interno' } }
     return { ok: true }
   } catch (e) {
     Sentry.captureException(e)

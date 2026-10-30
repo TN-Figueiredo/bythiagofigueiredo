@@ -293,6 +293,56 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     expect(r.saida.some(l => l.includes('\\copy'))).toBe(false)
   })
 
+  it('M9b conserto 1.1: precisaDeBanco derivado de COM_BANCO (recarga precisa; comandos-nas e pendencias não)', async () => {
+    const { precisaDeBanco } = await import('@/lib/youtube/observatorio/arquivo/cli')
+    expect(precisaDeBanco('comandos-recarga')).toBe(true)
+    expect(precisaDeBanco('estado')).toBe(true)
+    expect(precisaDeBanco('comandos-nas')).toBe(false)
+    expect(precisaDeBanco('pendencias')).toBe(false)
+  })
+
+  it('M9b conserto 1.3: consulta por m.valor.site, não pelo site único resolvido (a recarga não resolve site)', async () => {
+    const d = await pastaComManifesto()
+    const b = roteirizado([[/obs_archive_channel_is_removed/, () => [{ r: { removido: false, decisao: null, sem_destino: false } }]]]) // sem rota do site: resolverSite falharia
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: b.sql }))
+    expect(r.codigo).toBe(0)
+    expect(b.chamadas[0]!.parametros).toEqual([SITE, CANAL])
+    // site errado no banco com dois sites: o do manifesto é o que vale
+    const dois = roteirizado([[/select distinct site_id/, () => [{ site_id: 'a' }, { site_id: 'b' }]], [/obs_archive_channel_is_removed/, () => [{ r: { removido: true, decisao: 'apagar', sem_destino: false } }]]])
+    const r2 = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: dois.sql }))
+    expect(r2.codigo).toBe(1)
+    expect(tudo(r2)).toContain('canal_apagado')
+  })
+
+  it('M9b conserto 1.3: --site que diverge do manifesto recusa sem consultar nem imprimir', async () => {
+    const d = await pastaComManifesto()
+    const b = bancoRecarga()
+    const outro = '99999999-9999-4999-8999-999999999999'
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo --site ${outro}`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: b.sql }))
+    expect(r.codigo).toBe(1)
+    expect(r.saida.some(l => l.includes('\\copy'))).toBe(false)
+    expect(b.chamadas).toHaveLength(0)
+  })
+
+  it('M9b conserto 4: resposta {} ou consulta que rejeita recusa; decisao e sem_destino são estritos', async () => {
+    const d = await pastaComManifesto()
+    const vazio = roteirizado([[/obs_archive_channel_is_removed/, () => [{ r: {} }]]])
+    const r1 = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: vazio.sql }))
+    expect(r1.codigo).toBe(1)
+    expect(r1.saida.some(l => l.includes('\\copy'))).toBe(false)
+    const cai = roteirizado([[/obs_archive_channel_is_removed/, () => new Error('boom')]])
+    const r2 = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: cai.sql }))
+    expect(r2.codigo).toBe(1)
+    expect(r2.saida.some(l => l.includes('\\copy'))).toBe(false)
+    // removido sem decisao reconhecida e sem sem_destino: não imprime aviso de sem_destino; decisao desconhecida não imprime
+    const estranha = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga({ removido: true, decisao: 'talvez', sem_destino: false }).sql }))
+    expect(estranha.codigo).toBe(1)
+    expect(estranha.saida.some(l => l.includes('\\copy'))).toBe(false)
+    const semAviso = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga({ removido: true, decisao: 'guardar', sem_destino: false }).sql }))
+    expect(semAviso.codigo).toBe(0)
+    expect(semAviso.erros ?? []).toEqual([])
+  })
+
   it('comandos-recarga: pasta sem manifesto ou com manifesto adulterado não imprime nada', async () => {
     const vazio = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /nada`, ENV_RECARGA), dinheiro({ sql: bancoRecarga().sql }))
     expect(vazio.codigo).toBe(1)

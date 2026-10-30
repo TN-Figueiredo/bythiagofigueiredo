@@ -56,6 +56,8 @@ export const USO = [
 
 /** Os subcomandos que falam com o banco; só `comandos-nas` apenas imprime (M9b T3: `comandos-recarga` consulta se o canal teve o arquivo apagado). */
 const COM_BANCO = new Set(['estado', 'pausar', 'despausar', 'exportar', 'conferir', 'confirmar-nas', 'remover', 'pedidos', 'comandos-recarga'])
+/** Pura: o subcomando precisa de conexão ao banco? Derivada de `COM_BANCO` (o script usa esta mesma função para decidir se conecta). */
+export const precisaDeBanco = (nome: string): boolean => COM_BANCO.has(nome)
 const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias: string[] }> = {
   estado: { valor: ['site', 'pasta'], bandeira: [], obrigatorias: [] },
   pausar: { valor: ['canal', 'por', 'site'], bandeira: [], obrigatorias: ['canal', 'por'] },
@@ -95,7 +97,7 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
     i++
   }
   for (const o of regra.obrigatorias) if (!valores.has(o)) return { erro: `falta --${o}` }
-  if (COM_BANCO.has(sub) && (typeof env.OBS_ARQUIVO_DB_URL !== 'string' || env.OBS_ARQUIVO_DB_URL.trim() === '')) {
+  if (precisaDeBanco(sub) && (typeof env.OBS_ARQUIVO_DB_URL !== 'string' || env.OBS_ARQUIVO_DB_URL.trim() === '')) {
     return { erro: 'OBS_ARQUIVO_DB_URL não está definida. Ela é a conexão direta ao banco e não vem do .env.local.' }
   }
   if (sub === 'expurgar') {
@@ -187,6 +189,8 @@ export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
     if (c.nome === 'comandos-nas') return comandosNas(c)
     if (d.sql === null) return invalido('este subcomando precisa do banco (OBS_ARQUIVO_DB_URL)')
     const sql = d.sql
+    // a recarga usa o site do manifesto (m.valor.site), nunca o site único do banco: despacha antes de resolverSite
+    if (c.nome === 'comandos-recarga') return await comandosRecarga(c, d, sql)
     const s = await resolverSite(sql, c.site)
     if ('erro' in s) return invalido(s.erro)
     switch (c.nome) {
@@ -197,7 +201,6 @@ export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
       case 'confirmar-nas': return await confirmarNas(c, d, sql, s.site)
       case 'remover': return await remover(c, d, sql, s.site)
       case 'pedidos': return await pedidos(c, d, sql, s.site)
-      case 'comandos-recarga': return await comandosRecarga(c, d, sql, s.site)
     }
   } catch (e) {
     // nenhuma mensagem do banco sai daqui: só a frase do código
@@ -300,7 +303,7 @@ function comandosNas(c: Extract<Comando, { nome: 'comandos-nas' }>): Saida {
   )
 }
 
-async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida> {
+async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>, d: DepsDoComando, sql: ClienteSql): Promise<Saida> {
   const pasta = `${c.pasta.replace(/\/+$/, '')}/${c.lote}`
   if (!(await d.disco.existe(`${pasta}/manifesto.json`))) return recusado('a pasta não tem manifesto.json')
   let m
@@ -311,13 +314,16 @@ async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>
   }
   if (!('valor' in m)) return recusado(`o manifesto não serve: ${m.porque}`)
   // M9b T3 (item 165, parte canal): canal com o arquivo apagado (decisão `apagar`) não volta pela recarga. Sem consulta, nada é impresso.
-  const q = await sql.query('select public.obs_archive_channel_is_removed($1, $2) as r', [site, m.valor.canal.id])
+  if (c.site !== null && c.site !== m.valor.site) return recusado('o --site não é o site do manifesto deste lote; nada foi impresso')
+  const q = await sql.query('select public.obs_archive_channel_is_removed($1, $2) as r', [m.valor.site, m.valor.canal.id])
   const raw = q.rows[0]?.r
   const est = (typeof raw === 'string' ? (() => { try { return JSON.parse(raw) as unknown } catch { return null } })() : raw) as { removido?: unknown; decisao?: unknown; sem_destino?: unknown } | null
   if (est === null || typeof est !== 'object' || typeof est.removido !== 'boolean') return recusado('não consegui ler se o canal teve o arquivo apagado; nada foi impresso')
+  // lista permitida: canal vivo, decisão `guardar` ou `sem_destino`; qualquer outra coisa (apagar, decisão desconhecida) recusa
   if (est.removido && est.decisao === 'apagar') return recusado('canal_apagado: o arquivo deste canal foi apagado de propósito (limpeza de canal removido); a recarga não volta com ele')
+  if (est.removido && est.decisao !== 'guardar' && est.sem_destino !== true) return recusado('não reconheci a decisão de arquivo deste canal; nada foi impresso')
   const saida = comandosDeRecarga(m.valor, pasta)
-  if (est.removido && est.sem_destino === true) return { codigo: 0, saida, erros: ['aviso: o canal não está no banco e não há decisão de arquivo registrada (sem destino); confira que o lote é o que você quer recarregar'] }
+  if (est.removido && est.decisao !== 'guardar' && est.sem_destino === true) return { codigo: 0, saida, erros: ['aviso: o canal não está no banco e não há decisão de arquivo registrada (sem destino); confira que o lote é o que você quer recarregar'] }
   return feito(...saida)
 }
 

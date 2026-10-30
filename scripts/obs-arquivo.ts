@@ -7,7 +7,7 @@ import { Client } from 'pg'
 import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { interpretar, rodar, USO } from '../apps/web/src/lib/youtube/observatorio/arquivo/cli'
+import { interpretar, precisaDeBanco, rodar, USO } from '../apps/web/src/lib/youtube/observatorio/arquivo/cli'
 import { criarBaixar } from '../apps/web/src/lib/youtube/observatorio/arquivo/miniaturas'
 import type { Disco } from '../apps/web/src/lib/youtube/observatorio/arquivo/exportar'
 import { escreverTudo } from '../apps/web/src/lib/youtube/observatorio/arquivo/escrever'
@@ -60,7 +60,7 @@ async function main(): Promise<number> {
   const url = process.env.OBS_ARQUIVO_DB_URL
   let cliente: Client | null = null
   let sql: ClienteSql | null = null
-  if (url && comando.nome !== 'comandos-nas' && comando.nome !== 'comandos-recarga') {
+  if (url && precisaDeBanco(comando.nome)) {
     cliente = new Client({ connectionString: url })
     try {
       await cliente.connect()

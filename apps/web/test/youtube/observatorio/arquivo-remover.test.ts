@@ -478,3 +478,15 @@ describe('M6a T13: recusa por mês em trânsito (P0001 sem prefixo E10)', () => 
     expect(captureException).not.toHaveBeenCalled()
   })
 })
+
+describe('M9b conserto 4: retentarBlobsDeRemocoes sem deps.env', () => {
+  it('sem deps.env lê process.env: variável apagada = flag_desligada, sem leitura', async () => {
+    const antes = process.env.OBS_ARQUIVO_LIMPEZA_BLOBS
+    delete process.env.OBS_ARQUIVO_LIMPEZA_BLOBS
+    try {
+      const from = vi.fn()
+      expect(await remover.retentarBlobsDeRemocoes({ from } as unknown as SupabaseClient, { agoraMs: Date.now(), maximo: 200, prazoMs: 60_000 })).toEqual({ porque: 'flag_desligada' })
+      expect(from).not.toHaveBeenCalled()
+    } finally { if (antes !== undefined) process.env.OBS_ARQUIVO_LIMPEZA_BLOBS = antes }
+  })
+})
