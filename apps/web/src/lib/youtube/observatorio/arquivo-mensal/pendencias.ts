@@ -38,6 +38,44 @@ const Apagar = z.object({
   if (a.nova !== null && a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
 })
 
+export const SNAP_BLOQUEIOS = ['ilegivel', 'lista_vazia', 'fora_do_padrao', 'mtime_diverge', 'relogio', 'retido'] as const
+export type SnapBloqueio = (typeof SNAP_BLOQUEIOS)[number]
+
+/** Motivo e ação por bloqueio (M9-snap, passo 5; revisão 29/10): o que o dono lê quando a espera por snapshot não termina sozinha. */
+export const MOTIVO_SNAP_EM_PALAVRAS: Record<SnapBloqueio, string> = {
+  fora_do_padrao: 'há um snapshot manual ou de outra tarefa',
+  retido: 'um snapshot de antes da remoção não expira (bloqueio ou retenção maior que 14 dias)',
+  lista_vazia: 'a forja não vê nenhum snapshot',
+  mtime_diverge: 'a data gravada nos snapshots não bate com o nome deles',
+  relogio: 'o relógio da forja ou do NAS está errado',
+  ilegivel: 'a última leitura da lista falhou',
+}
+export const ACAO_SNAP: Record<SnapBloqueio, string> = {
+  fora_do_padrao: 'decida se apaga esse snapshot',
+  retido: 'procure e retire o bloqueio ou a retenção',
+  lista_vazia: 'confira a tarefa de snapshot no NAS',
+  mtime_diverge: 'confira os snapshots no NAS',
+  relogio: 'confira a hora da forja e a do NAS',
+  ilegivel: 'nenhuma',
+}
+const CAUDA_SNAP = 'Detalhe: runbook, seção Snapshots por tempo.'
+/** A frase âmbar do ramo (b). Nunca diz "libera DD/MM". `ilegivel` não passa por aqui (é espera neutra). */
+export const fraseSnapBloqueado = (b: SnapBloqueio): string => `Atenção: os snapshots do NAS não liberam sozinhos: ${MOTIVO_SNAP_EM_PALAVRAS[b]}. O que fazer: ${ACAO_SNAP[b]}. ${CAUDA_SNAP}`
+
+/**
+ * A frase da espera por snapshot (tela e script do Mac dizem o mesmo). O bloqueio vem primeiro (nunca escondido por falta de data).
+ * `passou`: a data de liberar já passou; `atrasada`: passou há mais de 24 h. Data no passado nunca aparece como "libera".
+ */
+export function fraseSnapEspera(a: { bloqueio: SnapBloqueio | null; esperaDesde: Date | null; liberaEm: Date | null; passou: boolean; atrasada: boolean }, dm: (d: Date) => string): { ambar: boolean; texto: string } {
+  if (a.bloqueio && a.bloqueio !== 'ilegivel') return { ambar: true, texto: fraseSnapBloqueado(a.bloqueio) }
+  if (a.liberaEm && a.atrasada && !a.bloqueio) return { ambar: true, texto: `Atenção: o prazo dos snapshots do NAS (${dm(a.liberaEm)}) passou; aguarda a próxima conferência da forja. Se passar de 2 dias, veja se a rotina da forja está rodando.` }
+  const desde = a.esperaDesde ? ` desde ${dm(a.esperaDesde)}` : ''
+  if (a.bloqueio === 'ilegivel') return { ambar: false, texto: `Aguardando os snapshots do NAS${desde}; a última leitura da lista falhou e a próxima rodada tenta de novo. Nada a fazer até lá.` }
+  if (!a.esperaDesde && !a.liberaEm) return { ambar: false, texto: 'Aguardando os snapshots do NAS.' }
+  const libera = !a.liberaEm ? '' : a.passou ? '; deve liberar na próxima verificação da forja' : `; o comando libera por volta de ${dm(a.liberaEm)}`
+  return { ambar: false, texto: `Aguardando os snapshots do NAS${desde}${libera}. Nada a fazer até lá.` }
+}
+
 const Item = z.object({
   item_id: z.string().regex(ITEM_ID_RE),
   kind: z.enum(KINDS),
@@ -51,9 +89,13 @@ const Item = z.object({
   b2_nomes: z.array(z.string().regex(NOME_B2).refine(n => !n.includes('..'), 'nome de B2 com ..')),
   falta: z.enum(FALTAS).nullable(),
   motivo: z.enum(MOTIVOS).nullable(),
-  prefixos: z.array(caminho),
+  prefixos: z.array(caminho).max(2000),
   bloqueados: z.number().int().min(0),
   snapshot_mais_antigo: z.string().nullable(),
+  // M9-snap: opcionais porque o código vai ao ar ANTES da migration (o leitor é .strict()); ausentes = sem espera por snapshot
+  snap_espera_desde: data.nullable().optional(),
+  snap_libera_em: data.nullable().optional(),
+  snap_bloqueio: z.enum(SNAP_BLOQUEIOS).nullable().optional(),
 }).strict().superRefine((i, ctx) => {
   const falha = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }) }
   if ((i.apagar.length > 0) !== (i.tempo === 'apagar_antigas')) falha('apagar só existe em apagar_antigas, e lá não é vazio')
@@ -91,6 +133,9 @@ export interface PendenciaDoDono {
   prefixos: string[]
   bloqueados: number
   snapshotMaisAntigo: string | null
+  snapEsperaDesde: Date | null
+  snapLiberaEm: Date | null
+  snapBloqueio: SnapBloqueio | null
 }
 export type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }
 
@@ -107,6 +152,8 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
       itemId: i.item_id, kind: i.kind, tempo: i.tempo, desde: new Date(i.desde), mes: i.mes, channelRef: i.channel_ref, youtubeId: i.youtube_id,
       marcadoRodadoEm: i.marcado_rodado_em ? new Date(i.marcado_rodado_em) : null, apagar: i.apagar, b2Nomes: i.b2_nomes,
       falta: i.falta, motivo: i.motivo, prefixos: i.prefixos, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshot_mais_antigo,
+      snapEsperaDesde: i.snap_espera_desde ? new Date(i.snap_espera_desde) : null, snapLiberaEm: i.snap_libera_em ? new Date(i.snap_libera_em) : null,
+      snapBloqueio: i.snap_bloqueio ?? null,
     })),
   }
 }
@@ -114,7 +161,7 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
 export type PendenciasDaTela =
   | { estado: 'nao_medido' }
   | { estado: 'zero'; lidoEm: Date; linha: string | null }
-  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; /** dias desde o início da espera por snapshot (nulo = sem espera) */ snapEsperaDias: number | null; snapEsperaDesde: Date | null; snapLiberaEm: Date | null; /** a data de liberar já passou */ snapLiberaHoje: boolean; /** passou há mais de 24 h */ snapLiberaAtrasada: boolean; snapBloqueio: SnapBloqueio | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
 
 const DIA_MS = 86_400_000
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -128,6 +175,6 @@ export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: b
   if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
   const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
   const titulo = (i: PendenciaDoDono): string | null => (i.channelRef ? o.nomes?.canais?.get(i.channelRef) : i.youtubeId ? o.nomes?.videos?.get(i.youtubeId) : undefined) ?? (i.mes ? nomeDoMes(i.mes) : i.kind === 'canal' && i.channelRef ? i.channelRef.slice(0, 8) : null)
-  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, snapEsperaDias: i.snapEsperaDesde ? idade(i.snapEsperaDesde) : null, snapEsperaDesde: i.snapEsperaDesde, snapLiberaEm: i.snapLiberaEm, snapLiberaHoje: i.snapLiberaEm ? i.snapLiberaEm.getTime() <= o.agora.getTime() : false, snapLiberaAtrasada: i.snapLiberaEm ? i.snapLiberaEm.getTime() < o.agora.getTime() - 86_400_000 : false, snapBloqueio: i.snapBloqueio, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
   return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
 }

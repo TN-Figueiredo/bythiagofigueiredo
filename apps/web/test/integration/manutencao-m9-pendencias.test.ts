@@ -17,7 +17,7 @@ const FNS_BASE = ['obs_archive_plan', 'obs_archive_b2_plan', 'obs_archive_remove
 
 type Cena = { site: string; canal: string; video: string; admin: string; md5Original: Record<string, string> }
 type Pend = { versao: number; total: number; itens: Array<Record<string, unknown>> }
-const CHAVES = ['item_id', 'kind', 'tempo', 'falta', 'motivo', 'desde', 'mes', 'channel_ref', 'youtube_id', 'marcado_rodado_em', 'bloqueados', 'snapshot_mais_antigo', 'apagar', 'b2_nomes', 'prefixos']
+const CHAVES = ['item_id', 'kind', 'tempo', 'falta', 'motivo', 'desde', 'mes', 'channel_ref', 'youtube_id', 'marcado_rodado_em', 'bloqueados', 'snapshot_mais_antigo', 'snap_espera_desde', 'snap_libera_em', 'snap_bloqueio', 'apagar', 'b2_nomes', 'prefixos']
 
 describe.skipIf(skipIfNoLocalDb())('M9 parte 6: wrappers do plano, lista de canais e pendências na versao 2', () => {
   let pg: Client

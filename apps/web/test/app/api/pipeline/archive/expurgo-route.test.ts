@@ -75,7 +75,7 @@ const aberto = {
 }
 const atestarNas = { fonte: 'nas', plano_id: UUID, filhos: { numerico: { montado: true, sentinela: true }, texto: { montado: true, sentinela: true } }, canarios: [], itens: [] }
 const atestarB2 = { fonte: 'b2', execucao_id: UUID, itens: [{ arquivo_id: 'canario:numerico', resultado: 'ausente', tentativa: 1 }] }
-const prefNas = { alvo: `canal:${CANAL}`, filho: 'texto', prefixo: `serie/canais/${CANAL}/`, estado: 'ausente', snapshots: 'ausente' }
+const prefNas = { alvo: `canal:${CANAL}`, filho: 'texto', prefixo: `serie/canais/${CANAL}/`, estado: 'ausente', snapshots: 'por_tempo', snap_mais_antigo_s: 1792120800, snap_mais_novo_s: 1793308800, snap_n: 56 }
 const respNas = { itens: [], canarios: [] }
 const respB2 = { execucao: { estado: 'controle_ok', negativo_ok: true, canario_ok: { numerico: true, texto: true } }, itens: [] }
 
@@ -280,9 +280,34 @@ describe('attest com prefixos (C4, resolve C10)', () => {
   })
   it('combinação errada é 400: snapshots no b2, nomes no nas', async () => {
     const b2 = { alvo: 'alvo:7', filho: 'numerico', prefixo: 'a/', estado: 'ausente' }
-    expect((await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [{ ...b2, snapshots: 'ausente' }] } })).status).toBe(400)
+    expect((await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [{ ...b2, snapshots: 'indisponivel', snap_motivo: 'lista_vazia' }] } })).status).toBe(400)
     expect((await chamar(postAttest, { perms: ['archive_copy'], corpo: { ...atestarNas, prefixos: [{ ...prefNas, nomes: ['a'] }] } })).status).toBe(400)
     expect(rpcs.chamadas).toHaveLength(0)
+  })
+  it.each([
+    ['por_tempo sem as três medidas', { snapshots: 'por_tempo', snap_mais_antigo_s: 1792120800 }],
+    ['indisponivel com medida', { snapshots: 'indisponivel', snap_motivo: 'lista_vazia', snap_n: 3 }],
+    ['indisponivel sem snap_motivo', { snapshots: 'indisponivel' }],
+    ['por_tempo com snap_motivo', { snapshots: 'por_tempo', snap_mais_antigo_s: 1792120800, snap_mais_novo_s: 1793308800, snap_n: 56, snap_motivo: 'ilegivel' }],
+    ['snapshots = ausente (r2.7: o kit não declara)', { snapshots: 'ausente' }],
+    ['snapshots = presente', { snapshots: 'presente' }],
+    ['snap_mais_antigo_s fracionário', { snapshots: 'por_tempo', snap_mais_antigo_s: 1.5, snap_mais_novo_s: 1793308800, snap_n: 56 }],
+    ['snapshot_mais_antigo (texto antigo)', { snapshots: 'por_tempo', snap_mais_antigo_s: 1792120800, snap_mais_novo_s: 1793308800, snap_n: 56, snapshot_mais_antigo: '2026-10-16' }],
+    ['snap_motivo fora do enum', { snapshots: 'indisponivel', snap_motivo: 'relogio' }],
+  ])('contrato r2.7: %s é 400', async (_n, extra) => {
+    const { snapshots: _s, snap_mais_antigo_s: _a, snap_mais_novo_s: _b, snap_n: _c, ...base } = prefNas
+    const r = await chamar(postAttest, { perms: ['archive_copy'], corpo: { ...atestarNas, prefixos: [{ ...base, ...extra }] } })
+    expect(r.status).toBe(400)
+    expect(rpcs.chamadas).toHaveLength(0)
+  })
+  it('contrato r2.7: indisponivel com snap_motivo passa', async () => {
+    rpcs.tabela.obs_archive_attest_nas = async () => ok(respNas)
+    rpcs.tabela.obs_archive_attest_prefixos = async () => ok({ prefixos: [] })
+    const { snapshots: _s, snap_mais_antigo_s: _a, snap_mais_novo_s: _b, snap_n: _c, ...base } = prefNas
+    for (const m of ['lista_vazia', 'fora_do_padrao', 'mtime_diverge', 'ilegivel']) {
+      const r = await chamar(postAttest, { perms: ['archive_copy'], corpo: { ...atestarNas, prefixos: [{ ...base, snapshots: 'indisponivel', snap_motivo: m }] } })
+      expect(r.status).toBe(200)
+    }
   })
   it('recusa prefixo inseguro, alvo fora do formato, mais de 20 nomes e nome fora do alfabeto', async () => {
     const mal = (p: Record<string, unknown>, fonte: 'nas' | 'b2' = 'nas') => chamar(postAttest, fonte === 'nas'
