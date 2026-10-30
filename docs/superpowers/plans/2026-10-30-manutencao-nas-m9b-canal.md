@@ -102,11 +102,11 @@ A antiga Decisão 3 (mockup delta antes da T7) deixou de ser pergunta: é regra 
 Regra nova: `OBS_ARQUIVO_LIMPEZA_CANAL` = a tela e a ação (promessa do comando). `OBS_ARQUIVO_LIMPEZA_BLOBS` = a nova tentativa diária de `retentarBlobsDeRemocoes`. `capacidades.ts` não muda.
 
 - [ ] **Passo 1. Testes, falhando:** em `arquivo-remover.test.ts`, `describe` da T13 troca para a variável nova. Novos: variável nova ausente com `OBS_ARQUIVO_LIMPEZA_CANAL=on` → `{ porque: 'flag_desligada' }` e `apagarDoBlob` não chamado; variável nova `on` com a antiga ausente → apaga; valores `ON`, `1`, `''` → desligada (`delete process.env` no caso ausente).
-- [ ] **Passo 2.** Rodar → FAIL.
-- [ ] **Passo 1b (Phil I4 = Yannis Y4).** Teste: linha `guardar` com `blobs_pending` não é tocada nem entra em `pendentes`; só `archive_decision = 'apagar'`. Antes de ligar a variável.
-- [ ] **Passo 3.** `remover.ts:278-281`: acrescentar `.eq('archive_decision', 'apagar')` à seleção. `remover.ts:273`: `if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_BLOBS !== 'on') return { porque: 'flag_desligada' }`; ajustar o comentário da l.266.
-- [ ] **Passo 4.** `env-vars.md`: a linha da T13 (l.30) vira `OBS_ARQUIVO_LIMPEZA_BLOBS`, e a l.29 diz que a antiga liga a tela e a ação.
-- [ ] **Passo 5.** Rodar → PASS. Commit: `fix: M9b: variável própria para os blobs das remoções (Hanna H3)`.
+- [ ] **Passo 2 (Phil I4 = Yannis Y4).** Teste: linha `guardar` com `blobs_pending` não é tocada nem entra em `pendentes`; só `archive_decision = 'apagar'`. Antes de ligar a variável.
+- [ ] **Passo 3.** Rodar → FAIL.
+- [ ] **Passo 4.** `remover.ts:278-281`: acrescentar `.eq('archive_decision', 'apagar')` à seleção. `remover.ts:273`: `if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_BLOBS !== 'on') return { porque: 'flag_desligada' }`; ajustar o comentário da l.266.
+- [ ] **Passo 5.** `env-vars.md`: a linha da T13 (l.30) vira `OBS_ARQUIVO_LIMPEZA_BLOBS`, e a l.29 diz que a antiga liga a tela e a ação.
+- [ ] **Passo 6.** Rodar → PASS. Commit: `fix: M9b: variável própria para os blobs das remoções (Hanna H3)`.
 
 ### Task 2: as ações `apagarDoArquivo`, `marcarRodado`, `desfazerRodado` // ~45K
 
@@ -127,7 +127,7 @@ export async function desfazerRodado(itemId: string): Promise<{ ok: true } | { o
 - [ ] **Passo 2.** Rodar → FAIL. **Passo 3.** Código. **Passo 4.** Rodar → PASS, typecheck web.
 - [ ] **Passo 5.** Commit: `feat: M9b: ações apagar do arquivo e já rodei`.
 
-### Task 3: `comandos-recarga` recusa canal apagado (165, parte canal) // ~30K
+### Task 3: `comandos-recarga` recusa canal apagado (165, parte canal) // ~40K
 
 **Files:** Modify `apps/web/src/lib/youtube/observatorio/arquivo/cli.ts` (l.58 `COM_BANCO`, l.69, l.188, l.303), `apps/web/test/youtube/observatorio/arquivo-cli*.test.ts` (`grep -ln "comandos-recarga" apps/web/test`), `apps/web/test/integration/manutencao-m9-cobertura.test.ts`.
 
@@ -143,7 +143,7 @@ O que existe de restauração hoje e o que muda:
 Regra, depois de validar o manifesto: `obs_archive_channel_is_removed(site, m.valor.canal.id)`. `decisao = 'apagar'`: `recusado('canal_apagado: ...')`, sem nenhum `\copy` na saída. `decisao = 'guardar'`: imprime, porque recarregar lote guardado é o uso legítimo. `sem_destino: true`: imprime, com uma linha de aviso. **Motivo:** a função devolve `sem_destino` para qualquer canal ausente sem remoção, inclusive lote anterior à M3b (`20261025000002:2606`), e recusar aí quebra a recarga antiga.
 
 - [ ] **Passo 1. Testes, falhando:** um por caso (canal existe, `apagar`, `guardar`, `sem_destino`); sem `OBS_ARQUIVO_DB_URL`: erro claro, nunca imprimir os comandos sem consultar; `canal_apagado` sem `\copy` na saída.
-- [ ] **Passo 2.** Rodar → FAIL. Quebram por `sql: null`/env vazia e são atualizados no mesmo commit (Yannis M6): `arquivo-cli.test.ts:75,145,177,196,204,214`, `observatorio-a5-e10-ida-e-volta.test.ts`; também o comentário de `COM_BANCO` ("só imprimem", l.57), o `USO` e `docs/ops/observatorio-arquivo-runbook.md`. Custo já dentro da estimativa revista.
+- [ ] **Passo 2.** Rodar → FAIL. Quebram por `sql: null`/env vazia e são atualizados no mesmo commit (Yannis M6): `arquivo-cli.test.ts:75,145,177,196,204,214`, `observatorio-a5-e10-ida-e-volta.test.ts`; também o comentário de `COM_BANCO` ("só imprimem", l.57), o `USO` (a T3 é dona da linha de `comandos-recarga`; a T5 rebaseia depois da T3 e é dona da linha de `--canal`) e `docs/ops/observatorio-arquivo-runbook.md`. Custo já dentro da estimativa revista.
 - [ ] **Passo 3.** `COM_BANCO` inclui `comandos-recarga`; opção `--site`; a despacho sai da l.188 para o `switch` depois de `resolverSite`.
 - [ ] **Passo 4.** Rodar → PASS. Trocar o `it.todo` do 165 canal por `it` no `cobertura`. Commit: `fix: M9b: recarga recusa canal apagado (item 165)`.
 
@@ -160,9 +160,9 @@ Regra, depois de validar o manifesto: `obs_archive_channel_is_removed(site, m.va
 
 - [ ] Logan e Naksu discutem antes de desenhar; skill `frontend-design` desenha na pasta `19-mes-fora-do-banco`; os dois revisam; `open -a Opera` para o dono; anotar em `ROTEIRO-DE-TESTE-E-MELHORIAS.md`. Portão: aprovação do dono.
 
-### Task 5: limpar `_recebendo` e soltar o `canal:` // ~40K
+### Task 5: limpar `_recebendo` e soltar o `canal:` // ~50K
 
-**Vai por último no deploy, em ramo próprio** (`chore/manutencao-m9b-t5`), que só entra em `staging` depois do passo 3 da ordem de deploy com o "pode" do dono por canal (Yannis Y2). O script nasce do checkout do Mac em `staging`: o `git pull` de `staging` já vale, não a promoção. **Files:** Modify `apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts`, `apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts`, `arquivo-expurgar.test.ts:333`, `cli.ts:102` (frase).
+**Vai por último no deploy, em ramo próprio** (`chore/manutencao-m9b-t5`), que só entra em `staging` depois do passo 3 da Ordem de deploy, que é a regra única (lista vazia segue sem perguntar; linha na lista exige "pode" por canal; Yannis Y2). O script nasce do checkout do Mac em `staging`: o `git pull` de `staging` já vale, não a promoção. **Files:** Modify `apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script.ts`, `apps/web/test/youtube/observatorio/arquivo-pendencias-bash.test.ts`, `arquivo-expurgar.test.ts:333`, `cli.ts:102` (frase).
 
 ```ts
 case 'apagar_antigas':
@@ -179,9 +179,11 @@ case 'apagar_antigas':
 
 **`JA-APAGADO` em item `canal:` (Phil I1 = Yannis Y1):** `limpa_prefixo` remove a pasta do canal, então na 2ª rodada `apaga_conferido` cairia em `PULADO: a pasta não existe` e somaria `falhas`. 6º argumento `canal=1` em `apaga_conferido`, passado só em item `canal:`: pasta e `$alvo` ausentes, com montagem e sentinela já conferidas, contam `JA-APAGADO`. Item `item:` e `antiga:` mantêm o `PULADO`. Caminho errado de verdade não some em silêncio: o arquivo real continua e `limpa_prefixo` dá `RESTA`.
 
+**`temLimpeza` (definição única, aqui):** `temLimpeza = temApagar || temPrefixo`, com `temPrefixo` ligado no item `canal:` e no `so_prefixo` com `prefixos`. Os outros trechos só a usam.
+
 **`fim` (M2):** `fim` olha `temApagar || temGrava || temLimpeza`; sem isso `so_prefixo` limpa e termina em `NADA A RODAR AGORA`. `FRASE_DA_FALTA.so_prefixo` ("a limpeza as confere sozinha") fica falsa: reescrever, mantendo-a única para o teste de `FALTAS`.
 
-Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i.falta === 'so_prefixo'` e há `prefixos`; sem isso a pasta vazia prende canal sem arquivo conhecido. `temApagar` tem de ligar a `TRAVA`: usar `temLimpeza = temApagar || canal` na condição da `TRAVA`.
+Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i.falta === 'so_prefixo'` e há `prefixos`; sem isso a pasta vazia prende canal sem arquivo conhecido. A `TRAVA` usa `temLimpeza` (definição acima).
 
 - [ ] **Passo 1. Testes, falhando** (bash real em raiz falsa temporária, como o `describe` da l.245, que é reescrito):
   - canal com 2 arquivos e `_recebendo/<p>/tab/` vazio: tudo some, `FEITO`.
@@ -195,7 +197,7 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
   - `so_prefixo` com pasta vazia: pasta some.
   - item de vídeo ao lado continua apagando.
 - [ ] **Passo 2.** Rodar → FAIL. **Passo 3.** Código. **Passo 4.** Rodar → PASS.
-- [ ] **Passo 5.** `cli.ts:102` e a linha `USO` (`cli.ts:52`, que ainda diz `--canal: M9b`): frase `expurgar --canal não existe: a limpeza de canal é pelo obs:arquivo`; teste ajustado. Commit: `feat: M9b: obs:arquivo limpa canal removido, inclusive pastas de _recebendo`.
+- [ ] **Passo 5.** `cli.ts:102` e a linha `USO` (`cli.ts:52`, que ainda diz `--canal: M9b`; a T5 rebaseia depois da T3 e toca só a linha de `--canal`, a de `comandos-recarga` é da T3): frase `expurgar --canal não existe: a limpeza de canal é pelo obs:arquivo`; teste ajustado. Commit: `feat: M9b: obs:arquivo limpa canal removido, inclusive pastas de _recebendo`.
 
 ### Task 6: a prova de ponta a ponta no banco local // ~70K (PRIMEIRA de código, antes do mockup)
 
@@ -214,13 +216,13 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
 **Files:** Modify `_arquivo/bloco-canais-removidos.tsx`, `_arquivo/arquivo-screen.tsx`, `_canais/esperam-comandos.tsx` (l.4 diz "sem Já rodei (M9)"), `apps/web/src/lib/youtube/observatorio/arquivo-mensal/canais-removidos.ts` (frases, `ETAPAS`, campo novo `acao`). Create `_arquivo/apagar-do-arquivo.tsx` (`'use client'`). Tests: `apps/web/test/cms/observatorio/canais-removidos.test.tsx` (`// @vitest-environment jsdom`), `arquivo-mensal-estado.test.ts`.
 
 - [ ] `montarLinha` devolve `acao: 'apagar' | 'comandos' | null` e `dialogo: { titulo, meses, faixa, confirma } | null`. `guardado` e `sem_destino`: `apagar`, só com `cap.comandoDeLimpeza`, só para `administra`. `pedido`: `comandos`. `apagado_nas` com `falta = 'snapshots'`: `acao: null`, fora da marca da pastilha, frase com a data; só `falta = 'conferir_b2'` dá `comandos` (Phil I5).
-- [ ] **Dados (sem migration):** a lista não traz `snap_libera_em`. Ler as pendências pelo leitor de `pendencias.ts` (`snapLiberaEm`, `snapBloqueio`) e juntar por `channel_ref`. `snapBloqueio` preenchido: frase âmbar, sem data.
-- [ ] **Régua (Yannis Y3):** `regua()` recebe a linha, não só o estado: `apagado_nas` com `snapshots_clear_on` = passo 2; `apagado_b2` = passo 3 ou mais; mudar `ETAPAS` **e** `ESTADO_PASSO` (`canais-removidos.ts:42-48`). Teste por combinação (`nas` sem snap, `nas` com snap, `b2`, `concluido`) e `snapshots_clear_on` nulo em `apagado_b2`.
+- [ ] **Dados (sem migration):** a lista não traz `snap_libera_em`. Ler as pendências pelo leitor de `pendencias.ts` (`snapLiberaEm`, `snapBloqueio`) e juntar por `channel_ref`. `snapBloqueio` preenchido: frase âmbar, sem data. **Custo e cliente (conferido por grep em `_canais/pendencias-da-fila.ts`):** a leitura é a RPC `obs_archive_owner_pending`, uma chamada por render da página, sem cache, com `getSupabaseServiceClient()`, só depois da guarda `podeEditar` (e só com `OBS_ARQUIVO=on`). A peça 7 já faz essa chamada: reusar `lerPendenciasDaFila` (ou a mesma leitura passada por parâmetro) em vez de uma segunda RPC no mesmo render; falha vira sem frase de data, nunca zero.
+- [ ] **Régua (Yannis Y3):** `regua()` recebe a linha, não só o estado: `apagado_nas` com `snapshots_clear_on` = passo 2; `apagado_b2` = passo 3 ou mais; mudar `ETAPAS` **e** `ESTADO_PASSO` (`canais-removidos.ts:42-48`). A frase da régua acompanha `regua(linha)`: o mesmo passo decide o texto, nunca o estado sozinho. Teste por combinação (`nas` sem snap, `nas` com snap, `b2`, `concluido`) e `snapshots_clear_on` nulo em `apagado_b2`.
 - [ ] Frase do lote da E10 no `c-apagar` e no `concluido` vindo de `e10_export` (Decisão 4).
 - [ ] `BlocoCanaisRemovidosView` recebe `onApagar` por prop (a página passa a action). Para quem não administra: frase "espera quem administra", sem botão.
 - [ ] Diálogo: `c-apagar` (digita nome) e `c-apagar-sd` (digita código, aviso do Blob). Botão desabilitado até `nomeConfere`.
 - [ ] `sem_destino`: a linha e o botão `c-apagar-sd` ficam (a ação conclui, ver T6).
-- [ ] Testes: um por estado do CAN aprovado com texto exato; `meses` nulo: diálogo sem número e sem confirmar, nunca "0 meses"; idade 29, 31, 61 dias com fake timers; erro da ação preserva o estado; `podeApagar=false` sem botão; flag ausente (`delete`): sem botão, frase "espera o comando".
+- [ ] Testes: um por estado do CAN aprovado com texto exato; `meses` nulo: diálogo sem número e sem confirmar, nunca "0 meses"; idade 29, 31, 61 dias com fake timers; erro da ação preserva o estado; `podeApagar=false` sem botão; flag ausente (`delete`): sem botão, frase "espera o comando"; `apagado_nas` esperando snapshots: marca da pastilha zero, `acao: null` e a data na frase.
 - [ ] Gio valida com o CMS local autenticado, Logan e Naksu revisam o implementado, dono confere no Opera.
 - [ ] Commit: `feat: M9b: apagar do arquivo e ver os comandos na tela`.
 
@@ -233,9 +235,9 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
 
 ### Task 8: cobertura, runbook, emendas, revisão // ~110K (30K + revisões)
 
-- [ ] `manutencao-m9-cobertura.test.ts`: `it.todo` 161 relido com a Decisão 1 (provas de fim viram `it` da Tarefa 6; comando sai); 163 vira `it`; 165 canal, feito; 65 "Já rodei", 65 31/61 e 111 (a Tarefa 7 fecha, para canal e para item). **Ficam:** 120 e 165 `purged_at`, do núcleo. Tabela do topo atualizada.
+- [ ] `manutencao-m9-cobertura.test.ts`: `it.todo` 161 relido com a Decisão 1 (provas de fim viram `it` da Tarefa 6; comando sai); 163 vira `it`; 165 canal, feito; 65 "Já rodei", 65 31/61 e 111 (a Tarefa 7 fecha, para canal e para item). **Ficam:** 120, do núcleo (165 `purged_at` fecha na T6, l.207). Tabela do topo atualizada.
 - [ ] `docs/ops/runbook-arquivo-mensal.md`: "Canal removido fica SEGURO" vira o ciclo do canal; seção "Sobrou arquivo no canal" (leitura `find`, decisão do dono, `rm` à mão); frase do `--file-id`; a condição "só liga depois de um ciclo inteiro limpo" conforme a Decisão 2; tabela de `falta` ganha `blobs`, `imagens`, `lote_e10`, `so_prefixo`.
-- [ ] Spec (com a Decisão 1; **não tocar o spec agora**, só ao executar a T8) emendas completas (Hanna H6): `03` passo 19 e `03:214`; `04:241` ("Ver os comandos"); `05:597-603` (§16.10); `06` itens 69, 161, 163 (`apagado_nas` não conta na marca, Phil I5), 164, 165 (`ensaiar-restauracao` chama `obs_archive_channel_is_removed`, a cargo da M8), 166, P34; `02:758`. Conferir com grep de `expurgar --canal`. Plano-mãe: D-M9-10 e D-M9-13 com nota. Plano da M8: linha do 165.
+- [ ] Spec (com a Decisão 1; **não tocar o spec agora**, só ao executar a T8) emendas completas (Hanna H6): `03` passo 19 e `03:214`; `04:241` ("Ver os comandos"); `05:597-603` (§16.10); `06` itens 69, 161, 163 (`apagado_nas` não conta na marca, Phil I5) e 164 (emenda dos dois: revisão "`apagado_b2` 15 dias depois de `snapshots_clear_on`"), 165 (`ensaiar-restauracao` chama `obs_archive_channel_is_removed`, a cargo da M8), 166, P34; `02:758`. Conferir com grep de `expurgar --canal`. Plano-mãe: D-M9-10 e D-M9-13 com nota. Plano da M8: linha do 165.
 - [ ] Runbook, itens extras: `rm -r` do lote da E10 no Mac e no NAS, com registro no ledger do passo 19 e `ls` vazio guardado em `saidas/` (Decisão 4); SQL de reversão provado na T6; `RESTA` em `_quarentena` tende a se resolver sozinho (quarentena de 30 dias, `copiar.py:37`): esperar antes do `rm`; canal real de 12 meses leva dias de clique no painel do B2 (até 20 nomes por prefixo).
 - [ ] Critérios de aceite, em seção própria abaixo.
 - [ ] Phil (dados) e Yannis (software) revisam o lote inteiro, incluindo a tese "sem `--canal`, sem SQL, sem kit". Consertar até haver acordo. Hanna fecha a amarração com a M8.
@@ -250,7 +252,7 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
 | Lista de canais ilegível | "Não foi possível ler os canais removidos.", nunca vazia; ação sem `esperado` devolve `interno` | T7 |
 | `meses`/`nome` nulos | diálogo sem número e sem confirmar; rótulo cai no código de 8 | T7 |
 | Pasta vazia em `_recebendo` | limpa pelo script; sem isso, presa para sempre (defeito) | T5 |
-| Arquivo em `_recebendo/_quarentena` ou desconhecido | `RESTA`, sai 1, `NÃO TERMINOU`, nada apagado, canal não avança | T5 |
+| Arquivo em `_recebendo/_quarentena` ou desconhecido | `RESTA`, sai 1, `NÃO TERMINOU`, o que sobrou ficou como estava, canal não avança | T5 |
 | Filho sem sentinela | `limpa_prefixo` pula; copiador não atesta (`filho_fora`); estado não anda | T5 |
 | Item sem `prefixos` | nenhum `limpa_prefixo`; `apaga_conferido` segue; o copiador acusa `presente` e o item não avança | T5, T6 |
 | Canal de teste sem linha em outubro | passo 19 vai para 28/12; a consulta da Tarefa 0 diz antes | T0 |
@@ -273,7 +275,7 @@ select r.channel_ref, r.name_at_removal, r.removed_via, r.units_at_removal, r.fi
        (select count(*) from public.obs_archive_units u where u.site_id = r.site_id and u.channel_ref = r.channel_ref and u.row_count > 0) as unidades_com_linhas
   from public.obs_archive_channel_removals r where r.archive_decision = 'apagar' and r.completed_at is null;
 ```
-   Regra: `unidades_com_linhas > 0` em qualquer linha, ou canal que o dono não reconheça: **o passo 4 não acontece**, e a volta atrás vira tarefa própria (SQL de reversão da T6, com migration só se o dono pedir). Lista vazia: segue sem perguntar. Com linhas: o dono diz "pode apagar o arquivo destes N canais, na primeira rodada". Guardar a saída em `saidas/`.
+   Regra: `unidades_com_linhas > 0` em qualquer linha, ou canal que o dono não reconheça: **o passo 4 não acontece**, e a volta atrás vira tarefa própria (SQL de reversão da T6, com migration só se o dono pedir). Lista vazia: segue sem perguntar. Linha na lista exige "pode" por canal: o dono diz "pode apagar o arquivo do canal X, na primeira rodada", um por linha. A T5 aponta para esta frase. Guardar a saída em `saidas/`.
 4. **T5 em ramo próprio, mergeada em `staging` só depois do passo 3.** Repetir a consulta do passo 3 imediatamente antes do `git pull` no Mac. A partir desse pull, `obs:arquivo` deixa de ser só espera: apaga. Promoção a `main` depois.
 5. **`OBS_ARQUIVO_LIMPEZA_CANAL=on` no Vercel**, redeploy. Invertido com o passo 4, a tela promete um comando que ainda só espera.
 6. **`OBS_ARQUIVO_LIMPEZA_BLOBS=on` quem liga: o controlador, com o "pode" do dono**, quando o canal de teste chegar a `apagado_b2`, depois de repetir nesse dia a leitura de `blobs_pending` e mostrar ao dono (Decisão 2).
