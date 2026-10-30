@@ -187,3 +187,46 @@ Duas ressalvas conhecidas (Phil, re-revisão 29/10):
 - `npm run -s obs:arquivo | ssh forja 'bash -s'` (pendências) e `npm run -s obs:expurgar -- --item <n> | ssh forja 'bash -s'` (expurgo de um item) **escrevem no site** (rota C14: `abrir`, `registrar`, `bloquear`) e **leem a forja por ssh** (montagem `ro`). Nada escrevem no NAS: quem grava é o script que o dono pipa para a forja. O stdout pode levar até cerca de 340 MB de base64.
 - Argumento inválido imprime um script de falha no stdout (o pipe nunca sai verde com script vazio); o motivo vai ao stderr.
 - Cópias do expurgo ficam em `.superpowers/sdd/manutencao-nas/copias/` (raiz do repositório, qualquer que seja o diretório de onde se roda; fora do git, 0600). Elas contêm comentários de terceiros: o Mac as apaga sozinho quando o item conclui, fica `bloqueado` ou o NAS já a recebeu (`apagar_antigas`/`conferir_b2`). Se um item de `obs:expurgar` terminar com o aviso "este Mac não a tem guardada", é **cópia perdida**: o site registrou a cópia e o Mac não a guardou; hoje o conserto é pedir o desbloqueio/reabertura do alvo no painel. Dívida: passo `reabrir` na C14 (servidor) para o Mac regenerar a partir da versão antiga.
+
+## Expurgo enxuto (M9, Tarefa 14)
+
+O expurgo tira de dentro do arquivo (NAS e B2) as linhas de um vídeo ou de comentários que o dono apagou no site. Aqui só o que falta dizer; as seções "Snapshots por tempo" e "`obs:arquivo` e `obs:expurgar`" acima valem como estão.
+
+**Estado hoje (30/10).** A Tarefa 12 (tela) e o comando `expurgar --canal` estão fora desta entrega e vão para a M9b. A limpeza de canal removido existe só na parte do banco: o canal anda por `pedido`, `apagado_nas`, `apagado_b2` e `concluido` (função `obs_archive_removal_advance`), e só conclui com os atestados do NAS, dos snapshots e do B2. Não há comando do Mac para ele; quando a M9b chegar, este texto ganha os passos. A ordem real do deploy (migration, leitor e rotas, kit, Mac) está no ledger `m9-progresso.md`, com data e quem.
+
+**Interruptor.** O expurgo nasce desligado por site. Ligar (só depois das pré-condições do ledger: captura presente, kit instalado, leitura do dono no NAS): `select public.obs_archive_m9_ligar('<site>', true);` no painel do banco. Enquanto desligado, o kit novo e o antigo se comportam igual e a prova de ausência não anda.
+
+**Retorno de emergência.** Se o código do site precisar voltar para uma versão anterior à M9: primeiro `select public.obs_archive_m9_ligar('<site>', false);` e depois rodar `comandos/m9-emergencia.sql` (só o dono pede; restaura a `obs_archive_owner_pending` da M3b, `versao 1`). O resto da M9 fica, compatível com o código antigo enquanto o interruptor estiver desligado.
+
+### Ciclo mensal com expurgo
+
+1. `npm run -s obs:arquivo | ssh forja 'bash -s'` mostra `copiar`: o dono roda a linha que ele imprime.
+2. O copiador confere a unidade nova; o item passa a `apagar_antigas`.
+3. Nova rodada do `obs:arquivo`: o dono roda a linha de apagar as versões antigas; o NAS atesta e o item passa a `conferir_b2`.
+4. Nova rodada: linha de `conferir_b2`; no painel do B2, "mostrar versões", conferir que a versão antiga sumiu e dar o atestado. O item fica `concluido`.
+5. Versão antiga de texto superada por outra sai em `antiga:<uuid>` só 30 dias depois de a nova estar atestada no NAS e no B2; versão numérica superada só entra se tiver item removido.
+
+`competitor_removed_items` nunca é podada: o item concluído continua lá.
+
+### Alvo bloqueado
+
+Item em `bloqueado` com motivo diferente de `depende_m10b`: restaurar a unidade do B2 ou de um snapshot do NAS e liberar no painel: `select public.obs_archive_expurgo_unblock('<site>', <alvo_id>);`. O motivo `depende_m10b` não libera por aqui.
+
+**Dívida conhecida (T8).** A cópia local do item em `bloqueado` não tem prazo: o Mac a guarda até o item concluir, ser desbloqueado ou o NAS recebê-la. Um alvo esquecido em `bloqueado` deixa comentários de terceiros no disco do Mac. Revisar `.superpowers/sdd/manutencao-nas/copias/` ao ver um `bloqueado` parado.
+
+### Snapshot que ainda guarda o canal (`falta 'snapshots'`)
+
+Com `snap_bloqueio` nulo a espera é de cerca de 14 dias e acaba sozinha. Com motivo, o que o dono faz está na tabela de "Snapshots por tempo" acima (`fora_do_padrao`, `retido`, `lista_vazia`, `ilegivel`, `mtime_diverge`/`relogio`). Mudou a retenção do NAS: revisar D-M9-9b. Apagar snapshot à mão é decisão do dono, nunca de agente.
+
+### Ligar a limpeza de blobs do canal
+
+`OBS_ARQUIVO_LIMPEZA_CANAL` está **desligada** (variável ausente no Vercel). Motivo: a limpeza dos blobs (miniaturas) de canal removido é irreversível, e só liga depois de um ciclo inteiro limpo, com um canal de teste de ponta a ponta. Quem liga é o dono. Enquanto ausente, o canal fica com a pendência `falta 'blobs'`.
+
+### `obs:arquivo` sai com `versao` errada
+
+O site e o Mac estão em versões diferentes (o leitor do Mac aceita só a versão que conhece e imprime o script de falha). Promover o que falta (site ou `git pull` no checkout do Mac) e rodar de novo. Antes do primeiro `obs:arquivo` depois do deploy, `git pull` no checkout do dono.
+
+### Limites do expurgo (o que ele NÃO prova nem apaga)
+
+- **Conferência por amostra na parte 1 (Phil M4).** Quando a versão nova da unidade vem em várias partes, o script do dono confere o sha256 só da parte 1 antes de apagar a antiga. O banco, antes de liberar, já exigiu a nova inteira recebida e atestada (`obs_archive_item_falta`); a conferência do script é a segunda camada, não a única.
+- **Mês com versão mais nova vazia (Phil M5).** Se a versão mais nova do mês está vazia, o expurgo pula esse mês: as linhas do item que estiverem numa versão anterior ficam no NAS e no B2 sem alvo e sem bandeira, e o item aparece como limpo. O que o expurgo não apaga não aparece na tela; esse caso é decisão do dono, caso a caso.
