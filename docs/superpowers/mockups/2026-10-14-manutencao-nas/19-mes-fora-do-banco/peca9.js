@@ -75,7 +75,7 @@
     return lista([
       rot('Apagado do NAS, snapshots ainda guardando: espera, sem comando, sem idade'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'pont', P], forma: 'pont',
-        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS; o comando libera por volta de 08/05/2028. <b>Espere até 08/05.</b> ' + info('O NAS guarda cópias diárias por 14 dias e 8 horas. Enquanto elas existirem, o arquivo ainda está no NAS, e o B2 só pode ser apagado depois.', 'Por que esperar') }),
+        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS. <b>Espere até 08/05.</b> ' + info('O NAS guarda cópias diárias por 14 dias e 8 horas. Enquanto elas existirem, o arquivo ainda está no NAS, e o B2 só pode ser apagado depois.', 'Por que esperar') }),
       rot('Sem a data de liberação (nula): nunca "hoje" nem "0 dias"'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'nm', P], forma: 'nm',
         frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS: os snapshots do NAS ainda guardam o arquivo e a data em que expiram não foi lida. Nada a fazer agora.' }),
