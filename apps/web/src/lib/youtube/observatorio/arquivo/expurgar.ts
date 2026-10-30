@@ -31,25 +31,45 @@ export interface DepsExpurgo {
     ler(sha: string): Promise<Buffer | null>
     /** `meta` vira o índice para reemitir a cópia numa execução seguinte (o `abrir` não devolve alvo já registrado). */
     gravar(sha: string, dados: Buffer, meta: { itemId: string; filho: Filho; caminho: string }): Promise<void>
+    /** Só o `.gz` (nome = sha), ANTES do `registrar`: se o processo morre depois do registro, a cópia já está no Mac. */
+    gravarDados(sha: string, dados: Buffer): Promise<void>
+    /** Apaga o `.gz` solto (registro recusado de vez). */
+    apagarDados(sha: string): Promise<void>
     daItem(itemId: string): Promise<CopiaGuardada[]>
+    /** Itens que têm cópia guardada, para a limpeza (LGPD: comentários de terceiros). */
+    itensGuardados(): Promise<string[]>
+    /** Apaga `.gz` e `.json` de todas as cópias do item. */
+    apagarDoItem(itemId: string): Promise<void>
   }
 }
 const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex')
 const vazia: UnidadeLida = { colunas: ['id', 'video_id', 'parent_id'], linhas: [] }
 
 /** Um item que o Mac já registrou e cujo script o dono ainda não rodou: sem_comando por `unidade_no_nas`. */
-const aguardaCopia = (i: PendenciaDoDono): boolean => i.tempo === 'sem_comando' && i.falta === 'unidade_no_nas'
+const aguardaCopia = (i: PendenciaDoDono): boolean => i.tempo === 'sem_comando' && (i.falta === 'unidade_no_nas' || i.falta === 'resumo')
+/** Tempos em que a cópia do Mac já cumpriu o papel (ou não vai mais ser usada): ela some do Mac (LGPD). */
+const copiaSemUso = (i: PendenciaDoDono | undefined): boolean => i === undefined || i.tempo === 'apagar_antigas' || i.tempo === 'conferir_b2' || i.tempo === 'bloqueado'
 
-export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, tetoTotal: number = TETO_TOTAL_BYTES): Promise<{ copias: Copia[]; avisos: string[]; nasFora: boolean }> {
+/** `todos` é a lista inteira de pendências (com `--item`, `itens` traz só um; a limpeza precisa ver todos). */
+export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, tetoTotal: number = TETO_TOTAL_BYTES, todos: PendenciaDoDono[] = itens): Promise<{ copias: Copia[]; avisos: string[]; nasFora: boolean }> {
   const copias: Copia[] = []
   const avisos: string[] = []
   let total = 0
   const montado = new Map<Filho, boolean>()
   const filhoOk = async (f: Filho): Promise<boolean> => { if (!montado.has(f)) montado.set(f, await d.nasMontado(f)); return montado.get(f)! }
 
+  // 0. LGPD: a cópia guardada no Mac some quando o item concluiu (sumiu da lista), ficou bloqueado ou o NAS já a recebeu
+  for (const id of await d.guardar.itensGuardados()) {
+    if (copiaSemUso(todos.find(i => i.itemId === id))) await d.guardar.apagarDoItem(id)
+  }
+
   // 1. reemissão: cópia já registrada e ainda não recebida sai do guardado, sem reler o NAS (o script é idempotente)
   for (const it of itens.filter(i => aguardaCopia(i) && i.itemId.startsWith('item:'))) {
-    for (const g of await d.guardar.daItem(it.itemId)) {
+    const guardadas = await d.guardar.daItem(it.itemId)
+    if (guardadas.length === 0) {
+      avisos.push(`obs:arquivo: ${it.itemId}: o site espera uma cópia e este Mac não a tem guardada (se foi outro computador ou a pasta de cópias sumiu, é "cópia perdida"; runbook)`)
+    }
+    for (const g of guardadas) {
       const b = await d.guardar.ler(g.sha256)
       if (b === null || sha(b) !== g.sha256) {
         avisos.push(`obs:arquivo: ${it.itemId}: a cópia guardada de ${g.caminho} sumiu ou não bate com o registro; não consigo reemitir (runbook, "alvo bloqueado")`)
@@ -75,10 +95,12 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
         const partes: Buffer[] = []
         for (const f of a.arquivos) {
           const b = await d.lerDoNas(g.filho, f.caminho)
+          // a montagem pode cair no meio da execução: "ausente" só vale com ela de pé, medida de novo (como o copiador)
+          if (b === null && !(await d.nasMontado(g.filho))) { avisos.push('obs:arquivo: NAS fora; nada feito'); return { copias, avisos, nasFora: true } }
           const motivo = b === null ? 'antiga_ausente' : sha(b) !== f.sha256 ? 'antiga_divergente' : null
           if (motivo) {
-            await d.site({ passo: 'bloquear', item_id: it.itemId, alvo_id: a.alvo_id, motivo })
-            avisos.push(`obs:arquivo: ${it.itemId}: ${f.caminho} ${motivo === 'antiga_ausente' ? 'não está no NAS' : 'no NAS não é o registrado'}; alvo bloqueado (runbook, "alvo bloqueado")`)
+            const bl = await d.site({ passo: 'bloquear', item_id: it.itemId, alvo_id: a.alvo_id, motivo })
+            avisos.push(`obs:arquivo: ${it.itemId}: ${f.caminho} ${motivo === 'antiga_ausente' ? 'não está no NAS' : 'no NAS não é o registrado'}; ${bl.status === 200 ? 'alvo bloqueado (runbook, "alvo bloqueado")' : 'não consegui bloquear; nada mudou'}`)
             continue grupo
           }
           partes.push(b!)
@@ -141,6 +163,10 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
         classe: g.classe, canal: g.canal, mes: g.mes, diasDoMes: g.dias_do_mes, versao: versaoResumo,
         unidades: todas, vazias: g.vazias.map(v => ({ tabela: v.tabela, hashConteudo: v.hash_conteudo })), comentarios: comentariosParaResumo }))
       const arq = (p: 'canal' | 'video') => resumo.arquivos.find(x => x.papel === p) ?? null
+      // a cópia fica no Mac ANTES do registro: o site só espera cópia que este Mac já tem
+      const gzs: string[] = []
+      for (const u of unidades) if (u.ser.gz && u.ser.sha256_bytes !== null) { await d.guardar.gravarDados(u.ser.sha256_bytes, u.ser.gz); gzs.push(u.ser.sha256_bytes) }
+      for (const f of resumo.arquivos) { await d.guardar.gravarDados(f.sha256, f.gz); gzs.push(f.sha256) }
       const resp = await d.site({
         passo: 'registrar', item_id: it.itemId, classe: g.classe, canal: g.canal, mes: g.mes,
         alvos: g.alvos.map(a => {
@@ -154,11 +180,12 @@ export async function prepararCopias(itens: PendenciaDoDono[], d: DepsExpurgo, t
       })
       if (resp.status === 409 || resp.status === 404) {
         avisos.push(`obs:arquivo: ${it.itemId} ${g.classe}/${g.mes}: recusado pelo site (${JSON.stringify((resp.corpo as { motivo?: string } | null)?.motivo ?? 'sem motivo')}); sigo com os outros grupos`)
+        for (const h of gzs) await d.guardar.apagarDados(h)
         continue
       }
       if (resp.status !== 200) throw new Error(`site_http_${resp.status}`)
       const ok = RespostaRegistrar.parse(resp.corpo)
-      if (ok.status === 'recusado') { avisos.push(`obs:arquivo: ${it.itemId} ${g.classe}/${g.mes}: recusado pelo site (${ok.motivo}); sigo com os outros grupos`); continue }
+      if (ok.status === 'recusado') { avisos.push(`obs:arquivo: ${it.itemId} ${g.classe}/${g.mes}: recusado pelo site (${ok.motivo}); sigo com os outros grupos`); for (const h of gzs) await d.guardar.apagarDados(h); continue }
       total += bytesDoGrupo
       for (const u of ok.alvos) {
         const x = unidades.find(y => y.alvo_id === u.alvo_id)

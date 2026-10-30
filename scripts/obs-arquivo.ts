@@ -52,6 +52,8 @@ async function main(): Promise<number> {
   const comando = interpretar(process.argv.slice(2), process.env)
   if ('erro' in comando) {
     console.error(comando.erro === USO.join('\n') ? comando.erro : `${comando.erro}\n\n${USO.join('\n')}`)
+    // o pipe `| ssh forja 'bash -s'` não pode sair verde com script vazio
+    if (process.argv[2] === 'pendencias' || process.argv[2] === 'expurgar') await escreverTudo(scriptDeFalha(`obs:arquivo: ${comando.erro}; nada foi feito`).join('\n') + '\n')
     return 2
   }
   if (comando.nome === 'pendencias' || comando.nome === 'expurgar') return pendencias(VERSAO, comando)

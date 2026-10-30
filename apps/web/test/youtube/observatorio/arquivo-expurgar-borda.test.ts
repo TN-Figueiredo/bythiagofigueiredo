@@ -3,8 +3,9 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { existsSync, readdirSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { guardarEm, lerDoNasVia, nasMontadoVia, siteVia, type Ssh } from '@/lib/youtube/observatorio/arquivo/expurgar-borda'
+import { guardarEm, raizDoRepositorio, criarDepsExpurgo, lerDoNasVia, nasMontadoVia, siteVia, type Ssh } from '@/lib/youtube/observatorio/arquivo/expurgar-borda'
 
 const ssh = (codigo: number, stdout = '', stderr = ''): { chamadas: string[][]; ssh: Ssh } => {
   const chamadas: string[][] = []
@@ -48,5 +49,24 @@ describe('borda do expurgo', () => {
     expect(await g.ler('d'.repeat(64))).toBeNull()
     expect(await g.daItem('item:1')).toEqual([{ sha256: sha, filho: 'numerico', caminho: 'serie/x.csv.gz' }])
     expect(await g.daItem('item:2')).toEqual([])
+  })
+  it('guardar: limpeza por item apaga .gz e .json; índice corrompido é ignorado', async () => {
+    const pasta = join(mkdtempSync(join(tmpdir(), 'cop-')), 'copias')
+    const g = guardarEm(pasta)
+    await g.gravar('c'.repeat(64), Buffer.from('a'), { itemId: 'item:1', filho: 'numerico', caminho: 'serie/x.csv.gz' })
+    await g.gravar('d'.repeat(64), Buffer.from('b'), { itemId: 'item:2', filho: 'texto', caminho: 'serie/y.csv.gz' })
+    writeFileSync(join(pasta, `${'e'.repeat(64)}.json`), '{corta')
+    expect((await g.itensGuardados()).sort()).toEqual(['item:1', 'item:2'])
+    await g.apagarDoItem('item:1')
+    expect(readdirSync(pasta).filter(n => n.startsWith('c'))).toEqual([])
+    expect(await g.daItem('item:2')).toHaveLength(1)
+  })
+  it('a pasta de cópias vem da raiz do repositório, não do cwd', () => {
+    const antes = process.cwd()
+    const a = raizDoRepositorio()
+    process.chdir(tmpdir())
+    try { expect(raizDoRepositorio()).toBe(a) } finally { process.chdir(antes) }
+    expect(existsSync(join(a, '.git'))).toBe(true)
+    expect(typeof criarDepsExpurgo).toBe('function')
   })
 })

@@ -1,6 +1,8 @@
 // @vitest-environment node
 /** M9, Tarefa 8: o tempo `copiar` no Mac, com `DepsExpurgo` falso (nada toca produção, forja ou NAS). `expurgar --canal` ficou para a M9b. */
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { interpretar, rodar, type DepsDoComando } from '@/lib/youtube/observatorio/arquivo/cli'
@@ -48,6 +50,10 @@ function mundo(o: { unidades?: Record<string, UnidadeLida>; alvosExtra?: boolean
       ler: async s => w.guardado.get(s) ?? null,
       gravar: async (s, b, m) => { w.guardado.set(s, b); w.indice.push({ sha256: s, ...m }) },
       daItem: async id => w.indice.filter(i => i.itemId === id),
+      gravarDados: async (sh, b) => { w.guardado.set(sh, b) },
+      apagarDados: async sh => { w.guardado.delete(sh) },
+      itensGuardados: async () => [...new Set(w.indice.map(i => i.itemId))],
+      apagarDoItem: async id => { for (const i of w.indice.filter(x => x.itemId === id)) w.guardado.delete(i.sha256); w.indice = w.indice.filter(x => x.itemId !== id) },
     },
   }
   return w
@@ -162,7 +168,70 @@ describe('prepararCopias: o tempo copiar', () => {
     const orig = w.deps.site
     w.deps.site = async p => { if ((p as { passo: string }).passo === 'registrar') throw new TypeError('fetch failed'); return orig(p) }
     await expect(prepararCopias([item()], w.deps)).rejects.toThrow()
+    expect(w.guardado.size).toBe(3)                                               // a cópia já estava no Mac antes do registro (resposta perdida não a perde)
+    expect(w.indice).toHaveLength(0)
+  })
+
+  it('resposta do registrar perdida: a execução seguinte avisa em voz alta (nunca silêncio)', async () => {
+    const w = mundo()
+    const r = await prepararCopias([item({ tempo: 'sem_comando', falta: 'unidade_no_nas' })], w.deps)
+    expect(r.copias).toHaveLength(0)
+    expect(r.avisos.join('\n')).toContain('este Mac não a tem guardada')
+  })
+
+  it('registro recusado de vez: o .gz solto é apagado', async () => {
+    const w2 = mundo()
+    const orig = w2.deps.site
+    w2.deps.site = async p => (p as { passo: string }).passo === 'registrar' ? { status: 409, corpo: { motivo: 'base_mudou' } } : orig(p)
+    await prepararCopias([item()], w2.deps)
+    expect(w2.guardado.size).toBe(0)
+  })
+
+  it('resumo: a falta resumo também reemite as cópias guardadas', async () => {
+    const w = mundo()
+    await prepararCopias([item()], w.deps)
+    w.nas.clear()
+    const r = await prepararCopias([item({ tempo: 'sem_comando', falta: 'resumo' })], w.deps)
+    expect(r.copias).toHaveLength(3)
+  })
+
+  it('montagem que cai no meio: arquivo ausente com a montagem caída = NAS fora, sem bloquear', async () => {
+    const w = mundo(); w.nas.delete(caminhoDe('competitor_video_daily'))
+    let n = 0
+    w.deps.nasMontado = async () => ++n === 1
+    const r = await prepararCopias([item()], w.deps)
+    expect(r.nasFora).toBe(true)
+    expect(passosDe(w, 'bloquear')).toHaveLength(0)
+  })
+
+  it('bloquear recusado pelo site: o aviso não diz que bloqueou', async () => {
+    const w = mundo(); w.nas.set(caminhoDe('competitor_video_daily'), Buffer.from('outra coisa'))
+    const orig = w.deps.site
+    w.deps.site = async p => (p as { passo: string }).passo === 'bloquear' ? { status: 409, corpo: { motivo: 'alvo_fora_de_copiar' } } : orig(p)
+    const r = await prepararCopias([item()], w.deps)
+    expect(r.avisos.join('\n')).toContain('não consegui bloquear')
+  })
+
+  it('LGPD: a cópia guardada some quando o item conclui, fica bloqueado ou o NAS já a recebeu; fica enquanto espera', async () => {
+    const w = mundo()
+    await prepararCopias([item()], w.deps)
+    expect(w.guardado.size).toBe(3)
+    await prepararCopias([item({ tempo: 'sem_comando', falta: 'unidade_no_nas' })], w.deps)
+    expect(w.guardado.size).toBe(3)                                               // ainda espera o NAS
+    await prepararCopias([item({ tempo: 'bloqueado' })], w.deps)
     expect(w.guardado.size).toBe(0)
+    const w2 = mundo(); await prepararCopias([item()], w2.deps)
+    await prepararCopias([], w2.deps)                                             // item concluído: sumiu da lista
+    expect(w2.guardado.size).toBe(0)
+    const w3 = mundo(); await prepararCopias([item()], w3.deps)
+    await prepararCopias([item({ tempo: 'apagar_antigas' })], w3.deps)
+    expect(w3.guardado.size).toBe(0)
+  })
+
+  it('LGPD com --item: os outros itens da lista inteira não perdem a cópia', async () => {
+    const w = mundo(); await prepararCopias([item()], w.deps)
+    await prepararCopias([item({ itemId: 'item:8' })], w.deps, undefined, [item({ tempo: 'sem_comando', falta: 'unidade_no_nas' }), item({ itemId: 'item:8' })])
+    expect(w.guardado.size).toBe(3)
   })
 
   it('cópia guardada é reemitida (unidade_no_nas) sem reler o NAS; sumida: aviso e nada', async () => {
@@ -243,6 +312,13 @@ describe('expurgar --item no cli', () => {
     expect(interpretar(['expurgar', '--apagar-antigas'], env)).toEqual({ erro: expect.stringContaining('--item') })
     expect(interpretar(['expurgar', '--item', 'abc'], env)).toEqual({ erro: expect.stringContaining('--item') })
     expect(interpretar(['expurgar', '--item', '0'], env)).toEqual({ erro: expect.stringContaining('--item') })
+  })
+
+  it('obs:expurgar existe no package.json e interpretar entende o comando sem o prefixo pendencias', () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '../../../../../package.json'), 'utf8')) as { scripts: Record<string, string> }
+    expect(pkg.scripts['obs:expurgar']).toMatch(/scripts\/obs-arquivo\.ts expurgar$/)
+    expect(interpretar(['expurgar', '--item', '5'], env)).toEqual({ nome: 'expurgar', item: '5', apagarAntigas: false })
+    expect(interpretar(['pendencias', 'expurgar', '--item', '5'], env)).toHaveProperty('erro')
   })
 
   const pendente = (o: Record<string, unknown>) => ({ item_id: 'item:7', kind: 'video', tempo: 'sem_comando', desde: '2026-10-01T12:00:00Z', mes: '2026-09', channel_ref: CANAL, youtube_id: V1,

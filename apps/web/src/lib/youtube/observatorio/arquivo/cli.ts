@@ -49,7 +49,7 @@ export const USO = [
   '  remover          --canal <uuid> --por <e-mail> [--site <uuid>]',
   '  pedidos          --por <e-mail> [--site <uuid>] [--pasta <raiz>] [--destino <usuario@host:/caminho>]   (remoções pedidas no CMS)',
   '  pendencias       (sem opção; chave em ~/.config/obs-arquivo/chave; imprime o script da forja: npm run -s obs:arquivo | ssh forja \'bash -s\')',
-  '  expurgar         --item <n> [--apagar-antigas]     (prepara a cópia do item apagado e imprime o script da forja; --canal fica para a M9b)',
+  '  expurgar         --item <n> [--apagar-antigas]     (prepara a cópia do item e imprime o script: npm run -s obs:expurgar -- --item <n> | ssh forja "bash -s"; --canal: M9b)',
   '  comandos-recarga --lote <nome> [--pasta <raiz>]                                    (só imprime)',
   'ambiente: OBS_ARQUIVO_DB_URL (conexão direta ao banco; o .env.local nunca é lido)',
 ]
@@ -252,6 +252,7 @@ async function pendencias(d: DepsDoComando, so?: { itemId: string; apagarAntigas
     const primeira = await lerDaRota(d)
     if (!primeira.ok) return primeira.saida
     let l = primeira.l
+    const todos = l.itens
     const avisos: string[] = []
     if (so) {
       const i = l.itens.find(x => x.itemId === so.itemId)
@@ -264,7 +265,7 @@ async function pendencias(d: DepsDoComando, so?: { itemId: string; apagarAntigas
     let copias: Copia[] = []
     if (d.expurgo) {
       let prep: Awaited<ReturnType<typeof prepararCopias>>
-      try { prep = await prepararCopias(l.itens, d.expurgo) } catch {
+      try { prep = await prepararCopias(l.itens, d.expurgo, undefined, todos) } catch {
         return falhaDaPendencias(1, 'obs:arquivo: a preparação da cópia falhou no meio (rede, NAS ou resposta fora da forma); nada foi gravado no NAS')
       }
       avisos.push(...prep.avisos)
@@ -272,7 +273,7 @@ async function pendencias(d: DepsDoComando, so?: { itemId: string; apagarAntigas
       if (!prep.nasFora && (copias.length > 0 || prep.avisos.length > 0 || l.itens.some(i => i.tempo === 'copiar'))) {
         // o registro mudou os tempos: o script sai do estado novo (D-F23)
         const segunda = await lerDaRota(d)
-        if (!segunda.ok) return segunda.saida
+        if (!segunda.ok) return { ...segunda.saida, erros: ['obs:arquivo: o site registrou a cópia; rode de novo para o script', ...(segunda.saida.erros ?? [])] }
         l = so ? { ...segunda.l, itens: segunda.l.itens.filter(x => x.itemId === so.itemId) } : segunda.l
       }
     }

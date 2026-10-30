@@ -181,3 +181,9 @@ Duas ressalvas conhecidas (Phil, re-revisão 29/10):
 
 - **Âmbar sem histerese:** o `snap_bloqueio` vem da última leitura. Uma leitura `ilegivel` isolada (EIO de um instante) pinta a frase de âmbar até a execução seguinte do copiador; some sozinha, não é incidente.
 - **`plano_invalido` repetido:** se o site reemitir a exportação de um caminho sob um prefixo com ausência aberta, o copiador recusa (`sob_prefixo_ausente` em `contagens`), deixa o arquivo em `_recebendo` e sai `plano_invalido` a cada rodada até a linha fechar (~15 dias). Esse vermelho prolongado pode mascarar outra falha: sempre conferir o contador `sob_prefixo_ausente` no log do copiador antes de supor que é só isso (ver Tarefa 14).
+
+## `obs:arquivo` e `obs:expurgar` já não são só leitura (M9, Tarefa 8)
+
+- `npm run -s obs:arquivo | ssh forja 'bash -s'` (pendências) e `npm run -s obs:expurgar -- --item <n> | ssh forja 'bash -s'` (expurgo de um item) **escrevem no site** (rota C14: `abrir`, `registrar`, `bloquear`) e **leem a forja por ssh** (montagem `ro`). Nada escrevem no NAS: quem grava é o script que o dono pipa para a forja. O stdout pode levar até cerca de 340 MB de base64.
+- Argumento inválido imprime um script de falha no stdout (o pipe nunca sai verde com script vazio); o motivo vai ao stderr.
+- Cópias do expurgo ficam em `.superpowers/sdd/manutencao-nas/copias/` (raiz do repositório, qualquer que seja o diretório de onde se roda; fora do git, 0600). Elas contêm comentários de terceiros: o Mac as apaga sozinho quando o item conclui, fica `bloqueado` ou o NAS já a recebeu (`apagar_antigas`/`conferir_b2`). Se um item de `obs:expurgar` terminar com o aviso "este Mac não a tem guardada", é **cópia perdida**: o site registrou a cópia e o Mac não a guardou; hoje o conserto é pedir o desbloqueio/reabertura do alvo no painel. Dívida: passo `reabrir` na C14 (servidor) para o Mac regenerar a partir da versão antiga.
