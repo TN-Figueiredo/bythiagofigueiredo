@@ -177,7 +177,8 @@ describe('CanaisScreen', () => {
       expect(refresh.mock.calls.length).toBe(n)
       await vi.advanceTimersByTimeAsync(8_000)
       expect(refresh.mock.calls.length).toBe(n + 1)
-      await vi.advanceTimersByTimeAsync(60_000)
+      // o rearme vem no efeito depois do render: a folga cobre esse atraso e fica longe dos 180 s do 3º
+      await vi.advanceTimersByTimeAsync(70_000)
       expect(refresh.mock.calls.length).toBe(n + 2)
       expect(screen.queryByText(`${bf.name} pronto`)).toBeNull()
     } finally { vi.useRealTimers() }
