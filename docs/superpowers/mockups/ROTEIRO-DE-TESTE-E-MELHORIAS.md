@@ -1400,3 +1400,5 @@ Para a implementação: filtro fixo no topo (sticky; o mockup não mostra); tira
 ## M6 assistente "Novo teste A/B" (25/10, dono no Opera, r3; aprovado 20h50)
 - Clicar num tipo já cria o rascunho: aceitável, porque o Voltar desfaz.
 - "Pedir ideias a uma IA" prometia uma resposta que não existe; virou "Copiar briefing para IA" (só copia). A pergunta à IA de verdade (PerguntarIa) fica no backlog.
+
+## M9b canal removido, delta (30/10): peça 9 em `2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca9-canal-delta.html`; o que testar está no NOTAS.md da pasta (aguarda revisão e o dono).

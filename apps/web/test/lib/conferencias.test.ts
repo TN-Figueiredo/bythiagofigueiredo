@@ -149,10 +149,10 @@ describe('conferências de E1 e E2 (relativas ao dia do envio)', () => {
     expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e1e2-d0'])
     expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e1e2-d0'])
   })
-  it('com o deploy real (E1_E2_DEPLOY): d0 (13/10), d1 (14/10) e d3, d7, d8 (27/10) foram feitas; as demais e1e2-* seguem sem feitaEm', () => {
+  it('com o deploy real (E1_E2_DEPLOY): d0 (13/10), d1 (14/10) e d3, d7, d8 (27/10) e d9 (24/10) foram feitas; as demais e1e2-* seguem sem feitaEm', () => {
     const l = CONFERENCIAS.filter(x => x.id.startsWith('e1e2-'))
     expect(l.map(x => x.id)).toEqual(IDS)
-    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : x.id === 'e1e2-d1' ? '2026-10-14' : ['e1e2-d3', 'e1e2-d7', 'e1e2-d8'].includes(x.id) ? '2026-10-27' : null)
+    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : x.id === 'e1e2-d1' ? '2026-10-14' : ['e1e2-d3', 'e1e2-d7', 'e1e2-d8'].includes(x.id) ? '2026-10-27' : x.id === 'e1e2-d9' ? '2026-10-24' : null)
     // a data é fato do envio real: um envio hipotético (outra data de deploy) não herda a conferência como feita
     expect(conferenciasE1E2(dia(-10)).every(x => x.feitaEm === null)).toBe(true)
   })

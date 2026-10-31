@@ -1,7 +1,6 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
-import { arquivoTag } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-leve'
+import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -31,6 +30,7 @@ import type { PinResult } from './pin-result'
 import type { SyncNowResult } from './_chrome/view-model'
 import { parseChannelInput } from './_canais/channel-input'
 import { MOTIVO, type CodigoTela } from './_canais/remover-model'
+import { soltarCache } from './_canais/solta-cache'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -181,7 +181,7 @@ export async function addCompetitorChannel(
     }
   }
 
-  revalidatePath('/cms/youtube/competitors', 'layout')
+  revalidatePath('/cms/youtube/competitors', 'page')
   // the resolved YouTube title; a bare id has none until the first sync
   return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}), ...(aviso ? { aviso } : {}) }
 }
@@ -279,14 +279,6 @@ async function guardaDaRemocao(id: string, acao: string): Promise<{ ok: false; c
   } catch {
     return recusa('sem_direito', FRASES_E10.sem_direito)
   }
-}
-
-/** Depois de qualquer chamada à F1 (sucesso, falha ou exceção) o pacote em cache de 15 min não pode sobreviver: a lista leria a linha velha. */
-function soltarCache(siteId: string): void {
-  invalidateObservatory(siteId)
-  revalidatePath('/cms/youtube/competitors', 'layout')
-  const tagArquivo = arquivoTag(siteId)
-  revalidateTag(tagArquivo, { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
 }
 
 /** Caminho 2 do "Remover canal": pausa na hora, libera a vaga e agenda o histórico para o NAS. O comando do agente termina o serviço. */

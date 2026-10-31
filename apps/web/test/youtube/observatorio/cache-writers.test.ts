@@ -48,8 +48,11 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
     const text = ALL.find(f => f.file === ACTIONS)!.text
     const count = (re: RegExp) => (text.match(re) ?? []).length
     expect(count(/await syncCompetitorChannel\(/g)).toBe(4)
-    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(5) // the four syncs + `soltarCache` (pedir, desfazer e apagar sem guardar chamam-no num finally)
+    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(4) // the four syncs; `soltarCache` (pedir, desfazer e apagar sem guardar, num finally) vive em _canais/solta-cache.ts desde a M9b T2
     expect(count(/soltarCache\(g\.siteId\)/g)).toBe(3)
+    const solta = readFileSync(path.join(SRC, 'app/cms/(authed)/youtube/competitors/_canais/solta-cache.ts'), 'utf8')
+    expect(solta).toContain('invalidateObservatory(siteId)')
+    expect(solta).toContain('revalidatePath(')
     // pin (one write, also when already pinned) and unpin (the write, and the already-unpinned answer)
     expect(count(/rpc\('pin_competitor_video'/g)).toBe(1)
     expect(count(/from\('competitor_videos'\)\.update\(/g)).toBe(1)

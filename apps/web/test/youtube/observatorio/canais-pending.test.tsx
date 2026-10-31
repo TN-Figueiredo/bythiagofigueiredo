@@ -180,13 +180,18 @@ describe('Canais · immediate feedback', () => {
   it('"Adicionar canal" opens its form at once; the problem filter marks the list as busy', async () => {
     const user = userEvent.setup()
     const r = render(tree())
+    const rs = vi.spyOn(window.history, 'replaceState')
     await user.click(screen.getByText('Adicionar canal').closest('a')!)
-    expect(push).toHaveBeenCalledWith('/cms/youtube/competitors?add=1', { scroll: false })
-    expect(screen.getByRole('dialog', { name: 'Adicionar canal' })).toBeInTheDocument()
-    await answer(r, { add: '1' })
+    // por estado local: nenhuma navegação do roteador, só o ?add=1 na barra de endereço
+    expect(push).not.toHaveBeenCalled()
+    expect(replace).not.toHaveBeenCalled()
+    expect(rs).toHaveBeenCalledWith(null, '', '/cms/youtube/competitors?add=1')
     expect(screen.getByRole('dialog', { name: 'Adicionar canal' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Adicionar canal' })).toBeNull()
+    expect(replace).not.toHaveBeenCalled()
+    expect(rs).toHaveBeenLastCalledWith(null, '', '/cms/youtube/competitors')
+    rs.mockRestore()
     await answer(r, {})
 
     await user.click(screen.getByRole('link', { name: /Ver só canais com problema/ }))

@@ -289,7 +289,21 @@ describe.skipIf(skipIfNoLocalDb())('M9 cobertura dos itens (Tarefa 14)', () => {
   it.todo('item 65: "Já rodei" fecha o item em "arquivo pendente" (só há marcar_rodado no banco, em manutencao-m9-avanco; falta a ligação com o item)')
   it.todo('item 111: "Já rodei" + reconferência que ainda acha os registros devolve o item à lista, em âmbar (manutencao-m9-avanco só grava e desfaz a marca)')
   it.todo('item 120: nenhum arquivo do mês (unidade, resumo, manifesto, qualquer versão não apagada) contém o item; a reconferência acusa (nenhum teste de ponta a ponta)')
-  it.todo('item 165, parte canal (comandos de restauração pulam canal com remoção registrada, canal_apagado): FORA, M9b')
+  it('item 165, parte canal: a consulta do comandos-recarga (obs_archive_channel_is_removed) distingue canal que existe, apagar, guardar e sem_destino', async () => {
+    await emTx(async c => {
+      const consulta = async (ref: string) => (await pg.query(`select public.obs_archive_channel_is_removed($1, $2) as r`, [c.site, ref])).rows[0]!.r as { removido: boolean; decisao: string | null; sem_destino: boolean }
+      expect(await consulta(c.canal)).toEqual({ removido: false, decisao: null, sem_destino: false })
+      const ref = async (dec: string): Promise<string> => {
+        const id = (await pg.query(`select gen_random_uuid()::text as id`)).rows[0]!.id as string
+        await pg.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, $3, $4, now(), true)`, [c.site, id, dec === 'guardar' ? 'e10_export' : 'botao', dec])
+        return id
+      }
+      expect(await consulta(await ref('apagar'))).toEqual({ removido: true, decisao: 'apagar', sem_destino: false })
+      expect(await consulta(await ref('guardar'))).toEqual({ removido: true, decisao: 'guardar', sem_destino: false })
+      const solto = (await pg.query(`select gen_random_uuid()::text as id`)).rows[0]!.id as string
+      expect(await consulta(solto)).toEqual({ removido: true, decisao: null, sem_destino: true })
+    })
+  })
   it.todo('item 165, parte purged_at (arquivo de unidade/resumo com purged_at não é arquivo_ausente em conferir-b2, atestar-b2, ensaiar-restauracao e restauração; unidade expurgada/perdida listada, nunca zero): é do NÚCLEO, dívida nomeada no runbook, falta teste no kit')
 })
 
