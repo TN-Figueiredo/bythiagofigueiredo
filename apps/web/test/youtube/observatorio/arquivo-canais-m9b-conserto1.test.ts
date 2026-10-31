@@ -2,7 +2,7 @@
 // M9b conserto 1 (Phil 66, Yannis 74): cada item do brief, com o caso que falhava antes.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { montarBloco, marcaAoLadoDaPastilha, esperaSnapshots, type ListaRemovidosV2, type PendenciasDoBloco, type PendenciaDoCanal } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
-import { lerPendencias, pendenciasParaTela, marcaDoItem } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+import { lerPendencias, pendenciasParaTela, marcaDoItem, sinalDoVerificador } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import type { Casa } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 
 vi.mock('server-only', () => ({}))
@@ -18,39 +18,47 @@ const linha = (o: Record<string, unknown>): ListaRemovidosV2[number] => ({ versa
   blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: iso(5), removido_via: 'botao',
   primeiro_mes: '2026-10', ultimo_mes: '2027-11', meses: 14, registros: 118402, classes: ['serie'], ...o }) as ListaRemovidosV2[number]
 const pend = (o: Partial<PendenciaDoCanal> = {}): PendenciasDoBloco => ({ ok: true, canais: new Map([[REF, { tempo: 'copiar', falta: null, snapLiberaEm: null, snapBloqueio: null, marcadoRodadoEm: null, b2Nomes: 0, ...o }]]) })
-const bloco = (l: ListaRemovidosV2[number], o: { cap?: Record<string, boolean>; casa?: Casa; administra?: boolean; pend?: PendenciasDoBloco } = {}) =>
-  montarBloco([l], { agora: AGORA, casa: o.casa ?? casa, cap: cap(o.cap), administra: o.administra ?? true, pend: o.pend ?? pend() }).linhas[0]!
+const bloco = (l: ListaRemovidosV2[number], o: { cap?: Record<string, boolean>; casa?: Casa; administra?: boolean; pend?: PendenciasDoBloco; verificadorEm?: number | null } = {}) =>
+  montarBloco([l], { agora: AGORA, casa: o.casa ?? casa, cap: cap(o.cap), administra: o.administra ?? true, pend: o.pend ?? pend(), verificadorEm: o.verificadorEm }).linhas[0]!
 
 describe('item 1: marca "Já rodei" velha (refutado falso)', () => {
   const ITEM = (o: Record<string, unknown>) => ({ item_id: `canal:${REF}`, kind: 'canal', tempo: 'copiar', desde: iso(5), mes: null, channel_ref: REF, youtube_id: null, marcado_rodado_em: iso(2),
     apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null, ...o })
   const APAGAR = { tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }] }
   const B2 = { tempo: 'conferir_b2', b2_nomes: ['a/b.csv'] }
-  const tela = (item: Record<string, unknown>, forjaResponde?: boolean) => {
-    const t = pendenciasParaTela(lerPendencias({ versao: 2, lido_em: new Date(AGORA).toISOString(), total: 1, itens: [item] }), { podeVerComandos: true, agora: new Date(AGORA), forjaResponde })
+  const tela = (item: Record<string, unknown>, verificadorEm?: number | null) => {
+    const t = pendenciasParaTela(lerPendencias({ versao: 2, lido_em: new Date(AGORA).toISOString(), total: 1, itens: [item] }), { podeVerComandos: true, agora: new Date(AGORA), verificadorEm })
     if (t.estado !== 'com_itens') throw new Error('fixture')
     return t.itens[0]!
   }
   it.each([
-    ['apagar_antigas + forja responde + 2 dias', APAGAR, true, { refutado: true, atrasado: false, marca: true }],
-    ['apagar_antigas + forja não responde + 2 dias', APAGAR, false, { refutado: false, atrasado: true, marca: true }],
-    ['apagar_antigas + forja desconhecida (ausente) + 2 dias', APAGAR, undefined, { refutado: false, atrasado: true, marca: true }],
-    ['conferir_b2 + forja responde + 2 dias: volta "Já rodei"', B2, true, { refutado: false, atrasado: false, marca: false }],
-    ['conferir_b2 + forja parada + 2 dias', B2, false, { refutado: false, atrasado: false, marca: false }],
-    ['copiar + forja responde + 2 dias', {}, true, { refutado: false, atrasado: false, marca: false }],
+    ['apagar_antigas + conferência rodou depois de marca+24 h', APAGAR, AGORA - 300_000, { refutado: true, atrasado: false, incerto: false, marca: true }],
+    ['apagar_antigas + conferência nunca deu sinal', APAGAR, null, { refutado: false, atrasado: true, incerto: false, marca: true }],
+    ['apagar_antigas + conferência rodou ANTES de marca+24 h', APAGAR, AGORA - 2 * D - 3_600_000, { refutado: false, atrasado: true, incerto: false, marca: true }],
+    ['apagar_antigas + aviso não lido: neutro, sem culpar a forja', APAGAR, undefined, { refutado: false, atrasado: false, incerto: true, marca: true }],
+    ['conferir_b2 + forja responde + 2 dias: volta "Já rodei"', B2, AGORA - 300_000, { refutado: false, atrasado: false, incerto: false, marca: false }],
+    ['conferir_b2 + forja parada + 2 dias', B2, null, { refutado: false, atrasado: false, incerto: false, marca: false }],
+    ['copiar + forja responde + 2 dias', {}, AGORA - 300_000, { refutado: false, atrasado: false, incerto: false, marca: false }],
   ])('%s', (_t, extra, forja, esp) => {
     const i = tela(ITEM(extra), forja)
-    expect({ refutado: i.marcadoRefutado, atrasado: i.marcadoAtrasado, marca: i.marcadoRodadoEm !== null }).toEqual(esp)
+    expect({ refutado: i.marcadoRefutado, atrasado: i.marcadoAtrasado, incerto: i.marcadoIncerto, marca: i.marcadoRodadoEm !== null }).toEqual(esp)
   })
   it('marcado há 1 hora nunca é refutado, qualquer tempo', () => {
     for (const extra of [APAGAR, B2, {}]) {
-      const i = tela(ITEM({ ...extra, marcado_rodado_em: iso(1 / 24) }), true)
+      const i = tela(ITEM({ ...extra, marcado_rodado_em: iso(1 / 24) }), AGORA)
       expect(i).toMatchObject({ marcadoRefutado: false, marcadoAtrasado: false })
       expect(i.marcadoRodadoEm).not.toBeNull()
     }
   })
   it('marcaDoItem: sem marca = nada', () => {
-    expect(marcaDoItem({ tempo: 'apagar_antigas', marcadoRodadoEm: null }, new Date(AGORA), true)).toEqual({ marcadoRodadoEm: null, marcadoRefutado: false, marcadoAtrasado: false })
+    expect(marcaDoItem({ tempo: 'apagar_antigas', marcadoRodadoEm: null }, new Date(AGORA), AGORA)).toEqual({ marcadoRodadoEm: null, marcadoRefutado: false, marcadoAtrasado: false, marcadoIncerto: false })
+  })
+  it('forja voltou há 5 min (copiador), conferência parada, marca de 3 dias: atrasado, não refutado', () => {
+    const casa = [{ worker: 'copiador', last_poll_at: new Date(AGORA - 300_000).toISOString(), updated_at: null }, { worker: 'conferir_b2', last_poll_at: new Date(AGORA - 4 * D).toISOString(), updated_at: null }]
+    expect(marcaDoItem({ tempo: 'apagar_antigas', marcadoRodadoEm: new Date(AGORA - 3 * D) }, new Date(AGORA), sinalDoVerificador(casa))).toMatchObject({ marcadoRefutado: false, marcadoAtrasado: true, marcadoIncerto: false })
+  })
+  it('sinalDoVerificador: sem conferir_b2 = nulo', () => {
+    expect(sinalDoVerificador([{ worker: 'copiador', last_poll_at: new Date(AGORA).toISOString(), updated_at: null }])).toBeNull()
   })
 })
 
@@ -100,12 +108,18 @@ describe('item 3: apagado_b2 nunca verde por falta de dado', () => {
 
 describe('item 4: tempo parado vira âmbar', () => {
   it('pedido marcado há 2 dias, apagar_antigas, forja responde: âmbar, nota, "rode a linha de novo", sem "em até 24 horas"', () => {
-    const l = bloco(linha({}), { pend: pend({ tempo: 'apagar_antigas', marcadoRodadoEm: AGORA - 2 * D }) })
+    const l = bloco(linha({}), { pend: pend({ tempo: 'apagar_antigas', marcadoRodadoEm: AGORA - 2 * D }), verificadorEm: AGORA - 300_000 })
     expect(l).toMatchObject({ forma: 'triangulo', gravidade: 'ambar', acao: 'comandos' })
     expect(l.frase).toContain('Rode a linha de novo (ver os comandos)')
     expect(l.frase).not.toContain('em até 24 horas')
     expect(l.nota?.frase).toBe('Você marcou que rodou em 01/05, mas a verificação não achou a mudança.')
     expect(l.nota?.forma).toBe('triangulo')
+  })
+  it('pedido marcado há 2 dias, apagar_antigas, aviso não lido: nota neutra, sem refutar nem culpar a forja', () => {
+    const l = bloco(linha({}), { pend: pend({ tempo: 'apagar_antigas', marcadoRodadoEm: AGORA - 2 * D }) })
+    expect(l.nota?.frase).toContain('não sabemos se já foi verificado')
+    expect(l.frase).not.toContain('Rode a linha de novo')
+    expect(`${l.frase} ${l.nota?.frase}`).not.toMatch(/forja/i)
   })
   it('pedido marcado há 2 dias em conferir_b2: a marca vale nada, volta "Falta você rodar a linha" e sem nota', () => {
     const l = bloco(linha({}), { pend: pend({ tempo: 'conferir_b2', b2Nomes: 1, marcadoRodadoEm: AGORA - 2 * D }) })

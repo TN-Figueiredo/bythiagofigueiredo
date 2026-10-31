@@ -52,7 +52,7 @@ export function pendenciasDoBloco(l: LeituraPendencias): PendenciasDoBloco {
   }
   return { ok: true, canais }
 }
-type Opcoes = { agora: number; casa: Casa; cap: Capacidades; /** quem administra o site pode apagar do arquivo e ver os comandos */ administra?: boolean; /** ausente = a leitura não foi feita (tratada como falha) */ pend?: PendenciasDoBloco }
+type Opcoes = { agora: number; casa: Casa; cap: Capacidades; /** quem administra o site pode apagar do arquivo e ver os comandos */ administra?: boolean; /** ausente = a leitura não foi feita (tratada como falha) */ pend?: PendenciasDoBloco; /** batimento (ms) do programa que verifica; nulo = sem batimento; ausente = não lido */ verificadorEm?: number | null }
 
 const dm = (ms: number): string => { const d = spDateOf(ms); return d.slice(8, 10) + '/' + d.slice(5, 7) }
 const dmy = (ms: number): string => dm(ms) + '/' + spDateOf(ms).slice(0, 4)
@@ -93,7 +93,7 @@ const SEM_ACAO = { acao: null, dialogo: null, comandos: null, nota: null } as co
 
 /** O arquivo tem de dizer quantos meses guarda para a ação "Apagar do arquivo" existir: sem isso o diálogo não teria número (plano, tabela de riscos: `meses` nulo). */
 const temMeses = (l: ListaRemovidosV2[number]): boolean => l.meses !== null && l.meses > 0 && l.primeiro_mes !== null && l.ultimo_mes !== null
-const SEM_MESES = ' Não foi possível ler quantos meses o arquivo deste canal tem; por isso o botão não aparece. Recarregue a página.'
+const SEM_MESES = ' Não foi possível ler quantos meses o arquivo deste canal tem; por isso o botão não aparece. Recarregue a página; se repetir, avise quem cuida do site.'
 
 function dialogoDe(l: ListaRemovidosV2[number], nome: string, codigo: string): DialogoApagar {
   const porCodigo = l.nome === null
@@ -188,7 +188,7 @@ function montarLinha(l: ListaRemovidosV2[number], o: Opcoes): LinhaCanalRemovido
       return { ...base, rotulo: nome, regua: regua(3, 'octogono'), forma: 'octogono', gravidade: 'vermelho', blob, ...comComando(`Para limpar de novo o arquivo de ${nome}, rode uma linha no Mac.`),
         frase: `${cabeca} O arquivo do canal reapareceu em ${dmy(reap)}, depois de apagado. ${administra ? 'Falta você rodar a linha de novo (ver os comandos).' : 'Espera quem administra o site rodar a linha.'}` }
     }
-    const marca = marcaDoItem({ tempo: p?.tempo ?? 'sem_comando', marcadoRodadoEm: p?.marcadoRodadoEm == null ? null : new Date(p.marcadoRodadoEm) }, new Date(o.agora), casaResponde)
+    const marca = marcaDoItem({ tempo: p?.tempo ?? 'sem_comando', marcadoRodadoEm: p?.marcadoRodadoEm == null ? null : new Date(p.marcadoRodadoEm) }, new Date(o.agora), o.verificadorEm)
     const marcado = marca.marcadoRodadoEm === null ? null : marca.marcadoRodadoEm.getTime()
     if (marca.marcadoRefutado && marcado !== null) {
       // marcou há mais de 24 h, a forja responde e o item segue na lista: a verificação não achou a mudança (âmbar da peça 7)
@@ -197,11 +197,13 @@ function montarLinha(l: ListaRemovidosV2[number], o: Opcoes): LinhaCanalRemovido
         nota: { frase: `Você marcou que rodou em ${dm(marcado)}, mas a verificação não achou a mudança.`, forma: 'triangulo' },
         frase: `${cabeca} ${pedida}. ${administra ? 'Rode a linha de novo (ver os comandos): ela mostra o que falta.' : 'Espera quem administra o site rodar a linha de novo.'}` }
     }
-    const frase = marcado !== null ? `${cabeca} ${pedida}. Falta a confirmação do site, em até 24 horas.`
+    const frase = marcado !== null && marca.marcadoIncerto ? `${cabeca} ${pedida}. Não sabemos se a verificação já olhou este canal depois que você marcou.`
+      : marcado !== null ? `${cabeca} ${pedida}. Falta a confirmação do site, em até 24 horas.`
       : !administra ? `${cabeca} ${pedida}. Espera quem administra o site rodar a linha.`
       : `${cabeca} ${pedida}. Falta você rodar a linha no Mac (ver os comandos). Se você já rodou, a confirmação chega em até 24 horas; não precisa avisar. Passadas as 24 horas, rode a mesma linha de novo: ela mostra o que falta.`
     return { ...base, rotulo: nome, regua: regua(0, idadeForma), forma: idadeForma, gravidade: gravDaCor(cr.cor), blob, ...comComando(`Para limpar o arquivo de ${nome}, rode uma linha no Mac.`),
-      nota: marcado !== null ? { frase: `Você marcou que rodou em ${dm(marcado)}; a confirmação chega em até 24 horas.`, forma: 'pontilhado' } : null, frase }
+      nota: marcado !== null && marca.marcadoIncerto ? { frase: `Você marcou que rodou em ${dm(marcado)}; não sabemos se já foi verificado.`, forma: 'pontilhado' }
+        : marcado !== null ? { frase: `Você marcou que rodou em ${dm(marcado)}; a confirmação chega em até 24 horas.`, forma: 'pontilhado' } : null, frase }
   }
   if (l.estado === 'apagado_nas' || l.estado === 'apagado_b2' || l.estado === 'concluido') {
     // As frases nunca dizem "apagado" sem a data da prova.

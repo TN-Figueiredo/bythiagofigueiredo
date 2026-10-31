@@ -8,13 +8,13 @@ import { listaDosRemovidos, pendenciasDoDono } from '../_arquivo/leituras'
  * Peça 7, parte de leitura. Depois da guarda de edição (`permissoesDoSite`), nunca antes: sem edição o cliente de serviço nem é criado.
  * Nunca devolve "zero" no lugar de uma falha: erro, lançamento, função ausente e forma inválida viram `nao_medido`.
  */
-export async function lerPendenciasDaFila(siteId: string, perm: PermissoesDoSite, agora: Date, nomes?: NomesDaFila, opcoes: { /** a casa (forja) responde agora; ausente = não sabemos, e a marca velha nunca é dada como refutada */ forjaResponde?: boolean } = {}): Promise<PendenciasDaTela | null> {
+export async function lerPendenciasDaFila(siteId: string, perm: PermissoesDoSite, agora: Date, nomes?: NomesDaFila, opcoes: { /** batimento (ms) do programa que verifica; nulo = sem batimento; ausente = não lido (neutro) */ verificadorEm?: number | null } = {}): Promise<PendenciasDaTela | null> {
   if (!perm.podeEditar) return null
   if (process.env.OBS_ARQUIVO !== 'on') return null
   const lida = await pendenciasDoDono(siteId)
   if (lida.erro) return { estado: 'nao_medido' }
   try {
-    return pendenciasParaTela(lida.leitura, { podeVerComandos: perm.canUnlock, agora, forjaResponde: opcoes.forjaResponde, nomes: await comNomesDosRemovidos(siteId, lida.leitura, nomes) })
+    return pendenciasParaTela(lida.leitura, { podeVerComandos: perm.canUnlock, agora, verificadorEm: opcoes.verificadorEm, nomes: await comNomesDosRemovidos(siteId, lida.leitura, nomes) })
   } catch (err) {
     Sentry.captureException(err, { tags: { component: 'observatorio', step: 'peca7-pendencias' } })
     return { estado: 'nao_medido' }

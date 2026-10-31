@@ -2,7 +2,7 @@
 // M9b conserto 1: botões, diálogo, status do bloco, CSS da rota e normalização do nome.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { BlocoCanaisRemovidosView } from '@/app/cms/(authed)/youtube/competitors/_arquivo/bloco-canais-removidos'
 import { EsperamComandos } from '@/app/cms/(authed)/youtube/competitors/_canais/esperam-comandos'
 import { montarBloco, type ListaRemovidosV2 } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
@@ -101,11 +101,15 @@ describe('foco preso no diálogo', () => {
     const dlg = screen.getByRole('dialog')
     const campo = screen.getByLabelText('Nome do canal') as HTMLInputElement
     const cancelar = screen.getByRole('button', { name: 'Cancelar' })
-    cancelar.focus()
+    const apagar = within(dlg).getByRole('button', { name: 'Apagar do arquivo' })
+    // ordem de Tab: campo, Cancelar (esquerda), Apagar (direita)
+    const ordem = Array.from(dlg.querySelectorAll('input, button'))
+    expect(ordem).toEqual([campo, cancelar, apagar])
+    apagar.focus()
     fireEvent.keyDown(dlg, { key: 'Tab' })
     expect(document.activeElement).toBe(campo)
     fireEvent.keyDown(dlg, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(cancelar)
+    expect(document.activeElement).toBe(apagar)
   })
 })
 

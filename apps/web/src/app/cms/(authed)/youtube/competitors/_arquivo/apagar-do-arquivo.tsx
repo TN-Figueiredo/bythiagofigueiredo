@@ -71,14 +71,14 @@ export function DialogoApagar({ d, onConfirmar, onFechar }: {
           {d.avisoBlob ? <p className="t arq-mdl-av" data-aviso="blob">O site não anotou, na remoção, quais imagens deste canal estão no Blob e não consegue apagá-las. Elas continuam lá depois que o arquivo for apagado.</p> : null}
           <p className="t">Para continuar, digite {d.porCodigo ? 'o código deste arquivo' : 'o nome do canal'}: <b>{d.confirma}</b></p>
           <label htmlFor={`${uid}-n`}>{rotuloCampo}</label>
-          <input id={`${uid}-n`} ref={campo} type="text" autoComplete="off" value={digitado} readOnly={enviando} onChange={e => setDigitado(e.target.value)} aria-describedby={`${uid}-s`} />
+          <input id={`${uid}-n`} ref={campo} type="text" autoComplete="off" autoCapitalize="off" spellCheck={false} value={digitado} readOnly={enviando} onChange={e => setDigitado(e.target.value)} aria-describedby={`${uid}-s`} />
           {aviso ? <p ref={avisoRef} tabIndex={-1} role="alert" className="arq-ausente am" id={`${uid}-s`}>{aviso}</p>
-            : <p className="m-st" role="status" id={`${uid}-s`}>{enviando ? 'Enviando o pedido…' : confere ? 'Nome confirmado.' : `Digite ${d.porCodigo ? 'o código' : 'o nome do canal'} para continuar.`}</p>}
+            : <p className="m-st" role="status" id={`${uid}-s`}>{enviando ? 'Enviando o pedido…' : confere ? (d.porCodigo ? 'Código confirmado.' : 'Nome confirmado.') : `Digite ${d.porCodigo ? 'o código' : 'o nome do canal'} para continuar.`}</p>}
         </div>
         <div className="arq-mdl-a">
-          <button type="button" className="btn danger" aria-disabled={!confere || enviando} onClick={() => { void enviar() }}>{enviando ? 'Apagando…' : 'Apagar do arquivo'}</button>
           <button type="button" className="btn" aria-disabled={enviando} onClick={() => { if (!enviando) onFechar(null) }}>Cancelar</button>
-        </div>
+                  <button type="button" className="btn danger" aria-disabled={!confere || enviando} onClick={() => { void enviar() }}>{enviando ? 'Apagando…' : 'Apagar do arquivo'}</button>
+</div>
       </div>
     </div>
   )

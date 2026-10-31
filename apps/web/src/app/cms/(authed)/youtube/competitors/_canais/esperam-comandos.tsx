@@ -86,6 +86,7 @@ function Marcar({ i, onMarcar, onDesfazer }: { i: Itens[number]; onMarcar: Marca
   const marcadoEm = local ? (local.marcado ? local.em : null) : i.marcadoRodadoEm
   const refutado = !local && i.marcadoRefutado && i.marcadoRodadoEm !== null
   const atrasado = !local && i.marcadoAtrasado && i.marcadoRodadoEm !== null
+  const incerto = !local && i.marcadoIncerto && i.marcadoRodadoEm !== null
   const vai = async (fn: Marcar, marcado: boolean): Promise<void> => {
     if (emVoo.current) return
     emVoo.current = true; setEnviando(true); setAviso(null)
@@ -105,7 +106,9 @@ function Marcar({ i, onMarcar, onDesfazer }: { i: Itens[number]; onMarcar: Marca
       {marcadoEm && !refutado ? (
         <div className="p7-marc" data-marcado tabIndex={-1}>
           <h4>Marcado como rodado em {dmy(marcadoEm)}</h4>
-          {atrasado
+          {incerto
+            ? <p data-incerto>Não sabemos se este item já foi verificado depois que você marcou. O item continua na lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
+            : atrasado
             ? <p data-atrasado>A verificação não rodou desde que você marcou, porque a forja não responde. Veja o aviso da página; o item continua na lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
             : <p>Volte em até 24 horas: se houver mais um passo, ele aparece aqui. Se a verificação seguinte não achar a mudança no arquivo, o item volta para a lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>}
         </div>

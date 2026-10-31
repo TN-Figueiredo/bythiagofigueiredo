@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { lerPagina } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
 import { montarPagina, modeloDesligado, modeloNaoLido, type ModeloPagina } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
+import { sinalDoVerificador } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import { montarBloco, type LeituraBloco } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 import { lerPendenciasDosCanais } from './pendencias-dos-canais'
 import { listaDosRemovidos } from './leituras'
@@ -48,6 +49,6 @@ export async function montarArquivo(): Promise<ArquivoMontado> {
   const completo = montarPagina(lida.pagina, { arquivoLigado: true })
   const daM5 = perm.canUnlock ? completo : { ...completo, teste: null }
   const modelo = await encaixar(daM5, sb, pagina.siteId, pagina.userId, perm.canUnlock)
-  const bloco: LeituraBloco = removidos.ok ? { ok: true, bloco: montarBloco(removidos.lista, { agora: Date.parse(lida.pagina.lido_em), casa: modelo.casa, cap, administra: perm.canUnlock, pend }) } : { ok: false }
+  const bloco: LeituraBloco = removidos.ok ? { ok: true, bloco: montarBloco(removidos.lista, { agora: Date.parse(lida.pagina.lido_em), casa: modelo.casa, cap, administra: perm.canUnlock, pend, verificadorEm: sinalDoVerificador(lida.pagina.casa) }) } : { ok: false }
   return { ...base, modelo, bloco }
 }
