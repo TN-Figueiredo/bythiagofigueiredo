@@ -43,12 +43,17 @@ describe('M9b T7: Apagar do arquivo (guardado e sem_destino)', () => {
   it('1 mês: singular', () => {
     expect(bloco(linha({ estado: 'guardado', meses: 1, ultimo_mes: '2026-10' })).dialogo!.titulo).toBe('Apagar do arquivo o 1 mês de Viagem Lenta?')
   })
-  it('meses nulos: sem número, nunca "0 meses"', () => {
+  it('meses nulos: sem botão e sem diálogo (não há número a mostrar), a frase diz por quê, nunca "0 meses"', () => {
     for (const meses of [null, 0]) {
-      const d = bloco(linha({ estado: 'guardado', meses, primeiro_mes: null, ultimo_mes: null })).dialogo!
-      expect(d.titulo + d.corpo).not.toMatch(/\b0 meses|null/)
-      expect(d.titulo).toBe('Apagar do arquivo os dados de Viagem Lenta?')
+      for (const estado of ['guardado', 'sem_destino']) {
+        const l = bloco(linha({ estado, meses, primeiro_mes: null, ultimo_mes: null }))
+        expect(l.acao).toBeNull(); expect(l.dialogo).toBeNull()
+        expect(l.frase).toContain('Não foi possível ler quantos meses o arquivo deste canal tem')
+        expect(l.frase).not.toMatch(/\b0 meses|null/)
+      }
     }
+    // com os meses lidos, o botão volta
+    expect(bloco(linha({ estado: 'guardado' })).acao).toBe('apagar')
   })
   it('quem só edita: sem ação, frase diz que espera quem administra', () => {
     const l = bloco(linha({ estado: 'guardado' }), { administra: false })

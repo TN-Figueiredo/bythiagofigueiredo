@@ -4,8 +4,9 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { lerPagina } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
 import { montarPagina, modeloDesligado, modeloNaoLido, type ModeloPagina } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
-import { montarBloco, lerCanaisRemovidos, type LeituraBloco } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
+import { montarBloco, type LeituraBloco } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 import { lerPendenciasDosCanais } from './pendencias-dos-canais'
+import { listaDosRemovidos } from './leituras'
 import { lerCapacidades, SAIDA_DE_MES_EXISTE } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
 import { openObservatoryPage } from '../_chrome/page-data'
 import { permissoesDoSite } from '../_chrome/permissoes'
@@ -36,7 +37,7 @@ export async function montarArquivo(): Promise<ArquivoMontado> {
   const base = { acesso: perm.canUnlock ? 'administra' : 'edita', obs: pagina.obs, forja: null, meuCanalLembrado: pagina.meuCanalLembrado } as const
   if (process.env.OBS_ARQUIVO !== 'on') return { ...base, modelo: modeloDesligado(), bloco: { ok: false } }
   const sb = getSupabaseServiceClient()
-  const [lida, removidos, pend] = await Promise.all([lerPagina(sb, pagina.siteId), lerCanaisRemovidos(sb, pagina.siteId), lerPendenciasDosCanais(sb, pagina.siteId)])
+  const [lida, removidos, pend] = await Promise.all([lerPagina(sb, pagina.siteId), listaDosRemovidos(pagina.siteId), lerPendenciasDosCanais(pagina.siteId)])
   const cap = lerCapacidades()
   if (!lida.ok) {
     // o bloco lido à parte continua à vista; sem a página não há "casa" nem relógio do banco: o relógio do conjunto serve só para a idade

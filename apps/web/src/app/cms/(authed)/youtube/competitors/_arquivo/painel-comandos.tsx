@@ -4,15 +4,19 @@
  * Só quem administra o site chega aqui (o modelo não devolve `comandos` para quem só edita). Sem "Já rodei": ele fica na peça 7 (T7b).
  */
 import { useState, type ReactElement } from 'react'
+// as classes p7-cmd e p7-sh vivem em esperam-comandos.css; o painel as importa para que a rota /arquivo (que não monta a peça 7) as tenha também
+import '../_canais/esperam-comandos.css'
+import './arquivo.css'
 
-export function CopiarLinha({ linha, aoCopiar }: { linha: string; aoCopiar?: (t: string) => void }): ReactElement {
+/** O botão Copiar, dividido com a peça 7 (`esperam-comandos.tsx`). `rotulo` é o nome acessível. */
+export function CopiarLinha({ linha, aoCopiar, rotulo = 'Copiar a linha do passo 1' }: { linha: string; aoCopiar?: (t: string) => void; rotulo?: string }): ReactElement {
   const [texto, setTexto] = useState('Copiar')
   const fim = (t: string): void => { setTexto(t); aoCopiar?.(t); setTimeout(() => setTexto('Copiar'), 2000) }
   const copiar = (): void => {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(linha).then(() => fim('Copiado'), () => fim('Selecione e copie'))
     else fim('Selecione e copie')
   }
-  return <button type="button" className="btn small" onClick={copiar} aria-label="Copiar a linha do passo 1">{texto}</button>
+  return <button type="button" className="btn small" onClick={copiar} aria-label={rotulo}>{texto}</button>
 }
 
 export function PainelComandos({ id, titulo, linha }: { id: string; titulo: string; linha: string }): ReactElement {

@@ -48,13 +48,22 @@ export function DialogoApagar({ d, onConfirmar, onFechar }: {
     }
     emVoo.current = false; setEnviando(false)
   }
+  const caixa = useRef<HTMLDivElement>(null)
   const teclas = (e: KeyboardEvent<HTMLDivElement>): void => {
-    if (e.key === 'Escape' && !enviando) { e.stopPropagation(); onFechar(null) }
+    if (e.key === 'Escape' && !enviando) { e.stopPropagation(); onFechar(null); return }
+    if (e.key !== 'Tab' || !caixa.current) return
+    // foco preso: Tab no último volta ao primeiro e Shift+Tab no primeiro vai ao último (aria-modal sozinho não prende o foco)
+    const alvos = Array.from(caixa.current.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])'))
+    const primeiro = alvos[0], ultimo = alvos[alvos.length - 1]
+    if (!primeiro || !ultimo) return
+    const ativo = document.activeElement
+    if (e.shiftKey && (ativo === primeiro || !caixa.current.contains(ativo))) { e.preventDefault(); ultimo.focus() }
+    else if (!e.shiftKey && (ativo === ultimo || !caixa.current.contains(ativo))) { e.preventDefault(); primeiro.focus() }
   }
   const rotuloCampo = d.porCodigo ? 'Código do arquivo' : 'Nome do canal'
   return (
     <div className="arq-mdl-fundo" onKeyDown={teclas}>
-      <div className="arq-mdl" role="dialog" aria-modal="true" aria-labelledby={`${uid}-t`} data-dialogo="apagar-do-arquivo">
+      <div className="arq-mdl" ref={caixa} role="dialog" aria-modal="true" aria-labelledby={`${uid}-t`} data-dialogo="apagar-do-arquivo">
         <div className="arq-mdl-b">
           <h2 id={`${uid}-t`}>{d.titulo}</h2>
           <p className="t"><b>Não dá para desfazer.</b> {d.corpo}</p>

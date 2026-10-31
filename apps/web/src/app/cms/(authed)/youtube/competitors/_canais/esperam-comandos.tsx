@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { fraseSnapEspera, type PendenciasDaTela, type TempoPendencia } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import type { Forma } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { FormaIcone, FraseComForma } from '../_arquivo/regua'
+import { CopiarLinha } from '../_arquivo/painel-comandos'
 import type { RespostaMarcar } from '../_arquivo/actions-canal'
 import '../_arquivo/arquivo.css'
 import './esperam-comandos.css'
@@ -55,13 +56,22 @@ function Idade({ d }: { d: number }): ReactElement {
   )
 }
 
-const AVISO_MARCAR: Record<Extract<RespostaMarcar, { ok: false }>['erro'], string> = {
+type ErroMarcar = Extract<RespostaMarcar, { ok: false }>['erro']
+const AVISO_MARCAR: Record<ErroMarcar, string> = {
   sem_permissao: 'Só quem administra o site pode marcar. Nada foi marcado.',
   item_desconhecido: 'Este item não está mais na lista; recarregue a página.',
   forma: 'Não deu para marcar agora. Nada foi marcado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
   interno: 'Não deu para marcar agora. Nada foi marcado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
 }
+/** "Desfazer" que falha deixa a marca como estava: dizer "Nada foi marcado" seria falso (a marca segue). */
+const AVISO_DESFAZER: Record<ErroMarcar, string> = {
+  sem_permissao: 'Só quem administra o site pode desfazer a marca. A marca continua.',
+  item_desconhecido: 'Este item não está mais na lista; recarregue a página.',
+  forma: 'Não deu para desfazer agora. A marca continua; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+  interno: 'Não deu para desfazer agora. A marca continua; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+}
 const REDE_MARCAR = 'Não sabemos se foi marcado. Recarregue a página antes de tentar de novo.'
+const REDE_DESFAZER = 'Não sabemos se a marca foi desfeita. Recarregue a página antes de tentar de novo.'
 type Marcar = (itemId: string) => Promise<RespostaMarcar>
 /** Há comando a rodar? `sem_comando` (espera) e `bloqueado` não têm; a ação também recusa `antiga:` (a versão antiga sai da lista pelo C12, sem marca). */
 const marcavel = (i: Itens[number]): boolean => (i.tempo === 'copiar' || i.tempo === 'conferir_b2' || i.tempo === 'apagar_antigas') && !i.item_id.startsWith('antiga:')
@@ -75,14 +85,15 @@ function Marcar({ i, onMarcar, onDesfazer }: { i: Itens[number]; onMarcar: Marca
   const emVoo = useRef(false)
   const marcadoEm = local ? (local.marcado ? local.em : null) : i.marcadoRodadoEm
   const refutado = !local && i.marcadoRefutado && i.marcadoRodadoEm !== null
+  const atrasado = !local && i.marcadoAtrasado && i.marcadoRodadoEm !== null
   const vai = async (fn: Marcar, marcado: boolean): Promise<void> => {
     if (emVoo.current) return
     emVoo.current = true; setEnviando(true); setAviso(null)
     try {
       const r = await fn(i.item_id)
       if (r.ok) setLocal({ marcado, em: new Date() })
-      else setAviso(AVISO_MARCAR[r.erro] ?? AVISO_MARCAR.interno)
-    } catch { setAviso(REDE_MARCAR) }
+      else setAviso((marcado ? AVISO_MARCAR : AVISO_DESFAZER)[r.erro] ?? (marcado ? AVISO_MARCAR : AVISO_DESFAZER).interno)
+    } catch { setAviso(marcado ? REDE_MARCAR : REDE_DESFAZER) }
     emVoo.current = false; setEnviando(false)
   }
   useEffect(() => { if (aviso) alerta.current?.focus() }, [aviso])
@@ -94,7 +105,9 @@ function Marcar({ i, onMarcar, onDesfazer }: { i: Itens[number]; onMarcar: Marca
       {marcadoEm && !refutado ? (
         <div className="p7-marc" data-marcado tabIndex={-1}>
           <h4>Marcado como rodado em {dmy(marcadoEm)}</h4>
-          <p>Volte em até 24 horas: se houver mais um passo, ele aparece aqui. Se a verificação seguinte não achar a mudança no arquivo, o item volta para a lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
+          {atrasado
+            ? <p data-atrasado>A verificação não rodou desde que você marcou, porque a forja não responde. Veja o aviso da página; o item continua na lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
+            : <p>Volte em até 24 horas: se houver mais um passo, ele aparece aqui. Se a verificação seguinte não achar a mudança no arquivo, o item volta para a lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>}
         </div>
       ) : (
         <>
@@ -122,16 +135,6 @@ function Item({ i, onMarcar, onDesfazer, podeMarcar }: { i: Itens[number]; onMar
       <div className="p7-side"><Idade d={i.idadeDias} />{podeMarcar && onMarcar && onDesfazer && marcavel(i) ? <Marcar i={i} onMarcar={onMarcar} onDesfazer={onDesfazer} /> : null}</div>
     </li>
   )
-}
-
-function CopiarLinha({ linha }: { linha: string }): ReactElement {
-  const [texto, setTexto] = useState('Copiar')
-  const volta = (): void => { setTimeout(() => setTexto('Copiar'), 2000) }
-  const copiar = (): void => {
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(linha).then(() => { setTexto('Copiado'); volta() }, () => { setTexto('Selecione e copie'); volta() })
-    else { setTexto('Selecione e copie'); volta() }
-  }
-  return <button type="button" className="btn small" onClick={copiar} aria-label="Copiar a linha dos comandos">{texto}</button>
 }
 
 /** `onMarcarRodado`/`onDesfazerRodado`: as server actions, por prop (nunca importadas aqui). Sem elas, ou sem a linha (quem só edita), não há botão. */
@@ -167,7 +170,7 @@ export function EsperamComandos({ t, onMarcarRodado, onDesfazerRodado }: { t: Pe
           <button type="button" className="btn" aria-expanded={aberto} aria-controls="p7-cmd" onClick={() => setAberto(a => !a)}>{aberto ? 'Esconder os comandos' : 'Ver os comandos'}</button>
           <div className={`p7-cmd${aberto ? '' : ' p7-fechado'}`} id="p7-cmd">
             <p>No Mac, rode esta linha. Confira se a última linha que apareceu começa com <code>OBS-ARQUIVO:</code>; se não começar, nada rodou.</p>
-            <span className="p7-sh"><pre><code>{t.linha}</code></pre><CopiarLinha linha={t.linha} /></span>
+            <span className="p7-sh"><pre><code>{t.linha}</code></pre><CopiarLinha linha={t.linha} rotulo="Copiar a linha dos comandos" /></span>
           </div>
         </div>
       ) : null}

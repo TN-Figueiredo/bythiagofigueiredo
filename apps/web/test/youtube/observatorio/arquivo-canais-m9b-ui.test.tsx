@@ -23,7 +23,7 @@ describe('M9b T7: o diálogo Apagar do arquivo', () => {
     render(<BlocoCanaisRemovidosView bloco={montar(l)} onApagar={onApagar} />)
     fireEvent.click(screen.getByRole('button', { name: 'Apagar do arquivo' }))
   }
-  it('o botão fica desabilitado até digitar o nome (caixa e acento não importam) e o clique sem nome não chama a action', async () => {
+  it('o botão fica desabilitado até digitar o nome (a caixa e os espaços não importam) e o clique sem nome não chama a action', async () => {
     const onApagar = vi.fn().mockResolvedValue({ ok: true, status: 'ok' })
     abre(onApagar)
     const dlg = screen.getByRole('dialog')
@@ -68,10 +68,17 @@ describe('M9b T7: o diálogo Apagar do arquivo', () => {
     const alerta = await screen.findByRole('alert')
     expect(alerta.textContent).toBe('Não sabemos se a limpeza foi pedida. Recarregue a página antes de tentar de novo.')
   })
-  it('Esc fecha; Cancelar fecha', () => {
+  it('Esc fecha', () => {
     abre(vi.fn())
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('Cancelar fecha sem chamar a action', () => {
+    const onApagar = vi.fn()
+    abre(onApagar)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onApagar).not.toHaveBeenCalled()
   })
   it('lote da E10 e código (sem_destino) mostram os avisos', () => {
     abre(vi.fn(), linha({ estado: 'sem_destino', nome: null, removido_via: 'sem_registro', meses: 9, ultimo_mes: '2027-06' }))
@@ -123,7 +130,8 @@ describe('M9b T7: Já limpos lembra da exportação à mão', () => {
   it('só quando algum concluído veio de e10_export', () => {
     const c = (via: string, ref: string) => linha({ estado: 'concluido', channel_ref: ref, removido_via: via, b2_absent_at: iso(3) })
     render(<BlocoCanaisRemovidosView bloco={montarBloco([c('e10_export', 'a1111111-1111-2222-3333-444444444444'), c('botao', 'b1111111-1111-2222-3333-444444444444')], { agora: AGORA, casa, cap, administra: true, pend })} />)
-    expect(document.body.textContent).toContain('1 desses canais tinha exportação feita à mão; ela continua no Mac e no NAS: apague-a.')
+    expect(document.body.textContent).toContain('1 desses canais tinha exportação feita à mão; ela continua no Mac e no NAS; esta tela não a apaga.')
+    expect(document.body.textContent).not.toContain('apague-a')
     cleanup()
     render(<BlocoCanaisRemovidosView bloco={montarBloco([c('botao', 'b1111111-1111-2222-3333-444444444444')], { agora: AGORA, casa, cap, administra: true, pend })} />)
     expect(document.body.textContent).not.toContain('exportação feita à mão')

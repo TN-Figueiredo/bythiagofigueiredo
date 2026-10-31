@@ -5,6 +5,8 @@ import { ArquivoScreen } from '../_arquivo/arquivo-screen'
 import { apagarDoArquivoAction } from '../_arquivo/actions-canal'
 import { SoLe } from '../_arquivo/so-le'
 import '../_arquivo/arquivo.css'
+// o painel "Ver os comandos" usa .p7-cmd e .p7-sh; a rota não monta a peça 7, então importa o CSS dela
+import '../_canais/esperam-comandos.css'
 
 export const metadata = { title: 'Arquivo · Competidores' }
 export const dynamic = 'force-dynamic'

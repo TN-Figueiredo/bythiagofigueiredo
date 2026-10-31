@@ -10,19 +10,20 @@ const AGORA = new Date('2028-05-03T15:00:00Z'), D = 86_400_000
 const REF = 'aaaaaaaa-1111-2222-3333-444444444444'
 const item = (o: Record<string, unknown> = {}) => ({ item_id: `canal:${REF}`, kind: 'canal', tempo: 'copiar', desde: new Date(AGORA.getTime() - 5 * D).toISOString(), mes: null, channel_ref: REF, youtube_id: null,
   marcado_rodado_em: null, apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null, ...o })
-const tela = (itens: Record<string, unknown>[], podeVerComandos = true) => {
+const APAGAR = { tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }] }
+const tela = (itens: Record<string, unknown>[], podeVerComandos = true, forjaResponde = false) => {
   const l = lerPendencias({ versao: 2, lido_em: AGORA.toISOString(), total: itens.length, itens })
-  const t = pendenciasParaTela(l, { podeVerComandos, agora: AGORA, nomes: { canais: new Map([[REF, 'Viagem Lenta']]) } })
+  const t = pendenciasParaTela(l, { podeVerComandos, agora: AGORA, forjaResponde, nomes: { canais: new Map([[REF, 'Viagem Lenta']]) } })
   if (t.estado !== 'com_itens') throw new Error('fixture')
   return t
 }
 afterEach(cleanup)
 
 describe('pendenciasParaTela: marcação', () => {
-  it('marcado há menos de 24 h: marcado; há mais e o item segue na lista: refutado', () => {
+  it('marcado há menos de 24 h: marcado; há mais, em apagar_antigas e com a forja respondendo: refutado', () => {
     const rec = tela([item({ marcado_rodado_em: new Date(AGORA.getTime() - 3_600_000).toISOString() })]).itens[0]!
     expect(rec).toMatchObject({ marcadoRodadoEm: new Date(AGORA.getTime() - 3_600_000), marcadoRefutado: false })
-    const ant = tela([item({ marcado_rodado_em: new Date(AGORA.getTime() - 2 * D).toISOString() })]).itens[0]!
+    const ant = tela([item({ ...APAGAR, marcado_rodado_em: new Date(AGORA.getTime() - 2 * D).toISOString() })], true, true).itens[0]!
     expect(ant.marcadoRefutado).toBe(true)
     const nada = tela([item()]).itens[0]!
     expect(nada).toMatchObject({ marcadoRodadoEm: null, marcadoRefutado: false })
@@ -42,7 +43,7 @@ describe('Já rodei e Desfazer', () => {
     expect(await screen.findByRole('button', { name: 'Já rodei' })).toBeTruthy()
   })
   it('refutado: âmbar, diz que voltou para a lista e oferece Já rodei de novo', () => {
-    render(<EsperamComandos t={tela([item({ marcado_rodado_em: new Date(AGORA.getTime() - 2 * D).toISOString() })])} onMarcarRodado={vi.fn()} onDesfazerRodado={vi.fn()} />)
+    render(<EsperamComandos t={tela([item({ ...APAGAR, marcado_rodado_em: new Date(AGORA.getTime() - 2 * D).toISOString() })], true, true)} onMarcarRodado={vi.fn()} onDesfazerRodado={vi.fn()} />)
     expect(document.querySelector('[data-refutado]')!.textContent).toContain('O item voltou para a lista.')
     expect(screen.getByRole('button', { name: 'Já rodei' })).toBeTruthy()
   })
