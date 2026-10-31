@@ -15,21 +15,23 @@ import { soltarCache } from '../_canais/solta-cache'
 export type RespostaApagar =
   | { ok: true; status: 'ok' | 'ja_pedido' }
   | { ok: false; erro: 'sem_permissao' | 'forma' | 'desligado' | 'nome_nao_confere' | 'canal_nao_encontrado' | 'canal_existe' | 'interno' }
-export type RespostaMarcar = { ok: true } | { ok: false; erro: string }
+export type RespostaMarcar = { ok: true } | { ok: false; erro: 'sem_permissao' | 'forma' | 'item_desconhecido' | 'interno' }
 
 const CanalRef = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
 const ItemId = z.string().regex(/^(item:[1-9][0-9]{0,18}|canal:[0-9a-f-]{36})$/)
 
-type Guarda = { ok: true; siteId: string; userId: string } | { ok: false }
+type Guarda = { ok: true; siteId: string; userId: string } | { ok: false; motivo: 'negado' | 'excecao' }
 async function guarda(acao: string): Promise<Guarda> {
   try {
     const { siteId } = await getSiteContext()
-    if (await denyUnlessSiteAdmin(siteId, acao)) return { ok: false }
+    if (await denyUnlessSiteAdmin(siteId, acao)) return { ok: false, motivo: 'negado' }
     const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-    if (!res.ok) return { ok: false }
+    if (!res.ok) return { ok: false, motivo: 'negado' }
     return { ok: true, siteId, userId: res.user.id }
-  } catch {
-    return { ok: false }
+  } catch (e) {
+    // a guarda lançou (o contexto do site, a sessão): não é "sem permissão", é erro nosso; a tela não deve mandar o dono pedir acesso
+    Sentry.captureException(e)
+    return { ok: false, motivo: 'excecao' }
   }
 }
 
@@ -43,7 +45,7 @@ function erroDoBanco(e: { message?: string; code?: string } | null | undefined):
 
 export async function apagarDoArquivoAction(channelRef: string, digitado: string): Promise<RespostaApagar> {
   const g = await guarda('apagar o arquivo de um canal removido')
-  if (!g.ok) return { ok: false, erro: 'sem_permissao' }
+  if (!g.ok) return { ok: false, erro: g.motivo === 'excecao' ? 'interno' : 'sem_permissao' }
   if (!lerCapacidades().comandoDeLimpeza) return { ok: false, erro: 'desligado' }
   const ref = CanalRef.safeParse(channelRef)
   if (!ref.success) return { ok: false, erro: 'forma' }
@@ -60,7 +62,12 @@ export async function apagarDoArquivoAction(channelRef: string, digitado: string
     // o canal tem de estar mesmo removido: um canal VIVO recarregado com o mesmo id aparece `guardado` na lista e o decide purgaria o arquivo (irreversível)
     const vivo = await sb.rpc('obs_archive_channel_is_removed', { p_site: g.siteId, p_channel_ref: ref.data })
     const est = vivo.data as { removido?: unknown } | null
-    if (vivo.error || est === null || typeof est !== 'object' || est.removido !== true) return { ok: false, erro: 'canal_existe' }
+    // só uma resposta CLARA "removido: false" é canal que voltou a existir; erro do banco ou resposta torta é erro nosso (interno, com Sentry), não uma afirmação sobre o canal
+    if (!vivo.error && est !== null && typeof est === 'object' && est.removido === false) return { ok: false, erro: 'canal_existe' }
+    if (vivo.error || est === null || typeof est !== 'object' || est.removido !== true) {
+      Sentry.captureMessage('obs_archive_channel_is_removed: resposta inesperada', { level: 'error', tags: { code: vivo.error?.code ?? 'sem_code' } })
+      return { ok: false, erro: 'interno' }
+    }
     chamouDecide = true
     const r = await sb.rpc('obs_archive_channel_removal_decide', { p_site: g.siteId, p_channel_ref: ref.data, p_actor: g.userId })
     if (r.error) return { ok: false, erro: erroDoBanco(r.error) }
@@ -76,12 +83,20 @@ export async function apagarDoArquivoAction(channelRef: string, digitado: string
 
 async function marcar(itemId: string, desfazer: boolean): Promise<RespostaMarcar> {
   const g = await guarda('marcar um comando do arquivo como rodado')
-  if (!g.ok) return { ok: false, erro: 'sem_permissao' }
+  if (!g.ok) return { ok: false, erro: g.motivo === 'excecao' ? 'interno' : 'sem_permissao' }
   const id = ItemId.safeParse(itemId)
   if (!id.success) return { ok: false, erro: 'forma' }
   try {
     const r = await getSupabaseServiceClient().rpc('obs_archive_marcar_rodado', { p_site: g.siteId, p_item_id: id.data, p_actor: g.userId, p_desfazer: desfazer })
-    if (r.error) { Sentry.captureMessage('obs_archive_marcar_rodado falhou', { level: 'error', tags: { code: r.error.code ?? 'sem_code' } }); return { ok: false, erro: 'interno' } }
+    if (r.error) {
+      // o banco recusa com mensagem fixa: traduz o que a tela sabe dizer; o resto é erro interno, com Sentry
+      const m = r.error.message ?? ''
+      if (m.includes('sem_permissao')) return { ok: false, erro: 'sem_permissao' }
+      if (m.includes('item_desconhecido')) return { ok: false, erro: 'item_desconhecido' }
+      if (m.includes('item_invalido')) return { ok: false, erro: 'forma' }
+      Sentry.captureMessage('obs_archive_marcar_rodado falhou', { level: 'error', tags: { code: r.error.code ?? 'sem_code' } })
+      return { ok: false, erro: 'interno' }
+    }
     return { ok: true }
   } catch (e) {
     Sentry.captureException(e)

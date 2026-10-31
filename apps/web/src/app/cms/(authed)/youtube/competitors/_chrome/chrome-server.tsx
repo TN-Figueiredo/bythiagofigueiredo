@@ -21,8 +21,9 @@ import { arquivoNoChrome } from './arquivo-do-chrome'
 import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
-import { lerCanaisRemovidos, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { lerPendenciasDosCanais } from '../_arquivo/pendencias-dos-canais'
+import { listaDosRemovidos } from '../_arquivo/leituras'
+import { esperaSnapshots, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 
 export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
@@ -60,8 +61,11 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
     // "NAS cheio" só aparece na página (vermelhos vazio aqui); a marca dos canais removidos só existe com o comando de limpeza (M9)
     const casa = casaDe(leve.casa, [], agora)
     const cap = lerCapacidades()
-    const lista = cap.comandoDeLimpeza ? await lerCanaisRemovidos(getSupabaseServiceClient(), arquivo.siteId) : null
-    const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap }) : null
+    // a lista e as pendências vêm da leitura única da requisição (`_arquivo/leituras.ts`): a página do Arquivo e a peça 7 dividem a mesma resposta
+    const lista = cap.comandoDeLimpeza ? await listaDosRemovidos(arquivo.siteId) : null
+    // só lê as pendências se há canal esperando os snapshots do NAS pela data da linha (ele fica fora da marca quando a espera é sozinha: não pede nada ao dono)
+    const pend = lista && lista.ok && lista.lista.some(l => esperaSnapshots(l, agora)) ? await lerPendenciasDosCanais(arquivo.siteId) : undefined
+    const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap, pend }) : null
     avisoBanco = montarAvisoV2({ aviso: { banco: arquivo.banco }, leve, agora, casa, marcaCanais })
   }
   // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)

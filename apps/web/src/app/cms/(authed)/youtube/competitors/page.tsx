@@ -1,4 +1,5 @@
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
+import { marcarRodado, desfazerRodado } from './_arquivo/actions-canal'
 import { gerarPacoteIa } from './contexto-ia-actions'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
@@ -11,6 +12,7 @@ import { askForjaReading } from './forja-actions'
 import { meuEmailDoSite } from './_canais/meu-email'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { lerPendenciasDaFila } from './_canais/pendencias-da-fila'
+import { forjaVerificouEm } from './_canais/forja-responde'
 
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
@@ -37,13 +39,14 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // Peça 7 (M5 T10): lida só com o filtro "Saíram do YouTube" aberto e só depois da guarda de edição (dentro de lerPendenciasDaFila); sem edição, nem o cliente de serviço é criado.
   // Os nomes saem de mapas montados uma vez (canal pelo id, vídeo pelo id do YouTube): nada de `find` por item.
   const pendencias = view.filter === 'sairam'
-    ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) })
+    ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) },
+      { verificadorEm: permissoes.podeEditar && process.env.OBS_ARQUIVO === 'on' ? await forjaVerificouEm(siteId) : undefined })
     : null
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
-        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}
+        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} onMarcarRodado={marcarRodado} onDesfazerRodado={desfazerRodado} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}
         onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}

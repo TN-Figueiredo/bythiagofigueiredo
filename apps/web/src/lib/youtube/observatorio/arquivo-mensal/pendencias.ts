@@ -161,20 +161,42 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
 export type PendenciasDaTela =
   | { estado: 'nao_medido' }
   | { estado: 'zero'; lidoEm: Date; linha: string | null }
-  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; /** dias desde o início da espera por snapshot (nulo = sem espera) */ snapEsperaDias: number | null; snapEsperaDesde: Date | null; snapLiberaEm: Date | null; /** a data de liberar já passou */ snapLiberaHoje: boolean; /** passou há mais de 24 h */ snapLiberaAtrasada: boolean; snapBloqueio: SnapBloqueio | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; /** dias desde o início da espera por snapshot (nulo = sem espera) */ snapEsperaDias: number | null; snapEsperaDesde: Date | null; snapLiberaEm: Date | null; /** a data de liberar já passou */ snapLiberaHoje: boolean; /** passou há mais de 24 h */ snapLiberaAtrasada: boolean; snapBloqueio: SnapBloqueio | null; /** quando o dono marcou "Já rodei" (nulo = não marcou) */ marcadoRodadoEm: Date | null; /** marcou há mais de 24 h, o item segue em `apagar_antigas` e a forja responde: a verificação não achou a mudança */ marcadoRefutado: boolean; /** marcou há mais de 24 h em `apagar_antigas` mas a forja não responde: a verificação não rodou, nada foi refutado */ marcadoAtrasado: boolean; /** marcou há mais de 24 h em `apagar_antigas` e não se leu o batimento: não se sabe se foi verificado */ marcadoIncerto: boolean; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
 
 const DIA_MS = 86_400_000
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const nomeDoMes = (m: string): string => `${MESES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`
+/**
+ * A marca "Já rodei" depois de 24 h (conserto 1, item 1). Só `apagar_antigas` tem o que a verificação pode refutar: lá, com a forja respondendo, a marca velha
+ * foi REFUTADA (o item voltou); com a forja parada, nada foi verificado e a marca fica "atrasada". Em `copiar`, `conferir_b2` e os demais, a marca velha
+ * não quer dizer nada (o passo seguinte ainda não rodou): vira nula e o botão "Já rodei" volta.
+ */
+export function marcaDoItem(i: { tempo: TempoPendencia; marcadoRodadoEm: Date | null }, agora: Date, verificadorEm: number | null | undefined): { marcadoRodadoEm: Date | null; marcadoRefutado: boolean; marcadoAtrasado: boolean; marcadoIncerto: boolean } {
+  const m = i.marcadoRodadoEm
+  const nada = { marcadoRefutado: false, marcadoAtrasado: false, marcadoIncerto: false }
+  if (m === null || m.getTime() >= agora.getTime() - DIA_MS) return { marcadoRodadoEm: m, ...nada }
+  if (i.tempo !== 'apagar_antigas') return { marcadoRodadoEm: null, ...nada }
+  // `undefined` = o batimento não foi lido: não se sabe se foi verificado (neutro, sem culpar a forja). `null` = lido e sem batimento: a verificação não rodou.
+  if (verificadorEm === undefined) return { marcadoRodadoEm: m, ...nada, marcadoIncerto: true }
+  const verificou = verificadorEm !== null && verificadorEm > m.getTime() + DIA_MS
+  return { marcadoRodadoEm: m, marcadoRefutado: verificou, marcadoAtrasado: !verificou, marcadoIncerto: false }
+}
+/** O batimento (ms) da conferência do B2 (`conferir_b2`), o programa que verifica; nulo = nunca deu sinal. O do `copiador` NÃO serve: a forja pode ter voltado agora sem que a conferência tenha rodado. */
+export function sinalDoVerificador(casa: ReadonlyArray<{ worker: string; last_poll_at: string | null; updated_at: string | null }>): number | null {
+  const t = (v: string | null): number => { const x = v === null ? NaN : Date.parse(v); return Number.isNaN(x) ? -Infinity : x }
+  const b = casa.find(c => c.worker === 'conferir_b2')
+  const s = b ? Math.max(t(b.last_poll_at), t(b.updated_at)) : -Infinity
+  return Number.isFinite(s) ? s : null
+}
 /** Os nomes que a página já tem, montados UMA vez (O(c + v)): canal pelo id do registro, vídeo pelo id do YouTube. */
 export interface NomesDaFila { canais?: ReadonlyMap<string, string>; videos?: ReadonlyMap<string, string> }
 /** O que a tela recebe. `apagar` e `b2_nomes` nunca saem daqui; a linha só vai a quem administra o site (E-D4). */
-export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: boolean; agora: Date; nomes?: NomesDaFila }): PendenciasDaTela {
+export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: boolean; agora: Date; nomes?: NomesDaFila; /** o batimento (ms) do programa que verifica; nulo = sem batimento; ausente = não lido (neutro) */ verificadorEm?: number | null }): PendenciasDaTela {
   if (!l.ok) return { estado: 'nao_medido' }
   const linha = o.podeVerComandos ? LINHA_DO_DONO : null
   if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
   const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
   const titulo = (i: PendenciaDoDono): string | null => (i.channelRef ? o.nomes?.canais?.get(i.channelRef) : i.youtubeId ? o.nomes?.videos?.get(i.youtubeId) : undefined) ?? (i.mes ? nomeDoMes(i.mes) : i.kind === 'canal' && i.channelRef ? i.channelRef.slice(0, 8) : null)
-  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, snapEsperaDias: i.snapEsperaDesde ? idade(i.snapEsperaDesde) : null, snapEsperaDesde: i.snapEsperaDesde, snapLiberaEm: i.snapLiberaEm, snapLiberaHoje: i.snapLiberaEm ? i.snapLiberaEm.getTime() <= o.agora.getTime() : false, snapLiberaAtrasada: i.snapLiberaEm ? i.snapLiberaEm.getTime() < o.agora.getTime() - 86_400_000 : false, snapBloqueio: i.snapBloqueio, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, snapEsperaDias: i.snapEsperaDesde ? idade(i.snapEsperaDesde) : null, snapEsperaDesde: i.snapEsperaDesde, snapLiberaEm: i.snapLiberaEm, snapLiberaHoje: i.snapLiberaEm ? i.snapLiberaEm.getTime() <= o.agora.getTime() : false, snapLiberaAtrasada: i.snapLiberaEm ? i.snapLiberaEm.getTime() < o.agora.getTime() - 86_400_000 : false, snapBloqueio: i.snapBloqueio, ...marcaDoItem(i, o.agora, o.verificadorEm), idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
   return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
 }

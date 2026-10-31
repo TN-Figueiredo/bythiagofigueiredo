@@ -242,6 +242,8 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
 
 ### Task 8: cobertura, runbook, emendas, revisão // ~110K (30K + revisões)
 
+**Feito em 30/10 (executor, sem a T7):** runbook (ciclo, "Sobrou arquivo no canal", lote da E10, reversão), `env-vars.md`, `--tsconfig`, emendas do spec/plano-mãe/índice, cobertura (161 e 165 `purged_at` viraram `it`). **Falta (depende da T7/T7b):** `it.todo` de 163 (tela), 65 ("Já rodei", 31/61 dias) e 111; revisões de Phil, Yannis e Hanna; status linhas 22 e 28; critérios de aceite já estão na seção própria.
+
 - [ ] `manutencao-m9-cobertura.test.ts`: `it.todo` 161 relido com a Decisão 1 (provas de fim viram `it` da Tarefa 6; comando sai); 163 vira `it`; 165 canal, feito; 65 "Já rodei", 65 31/61 e 111 (a Tarefa 7 fecha, para canal e para item). **Ficam:** 120, do núcleo (165 `purged_at` fecha na T6, l.207). Tabela do topo atualizada.
 - [ ] `docs/ops/runbook-arquivo-mensal.md`: "Canal removido fica SEGURO" vira o ciclo do canal; seção "Sobrou arquivo no canal" (leitura `find`, decisão do dono, `rm` à mão); frase do `--file-id`; a condição "só liga depois de um ciclo inteiro limpo" conforme a Decisão 2; tabela de `falta` ganha `blobs`, `imagens`, `lote_e10`, `so_prefixo`.
 - [ ] Spec (com a Decisão 1; **não tocar o spec agora**, só ao executar a T8) emendas completas (Hanna H6): `03` passo 19 e `03:214`; `04:241` ("Ver os comandos"); `05:597-603` (§16.10); `06` itens 69, 161, 163 (`apagado_nas` não conta na marca, Phil I5) e 164 (emenda dos dois: revisão "`apagado_b2` 15 dias depois de `snapshots_clear_on`"), 165 (`ensaiar-restauracao` chama `obs_archive_channel_is_removed`, a cargo da M8), 166, P34; `02:758`. Conferir com grep de `expurgar --canal`. Plano-mãe: D-M9-10 e D-M9-13 com nota. Plano da M8: linha do 165.
@@ -282,6 +284,12 @@ select r.channel_ref, r.name_at_removal, r.removed_via, r.units_at_removal, r.fi
        (select count(*) from public.obs_archive_units u where u.site_id = r.site_id and u.channel_ref = r.channel_ref and u.row_count > 0) as unidades_com_linhas
   from public.obs_archive_channel_removals r where r.archive_decision = 'apagar' and r.completed_at is null;
 ```
+   Segunda consulta do mesmo passo (conserto 1, item 5; canais `guardar` que já têm imagens por apagar no Blob e que a tela mostra como `sem_arquivo`): o site não as tenta de novo por esta tela, então o dono precisa saber quantas são antes de ligar `OBS_ARQUIVO_LIMPEZA_BLOBS`.
+```sql
+select r.channel_ref, r.name_at_removal, r.removed_via, r.archive_decision, cardinality(r.blobs_pending) as blobs
+  from public.obs_archive_channel_removals r where r.archive_decision = 'guardar' and cardinality(r.blobs_pending) > 0;
+```
+   Guardar a saída em `saidas/` junto com a primeira. Linha aqui = imagens do canal fora do arquivo que só saem com decisão do dono.
    Regra: `unidades_com_linhas > 0` em qualquer linha, ou canal que o dono não reconheça: **o passo 4 não acontece**, e a volta atrás vira tarefa própria (SQL de reversão da T6, com migration só se o dono pedir). Lista vazia: segue sem perguntar. Linha na lista exige "pode" por canal: o dono diz "pode apagar o arquivo do canal X, na primeira rodada", um por linha. A T5 aponta para esta frase. Guardar a saída em `saidas/`.
 4. **T5 em ramo próprio, mergeada em `staging` só depois do passo 3.** Repetir a consulta do passo 3 imediatamente antes do `git pull` no Mac. A partir desse pull, `obs:arquivo` deixa de ser só espera: apaga. Promoção a `main` depois.
 5. **`OBS_ARQUIVO_LIMPEZA_CANAL=on` no Vercel**, redeploy. Invertido com o passo 4, a tela promete um comando que ainda só espera.

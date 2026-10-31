@@ -5,17 +5,17 @@
  * Numeração do `06-aceite-e-riscos` (texto real do item, não o do Passo 1 do plano; Yannis I4, Phil I4):
  * | Item  | O que o 06 pede                                              | Quem prova                                                              | Falta |
  * |-------|--------------------------------------------------------------|-------------------------------------------------------------------------|-------|
- * | 65    | "apagar" com cópia deixa "arquivo pendente"                  | `it` "item 65" (purge real, alvos e bandeira)                           | "Já rodei" fecha: manutencao-m9-avanco `marcar_rodado`; 31/61 dias: it.todo |
+ * | 65    | "apagar" com cópia deixa "arquivo pendente"                  | `it` "item 65" (purge real, alvos e bandeira)                           | "Já rodei" fecha: manutencao-m9-avanco `marcar_rodado`; 31/61 dias: T7 |
  * | 66    | nova recebida antes de passar de aguardando_nova             | `it` "item 66" + manutencao-m9-avanco `item_falta: a ordem`             | partes do expurgar: arquivo-expurgar.test |
  * | 67    | competitor_removed_items sem rotina que a pode               | `it` "item 67" (advance + prosrc de pg_proc)                            | nada |
  * | 109   | lista gravada antes da cascata, em qualquer versão           | `it` "item 65" (captura no purge); `item_capture` olha a versão mais nova | versões anteriores: manutencao-m9-captura |
  * | 110   | todas as versões; texto aos 30 dias; numérica só com item    | `it` "versão antiga superada" (texto, 29 d x 31 d) + avanco `antigas_open` | nada |
- * | 111   | "Já rodei" + reconferência devolve o item, em âmbar          | NINGUÉM (avanco só grava e desfaz a marca)                              | it.todo abaixo |
+ * | 111   | "Já rodei" + reconferência devolve o item, em âmbar          | T7b (peca7-marcar-rodado, conserto1 item 4)                             | `it` abaixo |
  * | 120   | nenhum arquivo do mês contém o item; reconferência acusa     | NINGUÉM para unidade/resumo/manifesto; `it` "120" prova só o canal sem snap | it.todo abaixo |
- * | 109/110/111 de canal | pedido, apagado_nas, apagado_b2, concluido   | `it` "canal: marcos" (marcos do banco, não os itens 109 a 111 acima)    | comando e tela: M9b |
+ * | 109/110/111 de canal | pedido, apagado_nas, apagado_b2, concluido   | `it` "canal: marcos" + manutencao-m9b-canal (de ponta a ponta)       | tela: T7 |
  * | 120 (canal) | sem snap_absent_at o canal não passa de apagado_nas   | `it` "canal sem snap_absent_at"                                         | nada |
- * | 161/163 | `expurgar --canal`, tela                                   | FORA: Tarefa 12, vai à M9b (it.todo)                                    | M9b |
- * | 165   | restauração pula canal removido; `purged_at` não é arquivo_ausente | FORA: dividido em dois it.todo (canal: M9b; purged_at: núcleo, dívida nomeada no runbook) | ver runbook |
+ * | 161/163 | `expurgar --canal` (não existe, Decisão 1 da M9b), tela    | 161: `it` "item 161 relido" + manutencao-m9b-canal (T6); 163: ação T2, provas de fim T6 | 163: tela (T7, it.todo) |
+ * | 165   | restauração pula canal removido; `purged_at` não é arquivo_ausente | canal: `it` "item 165, parte canal"; purged_at do plano: T6; no kit: it.todo (núcleo, dívida no runbook) | kit (núcleo) |
  * | emergência/desbloqueio/ligar | comandos do runbook                    | este arquivo + manutencao-m9-leitores-ts                                | nada |
  * Nada neste arquivo cobre 31/61 dias nem "Já rodei" + reconferência: afirmar o contrário é erro (Yannis I4).
  * NÃO há linha de "retenção de snapshots" (saiu do desenho: Phil I1).
@@ -275,19 +275,38 @@ describe.skipIf(skipIfNoLocalDb())('M9 cobertura dos itens (Tarefa 14)', () => {
       const v1 = await unidade(c, { v: 1 })
       const t = await alvo(c, v1, null, 'copiar')
       const sqls = sqlDoRunbook(secaoDoRunbook())
-      expect(sqls.length).toBeGreaterThanOrEqual(7)
+      expect(sqls.length).toBeGreaterThanOrEqual(8)
       for (const q of sqls) {
-        const r = await tenta(pg, q.replaceAll('<site>', c.site).replaceAll('<alvo_id>', String(t)))
+        const r = await tenta(pg, q.replaceAll('<site>', c.site).replaceAll('<alvo_id>', String(t)).replaceAll('<canal>', c.canal))
         expect(r.ok, `${q.slice(0, 120)} => ${r.ok ? '' : r.message}`).toBe(true)
       }
     })
   })
 
-  it.todo('item 161 (comando `expurgar --canal`, uuid com aspas recusado antes do registro): FORA, Tarefa 12 vai à M9b')
-  it.todo('item 163 (tela: limpeza pedida, sem_destino, ação e estados com prova de fim): FORA, Tarefa 12 vai à M9b')
-  it.todo('item 65: 31 dias sem rodar dá amarelo e 61 vermelho (nenhum teste nem código achado; decisão da Hanna: entra na M9 ou sai)')
-  it.todo('item 65: "Já rodei" fecha o item em "arquivo pendente" (só há marcar_rodado no banco, em manutencao-m9-avanco; falta a ligação com o item)')
-  it.todo('item 111: "Já rodei" + reconferência que ainda acha os registros devolve o item à lista, em âmbar (manutencao-m9-avanco só grava e desfaz a marca)')
+  it('item 161 relido (Decisão 1 da M9b): não há `expurgar --canal`; as provas de fim estão na T6 e o CLI recusa o comando', () => {
+    const t6 = readFileSync(resolve(RAIZ_REPO, 'apps/web/test/integration/manutencao-m9b-canal.test.ts'), 'utf8')
+    for (const prova of ['concluido', 'sem_destino', 'online_thumbs_known', 'blobs_pending']) expect(t6, prova).toContain(prova)
+  })
+  it('item 163 (tela): fechado pelos testes da T7/T7b, que existem e afirmam os estados com texto exato', () => {
+    const tela = (f: string): string => readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio', f), 'utf8')
+    expect(tela('arquivo-canais-m9b-tela.test.ts')).toContain('sem_destino')
+    expect(tela('arquivo-canais-m9b-conserto1.test.ts')).toContain('lote_e10')
+    expect(tela('arquivo-canais-removidos.test.ts')).toContain('[29, 30, 60, 90]')
+  })
+  it('item 65: 31/61 dias (pastilha e idade) cobertos por arquivo-mensal-pendencias e arquivo-canais-removidos (T7)', () => {
+    const t = (f: string): string => readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio', f), 'utf8')
+    expect(t('arquivo-mensal-pendencias.test.ts')).toContain('maisAntigoDias: 61')
+    expect(t('arquivo-canais-removidos.test.ts')).toContain('[29, 30, 60, 90]')
+  })
+  it('item 65: "Já rodei" fecha o item (T7b: peca7-marcar-rodado chama marcarRodado e mostra o Desfazer)', () => {
+    const t = readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio/peca7-marcar-rodado.test.tsx'), 'utf8')
+    expect(t).toContain('Já rodei chama marcarRodado com o item_id')
+  })
+  it('item 111: "Já rodei" refutado volta à lista em âmbar (T7b: peca7-marcar-rodado e conserto1 item 4)', () => {
+    const d = resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio')
+    expect(readFileSync(resolve(d, 'peca7-marcar-rodado.test.tsx'), 'utf8')).toContain('refutado: âmbar, diz que voltou para a lista')
+    expect(readFileSync(resolve(d, 'arquivo-canais-m9b-conserto1.test.ts'), 'utf8')).toContain('tempo parado vira âmbar')
+  })
   it.todo('item 120: nenhum arquivo do mês (unidade, resumo, manifesto, qualquer versão não apagada) contém o item; a reconferência acusa (nenhum teste de ponta a ponta)')
   it('item 165, parte canal: a consulta do comandos-recarga (obs_archive_channel_is_removed) distingue canal que existe, apagar, guardar e sem_destino', async () => {
     await emTx(async c => {
@@ -304,7 +323,10 @@ describe.skipIf(skipIfNoLocalDb())('M9 cobertura dos itens (Tarefa 14)', () => {
       expect(await consulta(solto)).toEqual({ removido: true, decisao: null, sem_destino: true })
     })
   })
-  it.todo('item 165, parte purged_at (arquivo de unidade/resumo com purged_at não é arquivo_ausente em conferir-b2, atestar-b2, ensaiar-restauracao e restauração; unidade expurgada/perdida listada, nunca zero): é do NÚCLEO, dívida nomeada no runbook, falta teste no kit')
+  it('item 165, parte purged_at do plano (obs_archive_plan): fechada na T6 (filtro purged_at is null)', () => {
+    expect(readFileSync(resolve(RAIZ_REPO, 'apps/web/test/integration/manutencao-m9b-canal.test.ts'), 'utf8')).toContain('purged_at: unidade de canal removido fora do aguardando_dono')
+  })
+  it.todo('item 165, parte purged_at no kit (arquivo de unidade/resumo com purged_at não é arquivo_ausente em conferir-b2, atestar-b2, ensaiar-restauracao e restauração; unidade expurgada/perdida listada, nunca zero): é do NÚCLEO, dívida nomeada no runbook, falta teste no kit')
 })
 
 describe('M9 cobertura: todo comando citado no runbook tem teste', () => {
@@ -312,7 +334,7 @@ describe('M9 cobertura: todo comando citado no runbook tem teste', () => {
   const secao = secaoDoRunbook()
   const testes = (d: string): string[] => readdirSync(d, { recursive: true, encoding: 'utf8' }).filter(f => /\.test\.tsx?$/.test(f)).map(f => resolve(d, f))
   const corpus = testes(resolve(RAIZ, 'apps/web/test')).map(f => readFileSync(f, 'utf8')).join('\n')
-  const TABELAS = ['obs_archive_absence', 'obs_archive_channel_removals', 'obs_archive_item_targets', 'obs_archive_units']   // citadas só em SQL; o `it` que executa o SQL as prova
+  const TABELAS = ['obs_archive_absence', 'obs_archive_channel_removals', 'obs_archive_item_targets', 'obs_archive_summaries', 'obs_archive_units']   // citadas só em SQL; o `it` que executa o SQL as prova
   const unicos = (re: RegExp): string[] => [...new Set([...secao.matchAll(re)].map(m => m[1] ?? m[0]))].sort()
 
   it('a seção existe e cita comandos', () => { expect(secao.length).toBeGreaterThan(500) })
@@ -327,7 +349,7 @@ describe('M9 cobertura: todo comando citado no runbook tem teste', () => {
   it('comandos npm e obs: citados: lista fechada, cada um com teste', () => {
     expect(unicos(/\bnpm run -s [a-z:-]+(?: -- [a-z-]+(?: <n>)?)?/g)).toEqual(['npm run -s obs:arquivo'])
     expect(unicos(/\bobs:[a-z-]+/g)).toEqual(['obs:arquivo', 'obs:expurgar'])
-    expect(unicos(/--canal\b/g)).toEqual(['--canal'])   // só como "fora, M9b"
+    expect(unicos(/--canal\b/g)).toEqual(['--canal'])   // só como "não existe" (M9b, Decisão 1)
     for (const c of ['obs:arquivo', 'obs:expurgar']) expect(corpus).toContain(c)
   })
   it('arquivos citados existem no repositório e têm teste', () => {
@@ -336,8 +358,14 @@ describe('M9 cobertura: todo comando citado no runbook tem teste', () => {
     expect(corpus).toContain('m9-emergencia.sql')
     expect(secao).not.toMatch(/(^|[\s`])comandos\/[\w.-]+/)   // caminho solto fora do git (Phil I3)
   })
-  it('a regra do canal seguro está escrita (Phil C1) e a frase falsa antiga não voltou', () => {
-    expect(secao).toContain('NÃO imprime comando de apagar para item `canal:`')
+  it('o ciclo do canal está escrito (M9b: sem expurgar --canal, sobra de arquivo, lote da E10, reversão) e a frase falsa antiga não voltou', () => {
+    expect(secao).toContain('**Ciclo do canal removido (M9b).**')
+    expect(secao).toContain('### Sobrou arquivo no canal')
+    expect(secao).toContain('### Lote da E10 depois do `concluido`')
+    expect(secao).toContain('### Voltar atrás: devolver o canal a `guardado`')
+    expect(secao).toContain('**Não existe `expurgar --canal`**')
+    expect(secao).not.toContain('Canal removido fica SEGURO')
+    expect(secao).not.toContain('NÃO imprime comando de apagar para item `canal:`')
     expect(secao).not.toContain('Não há comando do Mac para ele')
     expect(secao).not.toContain('dar o atestado')
   })

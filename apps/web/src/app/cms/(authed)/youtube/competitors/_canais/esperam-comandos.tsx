@@ -1,15 +1,17 @@
 'use client'
 
 /**
- * Manutenção M5, Tarefa 10 (mockup 19, peca7.js): "Esperam você rodar os comandos", na fila "Saíram do YouTube". Só leitura: sem "Já rodei" (M9).
+ * Manutenção M5, Tarefa 10 (mockup 19, peca7.js): "Esperam você rodar os comandos", na fila "Saíram do YouTube". Com as ações por prop (M9b T7b) cada item ganha "Já rodei" e "Desfazer"; sem elas, só leitura.
  * Resumo com a idade do mais antigo, uma barra de 0 a 60 dias por item (cor no contorno e no preenchimento, texto em cor normal) e, só para quem
  * administra, "Ver os comandos" com a linha fixa e o botão Copiar. Nenhum caminho nem hash chega aqui (`PendenciasDaTela` já os tirou).
  * Frases sem equivalente no mockup (revisão Logan, T15): os textos por tempo e o título do item sem nome.
  */
-import { useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { fraseSnapEspera, type PendenciasDaTela, type TempoPendencia } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import type { Forma } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { FormaIcone, FraseComForma } from '../_arquivo/regua'
+import { CopiarLinha } from '../_arquivo/painel-comandos'
+import type { RespostaMarcar } from '../_arquivo/actions-canal'
 import '../_arquivo/arquivo.css'
 import './esperam-comandos.css'
 
@@ -54,7 +56,74 @@ function Idade({ d }: { d: number }): ReactElement {
   )
 }
 
-function Item({ i }: { i: Itens[number] }): ReactElement {
+type ErroMarcar = Extract<RespostaMarcar, { ok: false }>['erro']
+const AVISO_MARCAR: Record<ErroMarcar, string> = {
+  sem_permissao: 'Só quem administra o site pode marcar. Nada foi marcado.',
+  item_desconhecido: 'Este item não está mais na lista; recarregue a página.',
+  forma: 'Não deu para marcar agora. Nada foi marcado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+  interno: 'Não deu para marcar agora. Nada foi marcado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+}
+/** "Desfazer" que falha deixa a marca como estava: dizer "Nada foi marcado" seria falso (a marca segue). */
+const AVISO_DESFAZER: Record<ErroMarcar, string> = {
+  sem_permissao: 'Só quem administra o site pode desfazer a marca. A marca continua.',
+  item_desconhecido: 'Este item não está mais na lista; recarregue a página.',
+  forma: 'Não deu para desfazer agora. A marca continua; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+  interno: 'Não deu para desfazer agora. A marca continua; tente de novo em alguns minutos. Se repetir, avise quem cuida do site.',
+}
+const REDE_MARCAR = 'Não sabemos se foi marcado. Recarregue a página antes de tentar de novo.'
+const REDE_DESFAZER = 'Não sabemos se a marca foi desfeita. Recarregue a página antes de tentar de novo.'
+type Marcar = (itemId: string) => Promise<RespostaMarcar>
+/** Há comando a rodar? `sem_comando` (espera) e `bloqueado` não têm; a ação também recusa `antiga:` (a versão antiga sai da lista pelo C12, sem marca). */
+const marcavel = (i: Itens[number]): boolean => (i.tempo === 'copiar' || i.tempo === 'conferir_b2' || i.tempo === 'apagar_antigas') && !i.item_id.startsWith('antiga:')
+
+/** M9b T7b (peca7.js:61,139-140): "Já rodei" e "Desfazer". O estado vem do servidor (`marcadoRodadoEm`); o local só cobre o intervalo até a página recarregar. */
+function Marcar({ i, onMarcar, onDesfazer }: { i: Itens[number]; onMarcar: Marcar; onDesfazer: Marcar }): ReactElement | null {
+  const [local, setLocal] = useState<null | { marcado: boolean; em: Date }>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const alerta = useRef<HTMLParagraphElement>(null)
+  const emVoo = useRef(false)
+  const marcadoEm = local ? (local.marcado ? local.em : null) : i.marcadoRodadoEm
+  const refutado = !local && i.marcadoRefutado && i.marcadoRodadoEm !== null
+  const atrasado = !local && i.marcadoAtrasado && i.marcadoRodadoEm !== null
+  const incerto = !local && i.marcadoIncerto && i.marcadoRodadoEm !== null
+  const vai = async (fn: Marcar, marcado: boolean): Promise<void> => {
+    if (emVoo.current) return
+    emVoo.current = true; setEnviando(true); setAviso(null)
+    try {
+      const r = await fn(i.item_id)
+      if (r.ok) setLocal({ marcado, em: new Date() })
+      else setAviso((marcado ? AVISO_MARCAR : AVISO_DESFAZER)[r.erro] ?? (marcado ? AVISO_MARCAR : AVISO_DESFAZER).interno)
+    } catch { setAviso(marcado ? REDE_MARCAR : REDE_DESFAZER) }
+    emVoo.current = false; setEnviando(false)
+  }
+  useEffect(() => { if (aviso) alerta.current?.focus() }, [aviso])
+  const botao = (rot: string, fn: Marcar, marcado: boolean, cls = 'btn'): ReactElement => (
+    <button type="button" className={cls} aria-disabled={enviando} onClick={() => { void vai(fn, marcado) }}>{rot}</button>
+  )
+  return (
+    <div className="p7-marcar">
+      {marcadoEm && !refutado ? (
+        <div className="p7-marc" data-marcado tabIndex={-1}>
+          <h4>Marcado como rodado em {dmy(marcadoEm)}</h4>
+          {incerto
+            ? <p data-incerto>Não sabemos se este item já foi verificado depois que você marcou. O item continua na lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
+            : atrasado
+            ? <p data-atrasado>A verificação não rodou desde que você marcou, porque a forja não responde. Veja o aviso da página; o item continua na lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>
+            : <p>Volte em até 24 horas: se houver mais um passo, ele aparece aqui. Se a verificação seguinte não achar a mudança no arquivo, o item volta para a lista. {botao('Desfazer', onDesfazer, false, 'btn small')}</p>}
+        </div>
+      ) : (
+        <>
+          {refutado && i.marcadoRodadoEm ? <p className="p7-refut" data-refutado><FormaIcone forma="triangulo" /><span>Você marcou que rodou em {dmy(i.marcadoRodadoEm)}, mas a verificação ainda encontra este item no arquivo. <b>O item voltou para a lista.</b> A idade continua contando desde {dmy(i.desde)}.</span></p> : null}
+          <p className="p7-rodei">Rodou a linha? {botao('Já rodei', onMarcar, true)}</p>
+        </>
+      )}
+      {aviso ? <p ref={alerta} tabIndex={-1} role="alert" className="p7-erro">{aviso}</p> : null}
+    </div>
+  )
+}
+
+function Item({ i, onMarcar, onDesfazer, podeMarcar }: { i: Itens[number]; onMarcar?: Marcar; onDesfazer?: Marcar; podeMarcar: boolean }): ReactElement {
   const f = faixa(i.idadeDias)
   const fraseSnap = fraseDeSnapshots(i)
   return (
@@ -66,22 +135,13 @@ function Item({ i }: { i: Itens[number] }): ReactElement {
         {fraseSnap ? <p className="p7-st" data-snap={fraseSnap.ambar ? 'bloqueado' : 'espera'}><FormaIcone forma={fraseSnap.ambar ? 'triangulo' : 'pontilhado'} /><span>{fraseSnap.texto}</span></p> : null}
         {i.idadeDias >= DIAS_VERMELHO ? <p className="p7-lemb">Passou de 60 dias: é só um lembrete. Quando puder, rode a linha.</p> : null}
       </div>
-      <div className="p7-side"><Idade d={i.idadeDias} /></div>
+      <div className="p7-side"><Idade d={i.idadeDias} />{podeMarcar && onMarcar && onDesfazer && marcavel(i) ? <Marcar i={i} onMarcar={onMarcar} onDesfazer={onDesfazer} /> : null}</div>
     </li>
   )
 }
 
-function CopiarLinha({ linha }: { linha: string }): ReactElement {
-  const [texto, setTexto] = useState('Copiar')
-  const volta = (): void => { setTimeout(() => setTexto('Copiar'), 2000) }
-  const copiar = (): void => {
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(linha).then(() => { setTexto('Copiado'); volta() }, () => { setTexto('Selecione e copie'); volta() })
-    else { setTexto('Selecione e copie'); volta() }
-  }
-  return <button type="button" className="btn small" onClick={copiar} aria-label="Copiar a linha dos comandos">{texto}</button>
-}
-
-export function EsperamComandos({ t }: { t: PendenciasDaTela }): ReactElement {
+/** `onMarcarRodado`/`onDesfazerRodado`: as server actions, por prop (nunca importadas aqui). Sem elas, ou sem a linha (quem só edita), não há botão. */
+export function EsperamComandos({ t, onMarcarRodado, onDesfazerRodado }: { t: PendenciasDaTela; onMarcarRodado?: Marcar; onDesfazerRodado?: Marcar }): ReactElement {
   const [aberto, setAberto] = useState(false)
   if (t.estado === 'nao_medido') {
     return (
@@ -113,12 +173,12 @@ export function EsperamComandos({ t }: { t: PendenciasDaTela }): ReactElement {
           <button type="button" className="btn" aria-expanded={aberto} aria-controls="p7-cmd" onClick={() => setAberto(a => !a)}>{aberto ? 'Esconder os comandos' : 'Ver os comandos'}</button>
           <div className={`p7-cmd${aberto ? '' : ' p7-fechado'}`} id="p7-cmd">
             <p>No Mac, rode esta linha. Confira se a última linha que apareceu começa com <code>OBS-ARQUIVO:</code>; se não começar, nada rodou.</p>
-            <span className="p7-sh"><pre><code>{t.linha}</code></pre><CopiarLinha linha={t.linha} /></span>
+            <span className="p7-sh"><pre><code>{t.linha}</code></pre><CopiarLinha linha={t.linha} rotulo="Copiar a linha dos comandos" /></span>
           </div>
         </div>
       ) : null}
       </div>
-      <ul className="p7-ls">{t.itens.map(i => <Item key={i.item_id} i={i} />)}</ul>
+      <ul className="p7-ls">{t.itens.map(i => <Item key={i.item_id} i={i} onMarcar={onMarcarRodado} onDesfazer={onDesfazerRodado} podeMarcar={t.linha !== null} />)}</ul>
     </section>
   )
 }

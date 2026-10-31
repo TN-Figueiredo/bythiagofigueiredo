@@ -192,9 +192,53 @@ Duas ressalvas conhecidas (Phil, re-revisão 29/10):
 
 O expurgo tira de dentro do arquivo (NAS e B2) as linhas de um vídeo ou de comentários que o dono apagou no site. Aqui só o que falta dizer; as seções "Snapshots por tempo" e "`obs:arquivo` e `obs:expurgar`" acima valem como estão.
 
-**Estado hoje (30/10).** O interruptor da M9 está **ligado desde 29/10 22:34** e **nenhum item real rodou ainda**: a primeira prova em dado real só vem depois da selagem de 28/11 (conferência datada no ACOMPANHAMENTO; sem item real, registrar e reagendar). A Tarefa 12 (tela) e o comando `expurgar --canal` estão fora desta entrega e vão para a M9b. A limpeza de canal removido existe só na parte do banco: o canal anda por `pedido`, `apagado_nas`, `apagado_b2` e `concluido` (função `obs_archive_removal_advance`) e só conclui com os atestados do NAS, dos snapshots e do B2.
+**Estado hoje (30/10).** O interruptor da M9 está **ligado desde 29/10 22:34** e **nenhum item real rodou ainda**: a primeira prova em dado real só vem depois da selagem de 28/11 (conferência datada no ACOMPANHAMENTO; sem item real, registrar e reagendar). A limpeza de canal removido é da M9b (plano `docs/superpowers/plans/2026-10-30-manutencao-nas-m9b-canal.md`): o canal anda por `pedido`, `apagado_nas`, `apagado_b2` e `concluido` (função `obs_archive_removal_advance`) e só conclui com os atestados do NAS, dos snapshots e do B2. **Não existe `expurgar --canal`** (decisão de 30/10, Decisão 1): a limpeza do arquivo é do `obs:arquivo`.
 
-**Canal removido fica SEGURO até a M9b (Phil C1, Hanna H4).** O `obs:arquivo` NÃO imprime comando de apagar para item `canal:`: ele cai em `ESPERA canal:<uuid>: a limpeza de canal removido no NAS é da M9b; nada foi apagado`. Ninguém apaga arquivo de canal por este caminho, nem junto com os itens de vídeo. Antes da primeira rodada do dono, conferir o que está parado (leitura): `select channel_ref, decided_at, completed_at from public.obs_archive_channel_removals where archive_decision = 'apagar' and completed_at is null;`. Quando a M9b chegar, este texto ganha os passos. Gatilhos da M9b: o dono pedir, o CAP apertar, **e fechar a M9 (plano da M9b antes da selagem em que o canal do passo 19 entra)**. A ordem real do deploy (migration, leitor e rotas, kit, Mac) está no ledger `m9-progresso.md`.
+**Ciclo do canal removido (M9b).** O canal anda `guardado` (ou `sem_destino`) -> **Apagar do arquivo** na tela (quem administra; diálogo digita o nome, ou o código no `sem_destino`) -> `pedido` -> `npm run -s obs:arquivo | ssh forja 'bash -s'` (apaga arquivo a arquivo, conferindo sha256 do registro, e limpa as pastas vazias do canal, inclusive `_recebendo/` e `_recebendo/_quarentena/`) -> o copiador atesta a ausência -> 2ª conferência com 11 h -> `apagado_nas` -> snapshots do NAS (cerca de 14 dias e 8 h) -> `obs:arquivo` imprime `B2-PAINEL: <nome>` e o dono apaga no painel do B2 (passo 4 de "Ciclo mensal com expurgo" abaixo; canal real de 12 meses leva dias de clique, até 20 nomes por prefixo) -> `apagado_b2` -> `concluido` (este último passo só anda com `OBS_ARQUIVO_LIMPEZA_BLOBS=on`, que exige o "pode" do dono: ver "Ligar a limpeza de blobs do canal"). Rode o `obs:arquivo` de novo cerca de 15 dias depois de `snapshots_clear_on` para chegar ao `B2-PAINEL`. Nenhum comando novo: **sem `expurgar --canal`, sem SQL, sem kit.** O `obs:arquivo` repete sem risco: a 2ª rodada diz `JA-APAGADO` e sai 0. Saída esperada: `FEITO`, sem `RESTA`. Com o Mac fora da rede de casa (item 164) é o mesmo comando, desde que o `ssh forja` alcance a forja de fora; guarde a saída com `npm run -s obs:arquivo | ssh forja 'bash -s' 2>&1 | tee .superpowers/sdd/manutencao-nas/saidas/AAAA-MM-DD-obs-arquivo.txt` e a data de cada estado no ledger. Antes da 1ª rodada, conferir o que está parado (leitura): `select channel_ref, decided_at, completed_at from public.obs_archive_channel_removals where archive_decision = 'apagar' and completed_at is null;`. A ordem do deploy (passos 3 e 4: consulta de parada e T5 por último) está no plano da M9b.
+
+A tabela do que a pendência diz quando falta algo (`falta`): `snapshots` (espera de 14 dias, ver abaixo), `blobs` (miniaturas do Blob ainda não apagadas; a variável dos blobs está desligada), `imagens` (não se sabe se há miniaturas online e o dono não deu o aval), `lote_e10` (o canal veio de exportação e o lote ainda está aberto: a tela manda terminá-lo), `so_prefixo` (só restam pastas, sem arquivo conhecido: o script as limpa quando vazias). Nenhuma é erro; todas dizem o que falta.
+
+**Se `obs:arquivo` terminar com `NÃO TERMINOU`**, leia as linhas `PULADO` e `RESTA` acima dele. `PULADO` é montagem ou sentinela ausente ou sha256 divergente: nada foi apagado, resolva a causa e rode de novo. `RESTA` tem duas formas: "a pasta não ficou vazia" (ver abaixo) e "não é uma pasta comum dentro do arquivo (arquivo ou link)" (algo que não é pasta no lugar do prefixo: o script não toca; o dono olha com o `find` abaixo).
+
+### Sobrou arquivo no canal
+
+Quando o script imprime `RESTA <filho>/<prefixo>: a pasta não ficou vazia; veja "Sobrou arquivo no canal" no runbook`, a pasta tem algo que o registro não conhece (ou que o `find` não pôde apagar por permissão). O script nunca apaga o que não conhece. Quem decide é o dono, nunca um agente.
+
+1. **Leitura** (na forja, `ssh forja '<leitura>'`), trocando `<filho>` por `numerico` ou `texto` e `<prefixo>` pelo da mensagem:
+
+```
+ssh forja 'find /mnt/arquivo/escrita/<filho>/<prefixo> -xdev -ls'
+```
+
+   (`/mnt/arquivo/escrita` é a montagem de escrita do script, `ARQ_MONTAGEM_ESCRITA`). Anote o que há: nome, tamanho, data.
+2. **`RESTA` em `_recebendo/_quarentena/`**: tende a se resolver sozinho. A quarentena do copiador é de 30 dias (`copiar.py:37`); espere o prazo antes de mexer.
+3. **Decisão do dono:** se o arquivo for resto sem valor (parcial, temporário), ele apaga à mão, por ssh, só o que a leitura mostrou: `rm -- <arquivo>` e, depois, rodar `obs:arquivo` de novo, que remove a pasta vazia. Se não souber o que é, deixa: o canal fica em `apagar_antigas` e nada se perde.
+4. **Nunca `rm -r` na pasta do canal** por pressa: o `rm -r` apaga arquivo que ninguém conferiu. Se um `RESTA` real e frequente aparecer, abre-se `expurgar --canal` como tarefa própria (Decisão 1 do plano).
+5. **Arquivo restaurado do B2** com `restaurar_do_b2.py --file-id <id>` (ferramenta manual do dono, sem site) reaparece no NAS como `presente` e reabre a limpeza: rode `obs:arquivo` de novo.
+
+### Lote da E10 depois do `concluido` (Decisão 4)
+
+`concluido` não apaga o export da E10 (`~/Workspace/arquivo-observatorio/<lote>` no Mac e o destino do `comandos-nas` no NAS): `deleted_at` do lote quer dizer "linhas apagadas do banco". Ele guarda comentários de terceiros (LGPD). Enquanto o lote estiver aberto, o canal não anda: a tela diz "a exportação que você fez à mão deste canal ainda está aberta. Termine-a antes: a limpeza espera". Depois do `concluido`, o dono apaga os dois à mão (a tela avisa) e registra no ledger do passo 19. O `--destino` (`usuario@host:/caminho`) **não fica registrado**: ache-o no terminal ou no histórico do shell de quando rodou `comandos-nas --lote <lote> --destino ...` (ou no ledger), e rode o `rm` e o `ls` no host dele:
+
+```
+rm -r ~/Workspace/arquivo-observatorio/<lote>
+ssh <usuario@host do --destino> 'rm -r <caminho do --destino>/<lote>'
+ls ~/Workspace/arquivo-observatorio/<lote>
+ssh <usuario@host do --destino> 'ls <caminho do --destino>/<lote>'
+```
+
+Os dois `ls` devem dizer que não existe (Mac e NAS, critério do passo 19); guarde as saídas em `saidas/`. Conferir o caminho com `ls` antes do `rm -r`.
+
+### Voltar atrás: devolver o canal a `guardado` (provado na T6)
+
+Não vale para `sem_destino` (confirmar com o Phil antes de usar). Só vale para canal **sem arquivo apagado** (`obs:arquivo` ainda não rodou); depois disso nada volta. O texto abaixo foi provado dentro de `begin ... rollback` em `manutencao-m9b-canal.test.ts`. **Apagar** as linhas de `obs_archive_absence` do canal, nunca só encerrá-las: encerradas, um novo `decide` não reabre a prova de ausência e o canal conclui sem ela. Troque o site e o canal:
+
+```sql
+update public.obs_archive_channel_removals set archive_decision = 'guardar' where site_id = '<site>' and channel_ref = '<canal>' and completed_at is null;
+update public.obs_archive_units set purged_at = null, purged_by = null, purge_ref = null where site_id = '<site>' and channel_ref = '<canal>' and purge_ref = 'remocao:<canal>';
+update public.obs_archive_summaries set purged_at = null, purged_by = null, purge_ref = null where site_id = '<site>' and channel_ref = '<canal>' and purge_ref = 'remocao:<canal>';
+delete from public.obs_archive_absence where site_id = '<site>' and alvo = 'canal:<canal>';
+```
 
 **Interruptor.** O expurgo é ligado por site (`select public.obs_archive_m9_ligar('<site>', true);` no painel do banco, devolve boolean; só o `postgres` executa; erro `captura_ausente` se a captura não está no ar). Está ligado hoje. Enquanto desligado, o kit novo e o antigo se comportam igual e a prova de ausência não anda.
 
@@ -222,7 +266,7 @@ O resto da M9 fica, compatível com o código antigo enquanto o interruptor esti
 4. No `conferir_b2` o script imprime `B2-PAINEL: <nome>`. No painel do B2 (Buckets, Browse Files), com **"mostrar versões" ligado, apague todas as versões de cada nome, inclusive a marca de ocultação**. O `conferir-b2` diário confere e, sem nenhuma versão, o item conclui sozinho. **Não há atestado do dono.** Conferência: `select alvo, b2_nomes, b2_absent_at from public.obs_archive_absence where encerrada_at is null and b2_absent_at is null;` antes e depois da limpeza; depois do `conferir-b2` seguinte `b2_absent_at` fica preenchido.
 5. Versão antiga de texto superada por outra sai em `antiga:<uuid>` 30 dias depois de a nova ser **recebida** pelo NAS (`received_at`), desde que o NAS a tenha atestado há até 48 h e o B2 há até 7 dias; versão numérica superada só entra se tiver item removido. Cerca de 45 dias até o item encerrar.
 
-As chaves `blobs`, `imagens`, `lote_e10` e `so_prefixo` não estão na tabela: são só de canal e não aparecem até a M9b.
+As chaves `blobs`, `imagens`, `lote_e10` e `so_prefixo` não estão na tabela: são só de canal e estão descritas em "Ciclo do canal removido (M9b)" acima. O que a tela diz de cada uma: `lote_e10` = "a exportação que você fez à mão deste canal ainda está aberta. Termine-a antes" (ação do dono: terminar a exportação); `imagens` = "o site não anotou quais imagens deste canal estão no Blob; a limpeza espera o seu aceite... Peça para olhar" (sem ação do dono na tela).
 
 `competitor_removed_items` nunca é podada: o item concluído continua lá.
 
@@ -238,7 +282,7 @@ Com `snap_bloqueio` nulo a espera é de cerca de 14 dias e acaba sozinha. Com mo
 
 ### Ligar a limpeza de blobs do canal
 
-`OBS_ARQUIVO_LIMPEZA_CANAL` está **desligada** (variável ausente no Vercel) e **só liga com a M9b no ar**: a variável também liga a promessa do comando na tela ("Falta você rodar o comando no Mac"), e esse comando (`expurgar --canal`) não existe antes da M9b. A limpeza dos blobs (miniaturas) é irreversível e só liga depois de um ciclo inteiro limpo, com um canal de teste de ponta a ponta. Quem liga é o dono. Enquanto ausente, o canal fica com a pendência `falta 'blobs'`.
+`OBS_ARQUIVO_LIMPEZA_CANAL` (liga o botão "Apagar do arquivo" e a promessa do comando na tela) e `OBS_ARQUIVO_LIMPEZA_BLOBS` (a tentativa diária de apagar as miniaturas) são **variáveis separadas**, ambas **desligadas** (ausentes no Vercel). A ordem é a do plano da M9b: primeiro o código no ar, depois o `obs:arquivo` com a T5 (`git pull` no Mac), depois `OBS_ARQUIVO_LIMPEZA_CANAL=on`. `OBS_ARQUIVO_LIMPEZA_BLOBS=on` apaga miniaturas do Blob **sem volta** e só liga quando o canal de teste chegar a `apagado_b2` (NAS, snapshots e B2 já provados), depois de repetir nesse dia a leitura de `blobs_pending` e mostrá-la ao dono; quem liga é o controlador, com o "pode" dele (Decisão 2). Enquanto ausente, o canal fica com a pendência `falta 'blobs'`, nunca `concluido`.
 
 ### `obs:arquivo` sai com `versao` errada
 

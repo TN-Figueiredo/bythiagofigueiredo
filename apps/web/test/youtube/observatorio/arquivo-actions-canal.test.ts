@@ -18,6 +18,7 @@ const captureMessage = vi.fn()
 const captureException = vi.fn()
 let negado = false
 let semEdicao = false
+let ctxLanca = false
 const lerLista = vi.fn()
 /** Troca só a resposta do decide, mantendo a função de estado do canal em `removido: true`. */
 const rpcDecide = (r: unknown): void => { rpc.mockImplementation(async (nome: string) => (nome === 'obs_archive_channel_is_removed' ? { data: { removido: true }, error: null } : r)) }
@@ -28,7 +29,7 @@ function carregar() {
   vi.doMock('@/lib/cms/auth-guards', () => ({
     denyUnlessSiteAdmin: async (_s: string, acao: string) => (negado ? { ok: false, error: `Só quem administra o site pode ${acao}.` } : null),
   }))
-  vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
+  vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => { if (ctxLanca) throw new Error('sem contexto'); return { siteId: 's1' } } }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
     requireSiteScope: async () => (semEdicao ? { ok: false, reason: 'forbidden' } : { ok: true, user: { id: 'u1' } }),
   }))
@@ -45,7 +46,7 @@ beforeEach(() => {
   for (const f of [rpc, clienteCriado, invalidate, revalidate, revalidateTag, captureMessage, captureException, lerLista]) f.mockReset()
   // a função de estado do canal (removido) e o decide: por nome da função
   rpc.mockImplementation(async (nome: string) => (nome === 'obs_archive_channel_is_removed' ? { data: { removido: true, decisao: 'guardar', sem_destino: false }, error: null } : { data: { status: 'ok' }, error: null }))
-  negado = false; semEdicao = false
+  negado = false; semEdicao = false; ctxLanca = false
   lista = { ok: true, lista: [{ channel_ref: REF, nome: 'Canal Ção X' }] }
   process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'on'
   process.env.OBS_ARQUIVO_BLOCO_CANAIS_REMOVIDOS = 'on'
@@ -157,16 +158,46 @@ describe('M9b T2: ações do canal removido', () => {
     expect(await m.marcarRodado('item:12')).toEqual({ ok: false, erro: 'interno' })
   })
 
-  it('conserto 2: canal VIVO (removido:false), erro ou resposta torta na função de estado: canal_existe, decide nunca chamado, cache não solto', async () => {
+  it('T7b: marcar traduz sem_permissao e item_desconhecido do banco; item_invalido vira forma; o resto, interno', async () => {
     const m = await carregar()
-    for (const resp of [{ data: { removido: false }, error: null }, { data: null, error: { message: 'x' } }, { data: null, error: null }, { data: 'lixo', error: null }]) {
-      rpc.mockReset(); invalidate.mockReset()
-      rpc.mockResolvedValue(resp)
-      expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'canal_existe' })
-      expect(rpc).toHaveBeenCalledTimes(1)
-      expect(rpc).toHaveBeenCalledWith('obs_archive_channel_is_removed', { p_site: 's1', p_channel_ref: REF })
-      expect(invalidate).not.toHaveBeenCalled()
+    for (const [msg, erro] of [['sem_permissao', 'sem_permissao'], ['item_desconhecido', 'item_desconhecido'], ['item_invalido', 'forma'], ['boom', 'interno']] as const) {
+      rpcDecide({ data: null, error: { message: msg } })
+      expect(await m.marcarRodado('item:12')).toEqual({ ok: false, erro })
+      expect(await m.desfazerRodado('item:12')).toEqual({ ok: false, erro })
     }
+  })
+
+  it('conserto 2: só "removido: false" claro é canal_existe; decide nunca chamado, cache não solto', async () => {
+    const m = await carregar()
+    rpc.mockReset(); invalidate.mockReset()
+    rpc.mockResolvedValue({ data: { removido: false }, error: null })
+    expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'canal_existe' })
+    expect(rpc).toHaveBeenCalledTimes(1)
+    expect(rpc).toHaveBeenCalledWith('obs_archive_channel_is_removed', { p_site: 's1', p_channel_ref: REF })
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('conserto 1/7: erro do banco ou resposta torta na função de estado NÃO diz que o canal existe: interno, com Sentry, decide nunca chamado', async () => {
+    const m = await carregar()
+    for (const resp of [{ data: null, error: { message: 'x', code: '57014' } }, { data: null, error: null }, { data: 'lixo', error: null }, { data: {}, error: null }, { data: { removido: 'false' }, error: null }]) {
+      rpc.mockReset(); invalidate.mockReset(); captureMessage.mockReset()
+      rpc.mockResolvedValue(resp)
+      expect(await m.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'interno' })
+      expect(rpc).toHaveBeenCalledTimes(1)
+      expect(invalidate).not.toHaveBeenCalled()
+      expect(captureMessage).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('conserto 1/7: a guarda que LANÇA é erro interno com Sentry, não sem_permissão (e nada é chamado)', async () => {
+    ctxLanca = true
+    const m2 = await carregar()
+    expect(await m2.apagarDoArquivoAction(REF, 'Canal Ção X')).toEqual({ ok: false, erro: 'interno' })
+    expect(await m2.marcarRodado('item:5')).toEqual({ ok: false, erro: 'interno' })
+    expect(await m2.desfazerRodado('item:5')).toEqual({ ok: false, erro: 'interno' })
+    expect(captureException).toHaveBeenCalledTimes(3)
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('conserto 4: lista com 2 canais, a leitura é do site da sessão e acha o canal certo (não lista[0])', async () => {

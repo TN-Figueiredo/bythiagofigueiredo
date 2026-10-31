@@ -44,3 +44,19 @@
   .p7-sh .btn,.p7-ac>.btn{min-height:44px;align-self:stretch}
 }
 @media (pointer:coarse){.p7-sh .btn,.p7-ac>.btn{min-height:44px}}
+/* M9b T7b: Já rodei, Desfazer e o item refutado. Âmbar com borda e forma, nunca só cor. */
+.p7-marcar{display:grid;gap:8px;margin-top:8px}
+.p7-rodei{margin:0;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.p7-marc h4{margin:0 0 4px;font-size:13.5px}
+.p7-marc p{margin:0;font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.p7-refut{margin:0;display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1.5px solid var(--warning);border-radius:6px;background:var(--warn-subtle);font-size:13px;line-height:1.5}
+.p7-erro{margin:0;padding:8px 10px;border:1.5px solid var(--warning);border-radius:6px;background:var(--warn-subtle);font-size:13px}
+.p7-marcar .btn{min-height:44px}
+/* M9b T7b: Já rodei, Desfazer e o item refutado. Âmbar com borda e forma, nunca só cor. */
+.p7-marcar{display:grid;gap:8px;margin-top:8px}
+.p7-rodei{margin:0;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.p7-marc h4{margin:0 0 4px;font-size:13.5px}
+.p7-marc p{margin:0;font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.p7-refut{margin:0;display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1.5px solid var(--warning);border-radius:6px;background:var(--warn-subtle);font-size:13px;line-height:1.5}
+.p7-erro{margin:0;padding:8px 10px;border:1.5px solid var(--warning);border-radius:6px;background:var(--warn-subtle);font-size:13px}
+.p7-marcar .btn{min-height:44px}

@@ -159,7 +159,8 @@ export const BLOB_INFO = { rotulo: 'O que é o Blob', titulo: 'O que é o Blob',
 const INVISIVEIS = /[\u200b\u2060\ufeff]/g
 const ESPACOS = /[ \t\n\r\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g
 export function normalizarNome(s: string): string {
-  return s.replace(INVISIVEIS, '').replace(ESPACOS, ' ').replace(/^ +| +$/g, '').toLowerCase()
+  // NFC primeiro: o macOS cola "é" decomposto (e + acento combinante) e o nome guardado vem composto; sem isso o mesmo nome visível não confere
+  return s.normalize('NFC').replace(INVISIVEIS, '').replace(ESPACOS, ' ').replace(/^ +| +$/g, '').toLowerCase()
 }
 export function nomeConfere(digitado: string, nome: string): boolean {
   const d = normalizarNome(digitado)

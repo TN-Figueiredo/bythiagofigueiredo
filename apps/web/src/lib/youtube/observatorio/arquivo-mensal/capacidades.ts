@@ -4,7 +4,9 @@
  */
 import 'server-only'
 
-export interface Capacidades { comandoDeLimpeza: boolean; blocoCanaisRemovidos: boolean; dataDoComando: string | null }
+export interface Capacidades { comandoDeLimpeza: boolean; blocoCanaisRemovidos: boolean; dataDoComando: string | null
+  /** M9b T1/T7: a tentativa diária de apagar as imagens do canal no Blob (`OBS_ARQUIVO_LIMPEZA_BLOBS`), separada da variável da tela. */
+  blobsLigados: boolean }
 /** Vira true no commit da M5 que traz o componente (04 §14.3). */
 export const BLOCO_CANAIS_REMOVIDOS = true
 
@@ -16,6 +18,7 @@ export function lerCapacidades(env: NodeJS.ProcessEnv = process.env): Capacidade
   return {
     comandoDeLimpeza: env.OBS_ARQUIVO_LIMPEZA_CANAL === 'on' && BLOCO_CANAIS_REMOVIDOS,
     blocoCanaisRemovidos: BLOCO_CANAIS_REMOVIDOS,
+    blobsLigados: env.OBS_ARQUIVO_LIMPEZA_BLOBS === 'on',
     dataDoComando: typeof data === 'string' && data.length > 0 ? data : null,
   }
 }
