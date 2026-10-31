@@ -21,6 +21,7 @@ import { arquivoNoChrome } from './arquivo-do-chrome'
 import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
+import { lerPendenciasDosCanais } from '../_arquivo/pendencias-dos-canais'
 import { lerCanaisRemovidos, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -61,7 +62,10 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
     const casa = casaDe(leve.casa, [], agora)
     const cap = lerCapacidades()
     const lista = cap.comandoDeLimpeza ? await lerCanaisRemovidos(getSupabaseServiceClient(), arquivo.siteId) : null
-    const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap }) : null
+    // só lê as pendências se há canal esperando os snapshots do NAS (ele fica fora da marca: não pede nada ao dono)
+    const sb = getSupabaseServiceClient()
+    const pend = lista && lista.ok && lista.lista.some(l => l.estado === 'apagado_nas') ? await lerPendenciasDosCanais(sb, arquivo.siteId) : undefined
+    const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap, pend }) : null
     avisoBanco = montarAvisoV2({ aviso: { banco: arquivo.banco }, leve, agora, casa, marcaCanais })
   }
   // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)

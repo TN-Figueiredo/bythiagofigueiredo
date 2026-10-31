@@ -4,6 +4,7 @@ import type { LeituraBloco } from '@/lib/youtube/observatorio/arquivo-mensal/can
 import { FraseComForma } from './regua'
 import { CartaoDoTipoView } from './cartao-do-tipo'
 import { BlocoCanaisRemovidosView, BlocoNaoLido } from './bloco-canais-removidos'
+import type { RespostaApagar } from './actions-canal'
 import { Legenda } from './legenda'
 import { GrupoTeste } from './grupo-teste'
 
@@ -18,9 +19,9 @@ function FraseDoTopo({ topo, administra }: { topo: Topo; administra: boolean }):
 }
 
 /** A página Arquivo (M5, 04 §14.2): só leitura. Ordem (Logan A1b): resumo, "Além disso", casa, problemas, legenda, bloco (acima dos tipos só se pede algo), tipos, meses à frente, dado de teste. */
-export function ArquivoScreen({ modelo, bloco, acesso }: { modelo: ModeloPagina; bloco: LeituraBloco; acesso: 'edita' | 'administra' }): ReactElement {
+export function ArquivoScreen({ modelo, bloco, acesso, onApagar }: { modelo: ModeloPagina; bloco: LeituraBloco; acesso: 'edita' | 'administra'; onApagar?: (channelRef: string, digitado: string) => Promise<RespostaApagar> }): ReactElement {
   const administra = acesso === 'administra'
-  const blocoNode = bloco.ok ? <BlocoCanaisRemovidosView bloco={bloco.bloco} /> : <BlocoNaoLido />
+  const blocoNode = bloco.ok ? <BlocoCanaisRemovidosView bloco={bloco.bloco} onApagar={onApagar} /> : <BlocoNaoLido />
   const blocoSobe = bloco.ok && bloco.bloco.acimaDosTipos
   const naoLido = modelo.resumo.forma === 'hachura'
   return (

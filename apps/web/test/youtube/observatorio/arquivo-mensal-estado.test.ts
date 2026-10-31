@@ -45,8 +45,8 @@ describe('capacidades (P54, item 163)', () => {
   afterEach(() => { process.env = { ...salvo } })
   it('variável apagada: o comando não existe', () => {
     delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL
-    delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA
-    expect(lerCapacidades()).toEqual({ comandoDeLimpeza: false, blocoCanaisRemovidos: true, dataDoComando: null }) // M5 T9: o bloco foi entregue
+    delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA; delete process.env.OBS_ARQUIVO_LIMPEZA_BLOBS
+    expect(lerCapacidades()).toEqual({ comandoDeLimpeza: false, blocoCanaisRemovidos: true, dataDoComando: null, blobsLigados: false }) // M5 T9: o bloco foi entregue
   })
   it('só on liga', () => {
     for (const v of ['ON', '1', 'true', '', ' on']) expect(lerCapacidades({ OBS_ARQUIVO_LIMPEZA_CANAL: v } as NodeJS.ProcessEnv).comandoDeLimpeza).toBe(false)
