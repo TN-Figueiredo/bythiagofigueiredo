@@ -19,7 +19,7 @@ Decisão (2026-06-06): o pre-commit **NÃO** roda `next build` nem os suites de 
 - Mexeu em `packages/*/src/`: `npm run build:packages` IMEDIATAMENTE (recompila o `dist/` que `apps/web`/`apps/api` consomem). Não commitar sem isso.
 - Mudança arriscada: rode `next build` e/ou os testes manualmente antes; não é obrigatório.
 - Commit → push (staging→main). Só rebuilde local (`npm run build:web`) se o Vercel realmente falhar.
-- NÃO re-adicionar `next build`/suites ao pre-commit "por segurança". `--no-verify` em código: evitar.
+- NÃO re-adicionar `next build`/suites ao pre-commit "por segurança". `--no-verify`: planos/specs/docs podem; código só se o hook falhar em arquivo alheio (regra completa na memória `feedback_no_verify_plans`).
 - Categorias de pacote, gates automáticos e árvore de decisão: `docs/ops/workspace-package-builds.md`.
 
 ## Pausa com cache quente (decisão de 2026-10-09)
@@ -172,7 +172,7 @@ Lista completa, flags operacionais e o detalhe de cada variável: **`docs/ops/en
 - **TypeScript:** `strict: true`, nunca `any`, Zod para validação
 - **Arquivos:** kebab-case. **Classes:** PascalCase. **Interfaces:** `I` prefix. **DB columns:** snake_case.
 - **Commits:** `tipo: descrição curta` — tipos: `feat`, `fix`, `chore`, `refactor`, `docs`, `ci`
-- **Branches:** `staging` = dev, `main` = production. Feature: `feat/xxx`, `fix/xxx`, `chore/xxx`
+- **Branches:** `staging` = dev, `main` = production. O destino é `origin/staging`; cada terminal ou agente trabalha em worktree própria (`feat/xxx`, `fix/xxx`, `chore/xxx`), nunca na mesma árvore; integra assim que verificado e apaga o ramo. Ramo só fica parado se esperar portão (ex.: migration), com `refs/backup` por até 7 dias.
 
 ## Ecosystem Packages (@tn-figueiredo/*)
 
