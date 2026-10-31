@@ -7,7 +7,7 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
   useCanAdminSite: () => siteAdmin.value,
 }))
-import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
+import { act, render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'
 import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
@@ -177,8 +177,9 @@ describe('CanaisScreen', () => {
       expect(refresh.mock.calls.length).toBe(n)
       await vi.advanceTimersByTimeAsync(8_000)
       expect(refresh.mock.calls.length).toBe(n + 1)
-      // o rearme vem no efeito depois do render: a folga cobre esse atraso e fica longe dos 180 s do 3º
-      await vi.advanceTimersByTimeAsync(70_000)
+      // o rearme vem no efeito depois do render: sem act o React pode só renderizar depois do avanço, e o 2º timer nem nasce
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(70_000) })
       expect(refresh.mock.calls.length).toBe(n + 2)
       expect(screen.queryByText(`${bf.name} pronto`)).toBeNull()
     } finally { vi.useRealTimers() }
