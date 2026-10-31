@@ -330,10 +330,10 @@ describe('marcas dos comentários', () => {
 
 describe('expurgar --item no cli', () => {
   const env = { HOME: '/h' }
-  it('interpretar: --item numérico; --canal fica para a M9b; sem --item é erro', () => {
+  it('interpretar: --item numérico; --canal não existe; sem --item é erro', () => {
     expect(interpretar(['expurgar', '--item', '7'], env)).toEqual({ nome: 'expurgar', item: '7', apagarAntigas: false })
     expect(interpretar(['expurgar', '--item', '7', '--apagar-antigas'], env)).toEqual({ nome: 'expurgar', item: '7', apagarAntigas: true })
-    expect(interpretar(['expurgar', '--canal', CANAL], env)).toEqual({ erro: expect.stringContaining('M9b') })
+    expect(interpretar(['expurgar', '--canal', CANAL], env)).toEqual({ erro: expect.stringContaining('obs:arquivo') })
     expect(interpretar(['expurgar', '--apagar-antigas'], env)).toEqual({ erro: expect.stringContaining('--item') })
     expect(interpretar(['expurgar', '--item', 'abc'], env)).toEqual({ erro: expect.stringContaining('--item') })
     expect(interpretar(['expurgar', '--item', '0'], env)).toEqual({ erro: expect.stringContaining('--item') })

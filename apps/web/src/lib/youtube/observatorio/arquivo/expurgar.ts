@@ -2,7 +2,7 @@
 /**
  * Manutenção M9, Tarefa 8: o tempo `copiar` no Mac (02 §11.3; D-M9-4, D-M9-6). Lê a versão antiga do NAS pela montagem `ro` (por ssh),
  * filtra o item, serializa em TS, registra pela rota C14 e devolve as cópias para o script. Nunca escreve no NAS: quem grava é o
- * script, rodado pelo dono. Só o ramo de item; `expurgar --canal` ficou para a M9b (emenda de 25/10).
+ * script, rodado pelo dono. Só o ramo de item; a limpeza do canal removido não passa por aqui: é do `obs:arquivo` (M9b, T5).
  */
 import { createHash } from 'node:crypto'
 import type { Filho } from '../arquivo-mensal/contrato'

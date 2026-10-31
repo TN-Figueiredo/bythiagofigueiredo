@@ -53,7 +53,7 @@ describe('diálogo Apagar do arquivo', () => {
 describe('peça 7: marca velha sem batimento lido', () => {
   it('mostra o texto neutro, sem culpar a forja', () => {
     const l = lerPendencias({ versao: 2, lido_em: new Date(AGORA).toISOString(), total: 1, itens: [{ item_id: `canal:${REF}`, kind: 'canal', tempo: 'apagar_antigas', desde: iso(5), mes: null, channel_ref: REF, youtube_id: null, marcado_rodado_em: iso(2),
-      apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }] })
+      apagar: [{ filho: 'numerico', caminho: `serie/canais/${REF}/b.csv`, sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }] })
     const t = pendenciasParaTela(l, { podeVerComandos: true, agora: new Date(AGORA) })
     if (t.estado !== 'com_itens') throw new Error('fixture')
     const { container } = render(<EsperamComandos t={t} onMarcarRodado={vi.fn()} onDesfazerRodado={vi.fn()} />)

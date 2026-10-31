@@ -56,7 +56,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 leitores Zod do TS contra a saída real d
          values ($1, $2, $3, $4, $5, 'numerico', $6, false, $7, now())`, [s.site, alvo, o.canalRef ?? null, o.alvoId ?? null, o.unidadeId ?? null, prefixo, H('e')])
       await linha(`alvo:${alvoId}`, 'serie/canais/a.csv.gz', { alvoId })
       await linha(`antiga:${u1}`, 'serie/canais/b.csv.gz', { unidadeId: u1 })
-      await linha(`canal:${s.canal}`, 'serie/canais/c.csv.gz', { canalRef: s.canal })
+      // a linha canal:<ref> já nasce da remoção acima, no formato real <classe>/canais/<ref>
       expect((await pg.query(`select public.obs_archive_m9_ligar($1, true) as r`, [s.site])).rows[0].r).toBe(true)
       await fn({ site: s.site, canal: s.canal, item, antiga: u1, alvoId })
     } finally { await pg.query('rollback') }

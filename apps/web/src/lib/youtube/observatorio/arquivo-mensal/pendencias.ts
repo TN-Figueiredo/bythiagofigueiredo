@@ -107,6 +107,13 @@ const Item = z.object({
   if (deCanal && i.item_id.slice('canal:'.length) !== i.channel_ref) falha('canal:<uuid> diferente de channel_ref')
   if (i.item_id.startsWith('antiga:') !== (i.kind === 'versao')) falha('kind versao se e só se item_id começa por antiga:')
   if (i.prefixos.length > 0 && !deCanal) falha('prefixos só em canal')
+  if (deCanal && i.channel_ref) {
+    // o script apaga o que o site manda: em canal:<ref>, nada fora de <classe>/canais/<ref> (formato de obs_archive_caminho_unidade e de removal_open_rows)
+    const alvo = new RegExp(`^[a-z_]+/canais/${i.channel_ref}$`)
+    if (i.prefixos.some(p => !alvo.test(p))) falha('prefixo fora de <classe>/canais/<canal>')
+    if (i.apagar.some(a => !new RegExp(`^[a-z_]+/canais/${i.channel_ref}/`).test(a.caminho))) falha('apagar fora de <classe>/canais/<canal>/')
+    if (i.apagar.some(a => a.nova !== null && !new RegExp(`^[a-z_]+/canais/${i.channel_ref}/`).test(a.nova.caminho))) falha('apagar.nova fora de <classe>/canais/<canal>/')
+  }
 })
 
 const Corpo = z.object({ versao: z.literal(VERSAO_PENDENCIAS), lido_em: data, total: z.number().int().nonnegative(), itens: z.array(Item) })

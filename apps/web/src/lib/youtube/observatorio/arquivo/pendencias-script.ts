@@ -21,7 +21,7 @@ export const FRASE_DA_FALTA: Record<Falta, string> = {
   blobs: 'ainda há blobs (anexos) do canal a tratar; eles saem pelo ciclo normal',
   imagens: 'faltam as miniaturas do canal ou o aceite do dono sobre as ausentes (veja a página do Arquivo)',
   lote_e10: 'há um lote da E10 aberto para este canal; feche-o antes',
-  so_prefixo: 'só restam pastas (prefixos) sem arquivo conhecido; a limpeza as confere sozinha',
+  so_prefixo: 'só restam pastas (prefixos) sem arquivo conhecido; o script as limpa quando estão vazias',
   m9_desligado: 'a limpeza está desligada; o dono liga pelo painel (runbook)',
 }
 export const FRASE_DO_MOTIVO: Record<Motivo, string> = {
@@ -62,15 +62,22 @@ const CORPO_ABRE = [
   '  OBS_CHAMADO=1',
   '  set -u',
   '  if [ "$(hostname -s)" != forja ]; then echo "OBS-ARQUIVO: NÃO RODOU: este script roda na forja (ssh forja \'bash -s\'); nada feito aqui" >&2; return 3; fi',
-  '  local M="${ARQ_MONTAGEM_ESCRITA:-/mnt/arquivo/escrita}" falhas=0 apagados=0 gravados=0 ja=0 esperando=0',
+  '  local M="${ARQ_MONTAGEM_ESCRITA:-/mnt/arquivo/escrita}" falhas=0 fdesm=" " apagados=0 gravados=0 ja=0 esperando=0',
 ]
 const FUNCAO = [
-  '  apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 (os dois últimos vazios = sem versão nova a exigir)',
-  '    local base="$M/$1" alvo="$M/$1/$2"',
+  '  apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 canal (nova_* vazios = sem versão nova a exigir; canal=1 só em item canal:)',
+  '    local base="$M/$1" alvo="$M/$1/$2" e',
   '    if ! mountpoint -q "$base" || [ ! -f "$base/.arquivo-vivo" ]; then echo "PULADO $1/$2: o NAS não está montado ou sem a sentinela" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if [ -n "$4" ] && [ "$alvo" -ef "$base/$4" ]; then echo "PULADO $1/$2: a antiga e a nova são o mesmo arquivo" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if [ -n "$4" ] && { [ ! -f "$base/$4" ] || [ "$(sha256sum < "$base/$4" | cut -c1-64)" != "$5" ]; }; then echo "PULADO $1/$2: a versão nova não está no NAS como o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
-  '    if [ ! -e "$alvo" ]; then if [ -d "$(dirname "$alvo")" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: a pasta não existe (caminho errado no site?)" >&2; falhas=$((falhas+1)); fi; return 0; fi',
+  '    if [ ! -e "$alvo" ]; then',
+  '      e="$(LC_ALL=C stat -- "$alvo" 2>&1)"   # só "não existe" (ENOENT/ENOTDIR) vale como já apagado; link quebrado ou permissão é PULADO',
+  '      case "$e" in',
+  '        *"No such file or directory"*|*"Not a directory"*) if [ "${6:-}" = 1 ] || [ -d "$(dirname "$alvo")" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: a pasta não existe (caminho errado no site?)" >&2; falhas=$((falhas+1)); fi ;;',
+  '        *) echo "PULADO $1/$2: não consegui conferir o arquivo (permissão ou link quebrado)" >&2; falhas=$((falhas+1)) ;;',
+  '      esac',
+  '      return 0',
+  '    fi',
   '    if [ "$(sha256sum < "$alvo" | cut -c1-64)" != "$3" ]; then echo "PULADO $1/$2: o arquivo no NAS não é o que o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if rm -- "$alvo"; then echo "APAGADO $1/$2"; apagados=$((apagados+1)); elif [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: o rm falhou" >&2; falhas=$((falhas+1)); fi',
   '  }',
@@ -91,10 +98,11 @@ const PREFIXO = [
   '    local f d',
   '    for f in numerico texto; do',
   '      d="$M/$f/$1"',
-  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then continue; fi',
-  '      [ -d "$d" ] || continue',
+  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then echo "PULADO $f/$1: o NAS não está montado ou sem a sentinela" >&2; case "$fdesm" in *" $f "*) ;; *) fdesm="$fdesm$f "; falhas=$((falhas+1)) ;; esac; continue; fi',
+  '      [ -e "$d" ] || [ -L "$d" ] || continue',
+  '      if [ ! -d "$d" ] || [ "$(realpath -- "$d" 2>/dev/null)" != "$(realpath -- "$M/$f" 2>/dev/null)/$1" ]; then echo "RESTA $f/$1: não é uma pasta comum dentro do arquivo (arquivo ou link); veja \\"Sobrou arquivo no canal\\" no runbook"; esperando=$((esperando+1)); falhas=$((falhas+1)); continue; fi',
   '      find "$d" -xdev -depth -type d -empty -delete',
-  '      if [ -d "$d" ]; then echo "RESTA $1: há arquivo que o site não conhece; use \\"Ver os comandos\\" na página do Arquivo"; esperando=$((esperando+1)); fi',
+  '      if [ -d "$d" ]; then echo "RESTA $f/$1: a pasta não ficou vazia; veja \\"Sobrou arquivo no canal\\" no runbook"; esperando=$((esperando+1)); falhas=$((falhas+1)); fi',
   '    done',
   '  }',
   '  b2_painel() {         # o nome vem do site, já validado pelo leitor (NOME_B2); a forja não traduz nada',
@@ -111,7 +119,11 @@ export function scriptDasPendencias(
   o: { versao: string; copias?: readonly CopiaPreparada[] },
 ): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string } {
   const itens: string[] = []
-  let temApagar = false, temGrava = false, temPrefixo = false
+  let temApagar = false, temGrava = false, temPrefixo = false, temPainel = false
+  const jaLimpos = new Set<string>()
+  const limpaCanal = (prefixos: readonly string[]): void => {
+    for (const p of prefixos) if (!jaLimpos.has(p)) { jaLimpos.add(p); itens.push(`  limpa_prefixo ${aspas(p)}`, `  limpa_prefixo ${aspas('_recebendo/' + p)}`, `  limpa_prefixo ${aspas('_recebendo/_quarentena/' + p)}`) }
+  }
   const esp = (frase: string): string => `  echo ${aspas(frase)}; esperando=$((esperando+1))`
   const tamanho = (b64: string): string[] => b64.replace(/\s+/g, '').match(/.{1,76}/g) ?? []
   for (const i of l.itens) {
@@ -128,6 +140,7 @@ export function scriptDasPendencias(
           temGrava = true
           for (const c of registradas) itens.push(`  grava_recebendo ${aspas(c.filho)} ${aspas(c.caminho)} ${aspas(c.sha256)} <<'OBS-B64'`, ...tamanho(c.base64), 'OBS-B64')
         }
+        if (i.falta === 'so_prefixo' && i.prefixos.length > 0) { temPrefixo = true; limpaCanal(i.prefixos) }
         itens.push(esp(`ESPERA ${i.itemId}: ${frase}`)); break
       }
       case 'bloqueado': itens.push(esp(`BLOQUEADO ${i.itemId}: ${i.motivo ? FRASE_DO_MOTIVO[i.motivo] : 'apagar está indisponível agora (veja o aviso na página)'}`)); break
@@ -139,24 +152,24 @@ export function scriptDasPendencias(
         break
       }
       case 'conferir_b2':
-        temPrefixo = true
+        temPainel = true
         for (const n of i.b2Nomes) itens.push(`  b2_painel ${aspas(n)}`)
         itens.push(`  echo ${aspas('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, APAGUE todas as versões de cada nome acima (inclusive a marca de ocultação); o conferir-b2 conclui sozinho, sem atestado seu')}`)
         break
       case 'apagar_antigas':
-        // Phil C1 / Hanna H4: o comando de apagar canal removido é da M9b; até lá o item de canal só espera
-        if (i.itemId.startsWith('canal:')) { itens.push(esp(`ESPERA ${i.itemId}: a limpeza de canal removido no NAS é da M9b; nada foi apagado`)); break }
         temApagar = true
         for (const a of i.apagar) {
-          itens.push(`  apaga_conferido ${aspas(a.filho)} ${aspas(a.caminho)} ${aspas(a.sha256)} ${aspas(a.nova?.caminho ?? '')} ${aspas(a.nova?.sha256 ?? '')}`)
+          itens.push(`  apaga_conferido ${aspas(a.filho)} ${aspas(a.caminho)} ${aspas(a.sha256)} ${aspas(a.nova?.caminho ?? '')} ${aspas(a.nova?.sha256 ?? '')}${i.itemId.startsWith('canal:') ? " '1'" : ''}`)
         }
+        if (i.itemId.startsWith('canal:')) { temPrefixo = true; limpaCanal(i.prefixos) }
         break
     }
   }
+  const temLimpeza = temApagar || temPrefixo
   const quando = dataBr(l.lidoEm)
   const fim = l.itens.length === 0
     ? `  echo ${aspas(`OBS-ARQUIVO: NADA PENDENTE (lido em ${quando})`)}`
-    : temApagar || temGrava
+    : temApagar || temGrava || temLimpeza
       ? '  echo "OBS-ARQUIVO: FEITO ($gravados gravado(s), $apagados apagado(s), $ja já feito(s), $esperando esperando)"'
       : `  echo ${aspas(`OBS-ARQUIVO: NADA A RODAR AGORA (${l.itens.length} esperando)`)}`
   const linhas = [
@@ -169,10 +182,10 @@ export function scriptDasPendencias(
     ...CORPO_ABRE,
     ...(temApagar ? FUNCAO : []),
     ...(temGrava ? GRAVA : []),
-    ...(temApagar || temPrefixo ? PREFIXO : []),
-    ...(temApagar || temGrava ? TRAVA : []),
+    ...(temLimpeza || temPainel ? PREFIXO : []),
+    ...(temLimpeza || temGrava ? TRAVA : []),
     ...itens,
-    '  if [ "$falhas" -gt 0 ]; then echo "OBS-ARQUIVO: NÃO TERMINOU ($falhas conferência(s) falharam; nada delas foi apagado)" >&2; return 1; fi',
+    '  if [ "$falhas" -gt 0 ]; then echo "OBS-ARQUIVO: NÃO TERMINOU ($falhas pendência(s) sem concluir; veja PULADO/RESTA acima)" >&2; return 1; fi',
     fim,
     '}; obs_arquivo_main; exit $?',
   ]

@@ -24,7 +24,7 @@ const bloco = (l: ListaRemovidosV2[number], o: { cap?: Record<string, boolean>; 
 describe('item 1: marca "Já rodei" velha (refutado falso)', () => {
   const ITEM = (o: Record<string, unknown>) => ({ item_id: `canal:${REF}`, kind: 'canal', tempo: 'copiar', desde: iso(5), mes: null, channel_ref: REF, youtube_id: null, marcado_rodado_em: iso(2),
     apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null, ...o })
-  const APAGAR = { tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }] }
+  const APAGAR = { tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: `serie/canais/${REF}/b.csv`, sha256: 'a'.repeat(64), nova: null }] }
   const B2 = { tempo: 'conferir_b2', b2_nomes: ['a/b.csv'] }
   const tela = (item: Record<string, unknown>, verificadorEm?: number | null) => {
     const t = pendenciasParaTela(lerPendencias({ versao: 2, lido_em: new Date(AGORA).toISOString(), total: 1, itens: [item] }), { podeVerComandos: true, agora: new Date(AGORA), verificadorEm })
