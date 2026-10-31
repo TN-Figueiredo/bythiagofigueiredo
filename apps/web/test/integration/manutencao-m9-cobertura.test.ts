@@ -10,7 +10,7 @@
  * | 67    | competitor_removed_items sem rotina que a pode               | `it` "item 67" (advance + prosrc de pg_proc)                            | nada |
  * | 109   | lista gravada antes da cascata, em qualquer versão           | `it` "item 65" (captura no purge); `item_capture` olha a versão mais nova | versões anteriores: manutencao-m9-captura |
  * | 110   | todas as versões; texto aos 30 dias; numérica só com item    | `it` "versão antiga superada" (texto, 29 d x 31 d) + avanco `antigas_open` | nada |
- * | 111   | "Já rodei" + reconferência devolve o item, em âmbar          | NINGUÉM (avanco só grava e desfaz a marca)                              | it.todo abaixo |
+ * | 111   | "Já rodei" + reconferência devolve o item, em âmbar          | T7b (peca7-marcar-rodado, conserto1 item 4)                             | `it` abaixo |
  * | 120   | nenhum arquivo do mês contém o item; reconferência acusa     | NINGUÉM para unidade/resumo/manifesto; `it` "120" prova só o canal sem snap | it.todo abaixo |
  * | 109/110/111 de canal | pedido, apagado_nas, apagado_b2, concluido   | `it` "canal: marcos" + manutencao-m9b-canal (de ponta a ponta)       | tela: T7 |
  * | 120 (canal) | sem snap_absent_at o canal não passa de apagado_nas   | `it` "canal sem snap_absent_at"                                         | nada |
@@ -287,10 +287,26 @@ describe.skipIf(skipIfNoLocalDb())('M9 cobertura dos itens (Tarefa 14)', () => {
     const t6 = readFileSync(resolve(RAIZ_REPO, 'apps/web/test/integration/manutencao-m9b-canal.test.ts'), 'utf8')
     for (const prova of ['concluido', 'sem_destino', 'online_thumbs_known', 'blobs_pending']) expect(t6, prova).toContain(prova)
   })
-  it.todo('item 163 (tela: estados com texto exato, sem_destino, ação): ação e provas de fim fechadas (T2, T6); falta a TELA, da Tarefa 7 da M9b')
-  it.todo('item 65: 31 dias sem rodar dá amarelo e 61 vermelho (nenhum teste nem código achado; decisão da Hanna: entra na M9 ou sai)')
-  it.todo('item 65: "Já rodei" fecha o item em "arquivo pendente" (só há marcar_rodado no banco, em manutencao-m9-avanco; falta a ligação com o item)')
-  it.todo('item 111: "Já rodei" + reconferência que ainda acha os registros devolve o item à lista, em âmbar (manutencao-m9-avanco só grava e desfaz a marca)')
+  it('item 163 (tela): fechado pelos testes da T7/T7b, que existem e afirmam os estados com texto exato', () => {
+    const tela = (f: string): string => readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio', f), 'utf8')
+    expect(tela('arquivo-canais-m9b-tela.test.ts')).toContain('sem_destino')
+    expect(tela('arquivo-canais-m9b-conserto1.test.ts')).toContain('lote_e10')
+    expect(tela('arquivo-canais-removidos.test.ts')).toContain('[29, 30, 60, 90]')
+  })
+  it('item 65: 31/61 dias (pastilha e idade) cobertos por arquivo-mensal-pendencias e arquivo-canais-removidos (T7)', () => {
+    const t = (f: string): string => readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio', f), 'utf8')
+    expect(t('arquivo-mensal-pendencias.test.ts')).toContain('maisAntigoDias: 61')
+    expect(t('arquivo-canais-removidos.test.ts')).toContain('[29, 30, 60, 90]')
+  })
+  it('item 65: "Já rodei" fecha o item (T7b: peca7-marcar-rodado chama marcarRodado e mostra o Desfazer)', () => {
+    const t = readFileSync(resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio/peca7-marcar-rodado.test.tsx'), 'utf8')
+    expect(t).toContain('Já rodei chama marcarRodado com o item_id')
+  })
+  it('item 111: "Já rodei" refutado volta à lista em âmbar (T7b: peca7-marcar-rodado e conserto1 item 4)', () => {
+    const d = resolve(RAIZ_REPO, 'apps/web/test/youtube/observatorio')
+    expect(readFileSync(resolve(d, 'peca7-marcar-rodado.test.tsx'), 'utf8')).toContain('refutado: âmbar, diz que voltou para a lista')
+    expect(readFileSync(resolve(d, 'arquivo-canais-m9b-conserto1.test.ts'), 'utf8')).toContain('tempo parado vira âmbar')
+  })
   it.todo('item 120: nenhum arquivo do mês (unidade, resumo, manifesto, qualquer versão não apagada) contém o item; a reconferência acusa (nenhum teste de ponta a ponta)')
   it('item 165, parte canal: a consulta do comandos-recarga (obs_archive_channel_is_removed) distingue canal que existe, apagar, guardar e sem_destino', async () => {
     await emTx(async c => {
