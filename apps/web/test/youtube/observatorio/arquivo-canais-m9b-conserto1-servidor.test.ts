@@ -17,7 +17,7 @@ vi.mock('react', async orig => {
 })
 const COMP = '@/app/cms/(authed)/youtube/competitors'
 const SITE = '00000000-0000-0000-0000-00000000a3b0'
-const PEND = { versao: 2, lido_em: '2028-05-03T15:00:00Z', total: 0, itens: [] }
+const PEND = { versao: 2, lido_em: '2026-05-03T15:00:00Z', total: 0, itens: [] }
 
 beforeEach(() => { vi.resetModules(); rpc.mockReset(); criar.mockClear(); captureMessage.mockClear(); process.env.OBS_ARQUIVO = 'on' })
 
@@ -36,7 +36,7 @@ describe('item 8: uma leitura por requisição e por site', () => {
     const { lerPendenciasDosCanais } = await import(`${COMP}/_arquivo/pendencias-dos-canais`)
     const { lerPendenciasDaFila } = await import(`${COMP}/_canais/pendencias-da-fila`)
     const bloco = await lerPendenciasDosCanais(SITE)
-    const fila = await lerPendenciasDaFila(SITE, { podeEditar: true, canUnlock: true } as never, new Date('2028-05-03T15:00:00Z'))
+    const fila = await lerPendenciasDaFila(SITE, { podeEditar: true, canUnlock: true } as never, new Date('2026-05-03T15:00:00Z'))
     expect(bloco).toMatchObject({ ok: true })
     expect(fila).toMatchObject({ estado: 'zero' })
     expect(rpc.mock.calls.filter(c => c[0] === 'obs_archive_owner_pending')).toHaveLength(1)
@@ -51,12 +51,12 @@ describe('item 8: uma leitura por requisição e por site', () => {
   })
   it('a fila usa a lista do cache para os nomes (sem segunda chamada)', async () => {
     const ref = 'aaaaaaaa-1111-2222-3333-444444444444'
-    const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'copiar', desde: '2028-05-01T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
+    const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'copiar', desde: '2026-05-01T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
     rpc.mockImplementation(async (nome: string) => nome === 'obs_archive_owner_pending' ? { data: { ...PEND, total: 1, itens: [item] }, error: null } : { data: [], error: null })
     const { listaDosRemovidos } = await import(`${COMP}/_arquivo/leituras`)
     await listaDosRemovidos(SITE)
     const { lerPendenciasDaFila } = await import(`${COMP}/_canais/pendencias-da-fila`)
-    await lerPendenciasDaFila(SITE, { podeEditar: true, canUnlock: true } as never, new Date('2028-05-03T15:00:00Z'))
+    await lerPendenciasDaFila(SITE, { podeEditar: true, canUnlock: true } as never, new Date('2026-05-03T15:00:00Z'))
     expect(rpc.mock.calls.filter(c => c[0] === 'obs_archive_removed_channel_list')).toHaveLength(1)
   })
 })
@@ -76,15 +76,15 @@ describe('item 10: montarArquivo entrega administra e pend ao montarBloco', () =
     return (await import(`${COMP}/_arquivo/montar`)).montarArquivo
   }
   const ref = 'aaaaaaaa-1111-2222-3333-444444444444'
-  const canal = { versao: 2, channel_ref: ref, estado: 'pedido', decided_at: '2028-04-28T00:00:00Z', nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
-    blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: '2028-04-28T00:00:00Z', removido_via: 'botao', primeiro_mes: '2026-10', ultimo_mes: '2027-11', meses: 14, registros: 1, classes: [] }
-  const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'apagar_antigas', desde: '2028-04-28T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
+  const canal = { versao: 2, channel_ref: ref, estado: 'pedido', decided_at: '2026-04-28T00:00:00Z', nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
+    blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: '2026-04-28T00:00:00Z', removido_via: 'botao', primeiro_mes: '2024-10', ultimo_mes: '2025-11', meses: 14, registros: 1, classes: [] }
+  const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'apagar_antigas', desde: '2026-04-28T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
   beforeEach(() => {
     montarBloco.mockReset()
     rpc.mockImplementation(async (nome: string) => nome === 'obs_archive_pagina' ? { data: paginaVazia(), error: null } : nome === 'obs_archive_removed_channel_list' ? { data: [canal], error: null } : nome === 'obs_archive_owner_pending' ? { data: { ...PEND, total: 1, itens: [item] }, error: null } : { data: [], error: null })
   })
   it.each([[true, 'administra'], [false, 'edita']] as const)('canUnlock=%s: administra=%s chega ao montarBloco, com a leitura das pendências do canal', async (admin) => {
-    abrir.mockResolvedValue({ userId: 'u1', siteId: SITE, now: Date.parse('2028-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, extra: { canUnlock: admin, podeEditar: true } })
+    abrir.mockResolvedValue({ userId: 'u1', siteId: SITE, now: Date.parse('2026-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, extra: { canUnlock: admin, podeEditar: true } })
     const r = await (await importar())()
     if (r.acesso === 'so_le') throw new Error('x')
     const o = montarBloco.mock.calls[0]![1]
@@ -94,7 +94,7 @@ describe('item 10: montarArquivo entrega administra e pend ao montarBloco', () =
     expect(r.bloco).toMatchObject({ ok: true })
   })
   it('a leitura das pendências falhou: pend {ok:false} chega ao montarBloco (a linha diz não medido)', async () => {
-    abrir.mockResolvedValue({ userId: 'u1', siteId: SITE, now: Date.parse('2028-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, extra: { canUnlock: true, podeEditar: true } })
+    abrir.mockResolvedValue({ userId: 'u1', siteId: SITE, now: Date.parse('2026-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, extra: { canUnlock: true, podeEditar: true } })
     rpc.mockImplementation(async (nome: string) => nome === 'obs_archive_pagina' ? { data: paginaVazia(), error: null } : nome === 'obs_archive_removed_channel_list' ? { data: [canal], error: null } : { data: null, error: { code: '57014' } })
     await (await importar())()
     expect(montarBloco.mock.calls[0]![1].pend).toEqual({ ok: false })

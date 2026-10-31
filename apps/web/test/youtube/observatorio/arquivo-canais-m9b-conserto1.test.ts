@@ -8,7 +8,7 @@ import type { Casa } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-m
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 
-const AGORA = Date.parse('2028-05-03T15:00:00Z'), D = 86_400_000
+const AGORA = Date.parse('2026-05-03T15:00:00Z'), D = 86_400_000
 const REF = 'aaaaaaaa-1111-2222-3333-444444444444'
 const casa: Casa = { estado: 'responde', desde: null, forma: 'visto', frase: '' }
 const cap = (o: Record<string, boolean> = {}) => ({ comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null, blobsLigados: true, ...o })
@@ -16,7 +16,7 @@ const iso = (dias: number): string => new Date(AGORA - dias * D).toISOString()
 const linha = (o: Record<string, unknown>): ListaRemovidosV2[number] => ({ versao: 2, channel_ref: REF, estado: 'pedido', decided_at: iso(5),
   nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
   blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: iso(5), removido_via: 'botao',
-  primeiro_mes: '2026-10', ultimo_mes: '2027-11', meses: 14, registros: 118402, classes: ['serie'], ...o }) as ListaRemovidosV2[number]
+  primeiro_mes: '2024-10', ultimo_mes: '2025-11', meses: 14, registros: 118402, classes: ['serie'], ...o }) as ListaRemovidosV2[number]
 const pend = (o: Partial<PendenciaDoCanal> = {}): PendenciasDoBloco => ({ ok: true, canais: new Map([[REF, { tempo: 'copiar', falta: null, snapLiberaEm: null, snapBloqueio: null, marcadoRodadoEm: null, b2Nomes: 0, ...o }]]) })
 const bloco = (l: ListaRemovidosV2[number], o: { cap?: Record<string, boolean>; casa?: Casa; administra?: boolean; pend?: PendenciasDoBloco; verificadorEm?: number | null } = {}) =>
   montarBloco([l], { agora: AGORA, casa: o.casa ?? casa, cap: cap(o.cap), administra: o.administra ?? true, pend: o.pend ?? pend(), verificadorEm: o.verificadorEm }).linhas[0]!
@@ -80,7 +80,7 @@ describe('item 2: so_prefixo em "pedido" não é mudo', () => {
 })
 
 describe('item 3: apagado_b2 nunca verde por falta de dado', () => {
-  const b2 = (o: Record<string, unknown> = {}) => linha({ estado: 'apagado_b2', nas_absent_at: iso(20), b2_absent_at: iso(1), decided_at: iso(10), snapshots_clear_on: '2028-04-20', ...o })
+  const b2 = (o: Record<string, unknown> = {}) => linha({ estado: 'apagado_b2', nas_absent_at: iso(20), b2_absent_at: iso(1), decided_at: iso(10), snapshots_clear_on: '2026-04-20', ...o })
   it('lote_e10 aberto: frase própria, sem "conclui sozinho" e sem culpar o B2', () => {
     const l = bloco(b2(), { pend: pend({ tempo: 'sem_comando', falta: 'lote_e10' }) })
     expect(l.frase).toContain('A exportação que você fez à mão deste canal ainda está aberta. Termine-a antes: a limpeza espera.')
@@ -135,7 +135,7 @@ describe('item 4: tempo parado vira âmbar', () => {
     expect(l).toMatchObject({ forma: 'octogono', gravidade: 'vermelho' })
   })
   it('apagado_nas com prazo cumprido e "espera o site" aos 95 dias: a cor da idade manda (nunca neutro)', () => {
-    const nas = (dias: number) => linha({ estado: 'apagado_nas', nas_absent_at: iso(dias), decided_at: iso(dias + 5), snapshots_clear_on: '2028-01-01' })
+    const nas = (dias: number) => linha({ estado: 'apagado_nas', nas_absent_at: iso(dias), decided_at: iso(dias + 5), snapshots_clear_on: '2026-01-01' })
     const p = pend({ tempo: 'sem_comando', falta: null })
     expect(bloco(nas(95), { pend: p })).toMatchObject({ gravidade: 'vermelho', forma: 'octogono' })
     expect(bloco(nas(40), { pend: p })).toMatchObject({ gravidade: 'ambar', forma: 'triangulo' })
@@ -170,7 +170,7 @@ describe('item 5: imagens do Blob sem promessa que o site não cumpre', () => {
 })
 
 describe('item 6: meses nulo = sem botão (o diálogo não tem número)', () => {
-  it.each([[null, null, null], [0, '2026-10', '2026-10'], [3, null, '2026-10'], [3, '2026-10', null]])('meses=%s primeiro=%s ultimo=%s', (meses, primeiro_mes, ultimo_mes) => {
+  it.each([[null, null, null], [0, '2024-10', '2024-10'], [3, null, '2024-10'], [3, '2024-10', null]])('meses=%s primeiro=%s ultimo=%s', (meses, primeiro_mes, ultimo_mes) => {
     const l = bloco(linha({ estado: 'guardado', meses, primeiro_mes, ultimo_mes }))
     expect(l.acao).toBeNull(); expect(l.dialogo).toBeNull(); expect(l.frase).toContain('quantos meses')
   })
@@ -196,15 +196,15 @@ describe('item 9: a marca da pastilha', () => {
     expect(marca(nas())).toBeNull()
   })
   it('apagado_nas com o prazo vencido pela data da linha conta sem precisar da leitura (a leitura é só para o resto)', () => {
-    expect(marca(nas({ snapshots_clear_on: '2028-04-01' }))).toMatchObject({ n: 1 })
+    expect(marca(nas({ snapshots_clear_on: '2026-04-01' }))).toMatchObject({ n: 1 })
   })
   it('pedido segue contando', () => {
     expect(marca(linha({}))).toMatchObject({ n: 1 })
   })
   it('esperaSnapshots: nula ou futura = espera; vencida = não; outro estado = não', () => {
     expect(esperaSnapshots(nas(), AGORA)).toBe(true)
-    expect(esperaSnapshots(nas({ snapshots_clear_on: '2028-05-10' }), AGORA)).toBe(true)
-    expect(esperaSnapshots(nas({ snapshots_clear_on: '2028-05-03' }), AGORA)).toBe(false)
+    expect(esperaSnapshots(nas({ snapshots_clear_on: '2026-05-10' }), AGORA)).toBe(true)
+    expect(esperaSnapshots(nas({ snapshots_clear_on: '2026-05-03' }), AGORA)).toBe(false)
     expect(esperaSnapshots(linha({}), AGORA)).toBe(false)
   })
 })

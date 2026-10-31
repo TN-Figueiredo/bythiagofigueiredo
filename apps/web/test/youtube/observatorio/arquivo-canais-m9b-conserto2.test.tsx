@@ -9,7 +9,7 @@ import { montarBloco, type ListaRemovidosV2 } from '@/lib/youtube/observatorio/a
 import { lerPendencias, pendenciasParaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
 vi.mock('server-only', () => ({}))
-const AGORA = Date.parse('2028-05-03T15:00:00Z'), D = 86_400_000
+const AGORA = Date.parse('2026-05-03T15:00:00Z'), D = 86_400_000
 const REF = 'aaaaaaaa-1111-2222-3333-444444444444'
 const casa = { estado: 'responde' as const, desde: null, forma: 'visto' as const, frase: '' }
 const cap = { comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null, blobsLigados: true }
@@ -17,7 +17,7 @@ const iso = (d: number): string => new Date(AGORA - d * D).toISOString()
 const linha = (o: Record<string, unknown> = {}): ListaRemovidosV2[number] => ({ versao: 2, channel_ref: REF, estado: 'guardado', decided_at: null,
   nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
   blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: iso(5), removido_via: 'botao',
-  primeiro_mes: '2026-10', ultimo_mes: '2027-11', meses: 14, registros: 1, classes: [], ...o }) as ListaRemovidosV2[number]
+  primeiro_mes: '2024-10', ultimo_mes: '2025-11', meses: 14, registros: 1, classes: [], ...o }) as ListaRemovidosV2[number]
 const pend = { ok: true as const, canais: new Map([[REF, { tempo: 'copiar' as const, falta: null, snapLiberaEm: null, snapBloqueio: null, marcadoRodadoEm: null, b2Nomes: 0 }]]) }
 const montar = (ls: ListaRemovidosV2[number][]) => montarBloco(ls, { agora: AGORA, casa, cap, administra: true, pend })
 afterEach(cleanup)

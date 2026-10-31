@@ -7,7 +7,7 @@ import type { Casa } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-m
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
 
-const AGORA = Date.parse('2028-05-03T15:00:00Z'), D = 86_400_000
+const AGORA = Date.parse('2026-05-03T15:00:00Z'), D = 86_400_000
 const REF = 'aaaaaaaa-1111-2222-3333-444444444444'
 const casa: Casa = { estado: 'responde', desde: null, forma: 'visto', frase: '' }
 const cap = (o: Record<string, boolean> = {}) => ({ comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null, blobsLigados: true, ...o })
@@ -15,7 +15,7 @@ const iso = (dias: number): string => new Date(AGORA - dias * D).toISOString()
 const linha = (o: Record<string, unknown>): ListaRemovidosV2[number] => ({ versao: 2, channel_ref: REF, estado: 'pedido', decided_at: iso(5),
   nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
   blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: iso(5), removido_via: 'botao',
-  primeiro_mes: '2026-10', ultimo_mes: '2027-11', meses: 14, registros: 118402, classes: ['serie'], ...o }) as ListaRemovidosV2[number]
+  primeiro_mes: '2024-10', ultimo_mes: '2025-11', meses: 14, registros: 118402, classes: ['serie'], ...o }) as ListaRemovidosV2[number]
 const pend = (o: Partial<PendenciaDoCanal> = {}): PendenciasDoBloco => ({ ok: true, canais: new Map([[REF, { tempo: 'copiar', falta: null, snapLiberaEm: null, snapBloqueio: null, marcadoRodadoEm: null, b2Nomes: 0, ...o }]]) })
 const bloco = (l: ListaRemovidosV2[number], o: { cap?: Record<string, boolean>; administra?: boolean; pend?: PendenciasDoBloco } = {}) =>
   montarBloco([l], { agora: AGORA, casa, cap: cap(o.cap), administra: o.administra ?? true, pend: o.pend ?? pend() }).linhas[0]!
@@ -38,10 +38,10 @@ describe('M9b T7: Apagar do arquivo (guardado e sem_destino)', () => {
     const l = bloco(linha({ estado: 'guardado' }))
     expect(l.acao).toBe('apagar')
     expect(l.dialogo).toMatchObject({ titulo: 'Apagar do arquivo os 14 meses de Viagem Lenta?', confirma: 'Viagem Lenta', porCodigo: false, loteE10: false, avisoBlob: false })
-    expect(l.dialogo!.corpo).toBe('Os 14 meses (de 10/2026 a 11/2027) saem do arquivo e podem ser a única cópia dos registros deste canal.')
+    expect(l.dialogo!.corpo).toBe('Os 14 meses (de 10/2024 a 11/2025) saem do arquivo e podem ser a única cópia dos registros deste canal.')
   })
   it('1 mês: singular', () => {
-    expect(bloco(linha({ estado: 'guardado', meses: 1, ultimo_mes: '2026-10' })).dialogo!.titulo).toBe('Apagar do arquivo o 1 mês de Viagem Lenta?')
+    expect(bloco(linha({ estado: 'guardado', meses: 1, ultimo_mes: '2024-10' })).dialogo!.titulo).toBe('Apagar do arquivo o 1 mês de Viagem Lenta?')
   })
   it('meses nulos: sem botão e sem diálogo (não há número a mostrar), a frase diz por quê, nunca "0 meses"', () => {
     for (const meses of [null, 0]) {
@@ -70,7 +70,7 @@ describe('M9b T7: Apagar do arquivo (guardado e sem_destino)', () => {
     expect(bloco(linha({ estado: 'guardado', removido_via: 'botao' })).dialogo!.loteE10).toBe(false)
   })
   it('sem_destino: digita o código, aviso do Blob, vermelho e no topo', () => {
-    const l = bloco(linha({ estado: 'sem_destino', nome: null, removido_em: null, removido_via: 'sem_registro', meses: 9, ultimo_mes: '2027-06' }))
+    const l = bloco(linha({ estado: 'sem_destino', nome: null, removido_em: null, removido_via: 'sem_registro', meses: 9, ultimo_mes: '2025-06' }))
     expect(l.acao).toBe('apagar'); expect(l.noTopo).toBe(true)
     expect(l.dialogo).toMatchObject({ titulo: 'Apagar do arquivo os 9 meses do código AAAAAAAA?', confirma: 'AAAAAAAA', porCodigo: true, avisoBlob: true })
   })
@@ -111,7 +111,7 @@ describe('M9b T7: Ver os comandos (pedido)', () => {
   })
   it('arquivo reapareceu: octógono', () => {
     const l = bloco(linha({ reappeared_at: iso(2), reappeared_count: 1 }))
-    expect(l.forma).toBe('octogono'); expect(l.frase).toContain('reapareceu em 01/05/2028, depois de apagado. Falta você rodar a linha de novo')
+    expect(l.forma).toBe('octogono'); expect(l.frase).toContain('reapareceu em 01/05/2026, depois de apagado. Falta você rodar a linha de novo')
     expect(l.comandos!.titulo).toBe('Para limpar de novo o arquivo de Viagem Lenta, rode uma linha no Mac.')
   })
   it('falta lote_e10: espera, sem botão', () => {
@@ -123,7 +123,7 @@ describe('M9b T7: Ver os comandos (pedido)', () => {
     expect(l).toMatchObject({ acao: null, forma: 'hachura' }); expect(l.frase).toContain('Peça para olhar; a limpeza espera.')
   })
   it('falta so_prefixo: volta o comando', () => {
-    const l = bloco(linha({ estado: 'apagado_b2', b2_absent_at: iso(3), nas_absent_at: iso(20), snapshots_clear_on: '2028-04-20' }), { pend: pend({ tempo: 'sem_comando', falta: 'so_prefixo' }) })
+    const l = bloco(linha({ estado: 'apagado_b2', b2_absent_at: iso(3), nas_absent_at: iso(20), snapshots_clear_on: '2026-04-20' }), { pend: pend({ tempo: 'sem_comando', falta: 'so_prefixo' }) })
     expect(l.acao).toBe('comandos'); expect(l.frase).toContain('Só restam pastas vazias do canal no NAS')
   })
   it('flag da limpeza desligada: sem comando e a data', () => {
@@ -139,13 +139,13 @@ describe('M9b T7: régua e snapshots', () => {
     expect(formas(bloco(nas(), { pend: pend({ tempo: 'sem_comando', falta: 'snapshots', snapLiberaEm: AGORA + 5 * D }) }))).toEqual(['visto', 'visto', 'pontilhado', 'pontilhado'])
   })
   it('apagado_nas com snapshots_clear_on vencida = passo do B2', () => {
-    expect(formas(bloco(nas({ snapshots_clear_on: '2028-04-30' }), { pend: pend({ tempo: 'apagar_antigas' }) }))).toEqual(['visto', 'visto', 'visto', 'arquivo'])
+    expect(formas(bloco(nas({ snapshots_clear_on: '2026-04-30' }), { pend: pend({ tempo: 'apagar_antigas' }) }))).toEqual(['visto', 'visto', 'visto', 'arquivo'])
   })
   it('apagado_b2 = tudo visto; snapshots_clear_on nulo não derruba', () => {
     expect(formas(bloco(linha({ estado: 'apagado_b2', nas_absent_at: iso(20), b2_absent_at: iso(1), snapshots_clear_on: null }), { pend: pend({ tempo: 'sem_comando' }) }))).toEqual(['visto', 'visto', 'visto', 'visto'])
   })
   it('espera com data: "Espere até dd/mm", sem comando, sem idade, fora da marca da pastilha', () => {
-    const p = pend({ tempo: 'sem_comando', falta: 'snapshots', snapLiberaEm: Date.parse('2028-05-08T12:00:00Z') })
+    const p = pend({ tempo: 'sem_comando', falta: 'snapshots', snapLiberaEm: Date.parse('2026-05-08T12:00:00Z') })
     const l = bloco(nas(), { pend: p })
     expect(l.acao).toBeNull(); expect(l.forma).toBe('pontilhado'); expect(l.gravidade).toBe('nenhuma')
     expect(l.frase).toContain('Apagado do NAS em'); expect(l.frase).toContain('Aguardando os snapshots do NAS. Espere até 08/05.')
@@ -167,11 +167,11 @@ describe('M9b T7: régua e snapshots', () => {
     expect(l.frase).not.toContain('Espere até')
   })
   it('B2 ainda lista arquivos: âmbar e comando', () => {
-    const l = bloco(nas({ snapshots_clear_on: '2028-04-30' }), { pend: pend({ tempo: 'conferir_b2', b2Nomes: 7 }) })
+    const l = bloco(nas({ snapshots_clear_on: '2026-04-30' }), { pend: pend({ tempo: 'conferir_b2', b2Nomes: 7 }) })
     expect(l).toMatchObject({ acao: 'comandos', forma: 'triangulo' }); expect(l.frase).toContain('O B2 ainda lista 7 arquivos deste canal')
   })
   it('apagado_b2: sua parte terminou; blobs pendentes espera; confirmação atrasada vira âmbar', () => {
-    const b2 = (o: Record<string, unknown> = {}) => linha({ estado: 'apagado_b2', nas_absent_at: iso(20), b2_absent_at: iso(1), decided_at: iso(10), snapshots_clear_on: '2028-04-20', ...o })
+    const b2 = (o: Record<string, unknown> = {}) => linha({ estado: 'apagado_b2', nas_absent_at: iso(20), b2_absent_at: iso(1), decided_at: iso(10), snapshots_clear_on: '2026-04-20', ...o })
     expect(bloco(b2(), { pend: pend({ tempo: 'sem_comando' }) }).frase).toContain('Sua parte terminou. O site conclui a limpeza sozinho; não há mais nada a rodar.')
     const bl = bloco(b2({ blobs_pendentes: 412 }), { pend: pend({ tempo: 'sem_comando', falta: 'blobs' }) })
     expect(bl.frase).toContain('A limpeza do arquivo espera as imagens saírem do Blob.')

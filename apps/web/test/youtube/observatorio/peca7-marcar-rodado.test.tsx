@@ -6,7 +6,7 @@ import { EsperamComandos } from '@/app/cms/(authed)/youtube/competitors/_canais/
 import { lerPendencias, pendenciasParaTela, LINHA_DO_DONO } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
 vi.mock('server-only', () => ({}))
-const AGORA = new Date('2028-05-03T15:00:00Z'), D = 86_400_000
+const AGORA = new Date('2026-05-03T15:00:00Z'), D = 86_400_000
 const REF = 'aaaaaaaa-1111-2222-3333-444444444444'
 const item = (o: Record<string, unknown> = {}) => ({ item_id: `canal:${REF}`, kind: 'canal', tempo: 'copiar', desde: new Date(AGORA.getTime() - 5 * D).toISOString(), mes: null, channel_ref: REF, youtube_id: null,
   marcado_rodado_em: null, apagar: [], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null, ...o })
