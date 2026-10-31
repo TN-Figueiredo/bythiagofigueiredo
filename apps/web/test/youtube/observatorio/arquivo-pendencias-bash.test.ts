@@ -311,6 +311,12 @@ describe('M9 T7: copiar, apagar e conferir B2 na versao 2', () => {
       r = rodarNaForja(so())
       expect(r.status).toBe(1); expect(r.stdout).toContain('RESTA'); expect(r.stderr).toContain('NÃO TERMINOU'); expect(readFileSync(arq(C1), 'utf8')).toBe('ARQUIVO')
     })
+    it('M9b re-revisão: filho desmontado conta 1 falha, não 3 (uma por prefixo)', () => {
+      const r = rodarNaForja(gerar2([it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'sem_comando', mes: null, falta: 'so_prefixo', prefixos: [C1] })]), { SEM_MONTAGEM: '1' })
+      const n = Number(/NÃO TERMINOU \((\d+) pend/.exec(r.stderr)?.[1])
+      const filhos = new Set([...r.stderr.matchAll(/PULADO (numerico|texto)\//g)].map(m => m[1])).size
+      expect(filhos).toBeGreaterThan(0); expect(n).toBe(filhos)
+    })
     it('M9b conserto 3: so_prefixo com a trava ocupada sai 1 e a pasta fica', () => {
       mkdirSync(arq(C1, 'sub'), { recursive: true })
       const r = rodarNaForja(gerar2([it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'sem_comando', mes: null, falta: 'so_prefixo', prefixos: [C1] })]), { TRAVA_OCUPADA: '1' })

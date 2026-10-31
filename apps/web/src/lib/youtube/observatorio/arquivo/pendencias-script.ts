@@ -62,7 +62,7 @@ const CORPO_ABRE = [
   '  OBS_CHAMADO=1',
   '  set -u',
   '  if [ "$(hostname -s)" != forja ]; then echo "OBS-ARQUIVO: NÃO RODOU: este script roda na forja (ssh forja \'bash -s\'); nada feito aqui" >&2; return 3; fi',
-  '  local M="${ARQ_MONTAGEM_ESCRITA:-/mnt/arquivo/escrita}" falhas=0 apagados=0 gravados=0 ja=0 esperando=0',
+  '  local M="${ARQ_MONTAGEM_ESCRITA:-/mnt/arquivo/escrita}" falhas=0 fdesm=" " apagados=0 gravados=0 ja=0 esperando=0',
 ]
 const FUNCAO = [
   '  apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 canal (nova_* vazios = sem versão nova a exigir; canal=1 só em item canal:)',
@@ -98,7 +98,7 @@ const PREFIXO = [
   '    local f d',
   '    for f in numerico texto; do',
   '      d="$M/$f/$1"',
-  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then echo "PULADO $f/$1: o NAS não está montado ou sem a sentinela" >&2; falhas=$((falhas+1)); continue; fi',
+  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then echo "PULADO $f/$1: o NAS não está montado ou sem a sentinela" >&2; case "$fdesm" in *" $f "*) ;; *) fdesm="$fdesm$f "; falhas=$((falhas+1)) ;; esac; continue; fi',
   '      [ -e "$d" ] || [ -L "$d" ] || continue',
   '      if [ ! -d "$d" ] || [ "$(realpath -- "$d" 2>/dev/null)" != "$(realpath -- "$M/$f" 2>/dev/null)/$1" ]; then echo "RESTA $f/$1: não é uma pasta comum dentro do arquivo (arquivo ou link); veja \\"Sobrou arquivo no canal\\" no runbook"; esperando=$((esperando+1)); falhas=$((falhas+1)); continue; fi',
   '      find "$d" -xdev -depth -type d -empty -delete',

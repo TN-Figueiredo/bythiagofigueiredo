@@ -112,6 +112,7 @@ const Item = z.object({
     const alvo = new RegExp(`^[a-z_]+/canais/${i.channel_ref}$`)
     if (i.prefixos.some(p => !alvo.test(p))) falha('prefixo fora de <classe>/canais/<canal>')
     if (i.apagar.some(a => !new RegExp(`^[a-z_]+/canais/${i.channel_ref}/`).test(a.caminho))) falha('apagar fora de <classe>/canais/<canal>/')
+    if (i.apagar.some(a => a.nova !== null && !new RegExp(`^[a-z_]+/canais/${i.channel_ref}/`).test(a.nova.caminho))) falha('apagar.nova fora de <classe>/canais/<canal>/')
   }
 })
 
