@@ -5,7 +5,7 @@
  * Numeração do `06-aceite-e-riscos` (texto real do item, não o do Passo 1 do plano; Yannis I4, Phil I4):
  * | Item  | O que o 06 pede                                              | Quem prova                                                              | Falta |
  * |-------|--------------------------------------------------------------|-------------------------------------------------------------------------|-------|
- * | 65    | "apagar" com cópia deixa "arquivo pendente"                  | `it` "item 65" (purge real, alvos e bandeira)                           | "Já rodei" fecha: manutencao-m9-avanco `marcar_rodado`; 31/61 dias: it.todo |
+ * | 65    | "apagar" com cópia deixa "arquivo pendente"                  | `it` "item 65" (purge real, alvos e bandeira)                           | "Já rodei" fecha: manutencao-m9-avanco `marcar_rodado`; 31/61 dias: T7 |
  * | 66    | nova recebida antes de passar de aguardando_nova             | `it` "item 66" + manutencao-m9-avanco `item_falta: a ordem`             | partes do expurgar: arquivo-expurgar.test |
  * | 67    | competitor_removed_items sem rotina que a pode               | `it` "item 67" (advance + prosrc de pg_proc)                            | nada |
  * | 109   | lista gravada antes da cascata, em qualquer versão           | `it` "item 65" (captura no purge); `item_capture` olha a versão mais nova | versões anteriores: manutencao-m9-captura |
