@@ -78,7 +78,7 @@ describe('item 10: montarArquivo entrega administra e pend ao montarBloco', () =
   const ref = 'aaaaaaaa-1111-2222-3333-444444444444'
   const canal = { versao: 2, channel_ref: ref, estado: 'pedido', decided_at: '2026-04-28T00:00:00Z', nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null, reappeared_count: 0, online_thumbs_known: true, thumbs_unknown_ack_at: null,
     blobs_pendentes: 0, youtube_channel_id: 'UCx', nome: 'Viagem Lenta', removido_em: '2026-04-28T00:00:00Z', removido_via: 'botao', primeiro_mes: '2024-10', ultimo_mes: '2025-11', meses: 14, registros: 1, classes: [] }
-  const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'apagar_antigas', desde: '2026-04-28T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [{ filho: 'numerico', caminho: 'a/b.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
+  const item = { item_id: `canal:${ref}`, kind: 'canal', tempo: 'apagar_antigas', desde: '2026-04-28T00:00:00Z', mes: null, channel_ref: ref, youtube_id: null, marcado_rodado_em: null, apagar: [{ filho: 'numerico', caminho: `serie/canais/${ref}/b.csv`, sha256: 'a'.repeat(64), nova: null }], b2_nomes: [], falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
   beforeEach(() => {
     montarBloco.mockReset()
     rpc.mockImplementation(async (nome: string) => nome === 'obs_archive_pagina' ? { data: paginaVazia(), error: null } : nome === 'obs_archive_removed_channel_list' ? { data: [canal], error: null } : nome === 'obs_archive_owner_pending' ? { data: { ...PEND, total: 1, itens: [item] }, error: null } : { data: [], error: null })
