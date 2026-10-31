@@ -15,7 +15,7 @@ import { soltarCache } from '../_canais/solta-cache'
 export type RespostaApagar =
   | { ok: true; status: 'ok' | 'ja_pedido' }
   | { ok: false; erro: 'sem_permissao' | 'forma' | 'desligado' | 'nome_nao_confere' | 'canal_nao_encontrado' | 'canal_existe' | 'interno' }
-export type RespostaMarcar = { ok: true } | { ok: false; erro: string }
+export type RespostaMarcar = { ok: true } | { ok: false; erro: 'sem_permissao' | 'forma' | 'item_desconhecido' | 'interno' }
 
 const CanalRef = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
 const ItemId = z.string().regex(/^(item:[1-9][0-9]{0,18}|canal:[0-9a-f-]{36})$/)
@@ -81,7 +81,15 @@ async function marcar(itemId: string, desfazer: boolean): Promise<RespostaMarcar
   if (!id.success) return { ok: false, erro: 'forma' }
   try {
     const r = await getSupabaseServiceClient().rpc('obs_archive_marcar_rodado', { p_site: g.siteId, p_item_id: id.data, p_actor: g.userId, p_desfazer: desfazer })
-    if (r.error) { Sentry.captureMessage('obs_archive_marcar_rodado falhou', { level: 'error', tags: { code: r.error.code ?? 'sem_code' } }); return { ok: false, erro: 'interno' } }
+    if (r.error) {
+      // o banco recusa com mensagem fixa: traduz o que a tela sabe dizer; o resto é erro interno, com Sentry
+      const m = r.error.message ?? ''
+      if (m.includes('sem_permissao')) return { ok: false, erro: 'sem_permissao' }
+      if (m.includes('item_desconhecido')) return { ok: false, erro: 'item_desconhecido' }
+      if (m.includes('item_invalido')) return { ok: false, erro: 'forma' }
+      Sentry.captureMessage('obs_archive_marcar_rodado falhou', { level: 'error', tags: { code: r.error.code ?? 'sem_code' } })
+      return { ok: false, erro: 'interno' }
+    }
     return { ok: true }
   } catch (e) {
     Sentry.captureException(e)

@@ -1,4 +1,5 @@
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
+import { marcarRodado, desfazerRodado } from './_arquivo/actions-canal'
 import { gerarPacoteIa } from './contexto-ia-actions'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
@@ -43,7 +44,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
-        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}
+        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} onMarcarRodado={marcarRodado} onDesfazerRodado={desfazerRodado} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}
         onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}

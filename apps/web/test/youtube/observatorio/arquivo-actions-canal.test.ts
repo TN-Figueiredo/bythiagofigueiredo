@@ -157,6 +157,15 @@ describe('M9b T2: ações do canal removido', () => {
     expect(await m.marcarRodado('item:12')).toEqual({ ok: false, erro: 'interno' })
   })
 
+  it('T7b: marcar traduz sem_permissao e item_desconhecido do banco; item_invalido vira forma; o resto, interno', async () => {
+    const m = await carregar()
+    for (const [msg, erro] of [['sem_permissao', 'sem_permissao'], ['item_desconhecido', 'item_desconhecido'], ['item_invalido', 'forma'], ['boom', 'interno']] as const) {
+      rpcDecide({ data: null, error: { message: msg } })
+      expect(await m.marcarRodado('item:12')).toEqual({ ok: false, erro })
+      expect(await m.desfazerRodado('item:12')).toEqual({ ok: false, erro })
+    }
+  })
+
   it('conserto 2: canal VIVO (removido:false), erro ou resposta torta na função de estado: canal_existe, decide nunca chamado, cache não solto', async () => {
     const m = await carregar()
     for (const resp of [{ data: { removido: false }, error: null }, { data: null, error: { message: 'x' } }, { data: null, error: null }, { data: 'lixo', error: null }]) {

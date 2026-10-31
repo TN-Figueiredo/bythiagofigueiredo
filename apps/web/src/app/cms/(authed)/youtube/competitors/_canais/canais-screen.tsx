@@ -39,6 +39,7 @@ import { RiAtalhos, RiSecoes } from './ri-secoes'
 import { RiFronteira } from './ri-fronteira'
 import { EsperamComandos } from './esperam-comandos'
 import type { RiView } from './ri-tipos'
+import type { RespostaMarcar } from '../_arquivo/actions-canal'
 import type { PendenciasDaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal, ORDEM_EMPATE, ORDEM_POSICAO } from './posicao-model'
@@ -76,6 +77,9 @@ export interface CanaisScreenProps {
   ri?: RiView
   /** M5 T10, peça 7: o que espera quem administra rodar os comandos. Só desenhado com o filtro "Saíram do YouTube". Ausente/nulo = o bloco não aparece. */
   pendencias?: PendenciasDaTela | null
+  /** M9b T7b: "Já rodei" e "Desfazer" da peça 7, por prop (server actions) */
+  onMarcarRodado?: (itemId: string) => Promise<RespostaMarcar>
+  onDesfazerRodado?: (itemId: string) => Promise<RespostaMarcar>
 }
 
 /** A frase é a do mockup 16 (tabela de frases, "Só leitura"). */
@@ -143,7 +147,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, hojeSP, podeAdministrar, ri, pendencias = null }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, hojeSP, podeAdministrar, ri, pendencias = null, onMarcarRodado, onDesfazerRodado }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -657,7 +661,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
             </p>
             </>
           ) : null}
-          {view.filter === 'sairam' && pendencias ? <EsperamComandos t={pendencias} /> : null}
+          {view.filter === 'sairam' && pendencias ? <EsperamComandos t={pendencias} onMarcarRodado={onMarcarRodado} onDesfazerRodado={onDesfazerRodado} /> : null}
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
             <span><i className="s" aria-hidden="true" /> Short</span>
