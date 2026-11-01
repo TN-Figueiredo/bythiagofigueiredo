@@ -180,8 +180,9 @@ describe.skipIf(skipIfNoLocalDb())('M2: o conversor numa tabela de brinquedo', (
       const antes = await escalar<unknown>(pg, `select obs_part.assinatura('public.${t}'::regclass)`)
       await pg.query(`select obs_part.converter('public.${t}'::regclass, 'hour_slot', 'views')`)
       await pg.query(`insert into public.${t} (video_id, hour_slot, taken_at, site_id, views)
-        select $1, date_trunc('hour', now()) + make_interval(hours => g), date_trunc('hour', now()) + make_interval(hours => g), $2, 1000 + g
-          from generate_series(1, 3) g`, [video, site])
+        select $1, z.b + make_interval(hours => g), z.b + make_interval(hours => g), $2, 1000 + g
+          from generate_series(1, 3) g,
+               (select date_trunc('month', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' + interval '15 hours' as b) z`, [video, site])
       const r = await escalar<{ feito: boolean; linhas: number }>(pg, `select obs_part.desfazer('public.${t}'::regclass)`)
       expect(r).toMatchObject({ feito: true, linhas: 33 })
       expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.${t}'::regclass`)).toBe('r')
