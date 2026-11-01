@@ -683,6 +683,7 @@ const FEITAS: Readonly<Record<string, string>> = {
   'x3-d1': '2026-10-31', // x3-d1-phil: contagem_difere 0 de 937
   'x3-d7': '2026-10-31', // ok com ressalva; a C4 segue no check x3-c4
   'e19-30o-dia': '2026-10-31', // janela fechada em 21/10, recusa desde 23/10
+  'e8-primeira-leva': '2026-11-01', // critério histórico REPROVADO (14, 15 e 16/10); sem perda, K6 0/36, K7 0/36; causa não achada; dono 01/11
 }
 
 const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...X3_LOTE_27_10, ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
