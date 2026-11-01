@@ -26,10 +26,13 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volt
     const s = await semearCanal(c, { videos: 2 })
     await semearDiaria(c, s.videos, MES, 31)
     await selarMes(c, { site: s.site, classe: 'serie', tabela: D, mes: MES })
-    await c.query(`insert into public.competitor_video_marks (video_id, age_days, site_id, views, gap_hours, age_base_at, read_before_at, read_after_at)
-                   select v, 30, $2, 1, 1, now(), now(), now() from unnest($1::uuid[]) v on conflict do nothing`, [s.videos, s.site])
+    await marcar30(s.site, s.videos)
     return { ...s, admin: await novoAdmin(c, s.site) }
   }
+  // O vídeo semeado nasce em now() - 60 dias: nos dias em que o D+30 dele cai dentro de MES, sem a marca o portão recusa com marca_pendente.
+  const marcar30 = (site: string, videos: readonly string[]): Promise<unknown> =>
+    c.query(`insert into public.competitor_video_marks (video_id, age_days, site_id, views, gap_hours, age_base_at, read_before_at, read_after_at)
+             select v, 30, $2, 1, 1, now(), now(), now() from unnest($1::uuid[]) v on conflict do nothing`, [videos, site])
   const detach = (site: string, por: string | null, o: { modo?: string; simular?: boolean; mes?: string } = {}): Promise<Resp> =>
     escalar<Resp>(c, `select public.obs_archive_detach_month($1, $2, $3, $4, $5, $6)`, [site, D, o.mes ?? MES, por, o.modo ?? 'clique', o.simular ?? false])
   const reattach = (site: string, por: string | null, o: { simular?: boolean; mes?: string } = {}): Promise<Resp> =>
@@ -216,6 +219,7 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volt
       const { site, admin, canal } = await cenario()
       const outro = await semearCanal(c, { site, videos: 1 })
       await semearDiaria(c, outro.videos, MES, 5)
+      await marcar30(site, outro.videos)
       await selarMes(c, { site, classe: 'serie', tabela: D, mes: MES, versao: 2 })
       expect(await tenta(c, `select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, [site, canal, admin])).toMatchObject({ ok: true })
       const r = await detach(site, admin)
@@ -230,6 +234,7 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volt
       const { site, admin, canal } = await cenario()
       const outro = await semearCanal(c, { site, videos: 1 })
       await semearDiaria(c, outro.videos, MES, 5)
+      await marcar30(site, outro.videos)
       await selarMes(c, { site, classe: 'serie', tabela: D, mes: MES, versao: 2 })
       expect(await tenta(c, `select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, [site, canal, admin])).toMatchObject({ ok: true })
       await c.query(`insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
