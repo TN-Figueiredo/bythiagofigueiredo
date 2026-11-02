@@ -126,8 +126,16 @@ describe('a seção, depois do último bloco do Histórico', () => {
   it('N1: lerSecaoDeComentarios continua aceitando { canalNome } sem `criador` (o pacote da IA não muda)', async () => {
     mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
     const { criador: _c, ...semCriador } = props()
-    const r = await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt' })
+    const r = await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'contexto-ia' })
     expect(r.ok).toBe(true)
+  })
+
+  it('corte falha fechado: origem desconhecida (não é \'pagina\') nunca entrega a edição ao leitor', async () => {
+    mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
+    const provas = resolverProvas(Promise.resolve({ leitura: await leituraDe('s1'), edita: true, negativa: null, edicao: await edicaoDe('s1') }))
+    const { criador: _c, ...semCriador } = props({ provas })
+    await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'outra' as never })
+    expect((mocks.leitor.mock.calls.at(-1)![1] as { provas: ProvasDeQuemVe }).provas.edicao).toBeNull()
   })
 
   it('resolverProvas: com `edicao` no acesso, as provas levam a edição e o leitor decide o nível identidade', async () => {

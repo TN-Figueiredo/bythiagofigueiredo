@@ -58,6 +58,16 @@ describe('FioDeComentario · avatar e autor', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector('.cf-av')?.textContent).toBe('A')
   })
+  it('identidade: foto que falhou ANTES da hidratação (complete e naturalWidth 0) cai na inicial ao montar', () => {
+    const c = vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true)
+    const w = vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(0)
+    try {
+      const v = fio({ raiz: fala({ tipo: 'identidade', nome: 'Ana Souza', fotoUrl: 'https://yt3.ggpht.com/ana', ate: '02/11' }, 'oi') })
+      const { container } = montar(v)
+      expect(container.querySelector('[data-avatar="ini"]')?.textContent).toBe('A')
+      expect(container.querySelector('img')).toBeNull()
+    } finally { c.mockRestore(); w.mockRestore() }
+  })
   it('proprio: selo "Seu canal"; grande: faixa e nenhum nome; reservado: sem texto de autor', () => {
     expect(montar(fio({ raiz: fala({ tipo: 'proprio' }, 'meu') })).container.querySelector('.cf-selo')?.textContent).toBe('Seu canal')
     cleanup()
