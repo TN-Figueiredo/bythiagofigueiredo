@@ -130,6 +130,8 @@ Medida local (`E10_MEDIR=1`, em segundo plano, com a saída em arquivo; sem a va
 
 ## 11. Ensaio com o dono (item 82)
 
+**Adiado (dono, 02/11/2026):** o ensaio não foi feito; a conferência `e10-ensaio` vence em 01/12 e entra na etapa E10 do passo 19 da M9b, depois da selagem de 28/11. Até aqui ser preenchido, **nenhum canal real é removido**: download das miniaturas do Blob, `rsync` e `sha256sum -c` no NAS, tempos reais e o endereço do banco seguem sem prova.
+
 Espaço para o resultado: data ______; canal ______; endereço do banco que funcionou ______; o que recusou e por quê ______; tempos (seção 10) ______.
 
 ## 12. Lista fechada do que apaga

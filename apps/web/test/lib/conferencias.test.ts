@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import {
-  CONFERENCIAS, REABERTAS, REABERTAS_EM, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
+  ADIADAS, CONFERENCIAS, REABERTAS, REABERTAS_EM, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -1030,6 +1030,32 @@ describe('X3: conferências com data (A5 X3)', () => {
   })
   it('data malformada vira entrada de 1970 (vermelha)', () => {
     expect(conferenciasX3('2026-13-45').map(x => [x.id, x.data])).toEqual([['x3-ligada-invalida', '1970-01-01']])
+  })
+})
+
+// e10-ensaio adiada (dono, 02/11): não feita, a data do plano não muda e o vermelho só vem depois de 8/12.
+describe('ADIADAS', () => {
+  const ensaio = CONFERENCIAS.find(c => c.id === 'e10-ensaio')!
+
+  it('e10-ensaio segue sem feitaEm, com a data do plano, e vence em 01/12', () => {
+    expect(ensaio.feitaEm).toBeNull()
+    expect(ensaio.data).toBe('2026-10-28')
+    expect(ensaio.reabertaEm).toBe(ADIADAS['e10-ensaio'])
+    expect(conferenciasVencidas('2026-12-01').map(c => c.id)).not.toContain('e10-ensaio')
+    expect(conferenciasVencidas('2026-12-02').map(c => c.id)).toContain('e10-ensaio')
+  })
+
+  it('fica fora do vermelho em 05/11 e entra nele em 09/12', () => {
+    expect(conferenciasEmFalha('2026-11-05').map(c => c.id)).not.toContain('e10-ensaio')
+    expect(conferenciasEmFalha('2026-12-08').map(c => c.id)).not.toContain('e10-ensaio')
+    expect(conferenciasEmFalha('2026-12-09').map(c => c.id)).toContain('e10-ensaio')
+  })
+
+  it('todo id adiado existe e não colide com REABERTAS', () => {
+    for (const id of Object.keys(ADIADAS)) {
+      expect(CONFERENCIAS.some(c => c.id === id), id).toBe(true)
+      expect(REABERTAS.has(id), id).toBe(false)
+    }
   })
 })
 
