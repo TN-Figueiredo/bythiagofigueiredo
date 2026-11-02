@@ -684,6 +684,7 @@ const FEITAS: Readonly<Record<string, string>> = {
   'x3-d7': '2026-10-31', // ok com ressalva; a C4 segue no check x3-c4
   'e19-30o-dia': '2026-10-31', // janela fechada em 21/10, recusa desde 23/10
   'e8-primeira-leva': '2026-11-01', // critério histórico REPROVADO (14, 15 e 16/10); sem perda, K6 0/36, K7 0/36; causa não achada; dono 01/11
+  'e7-l2-d7': '2026-11-01', // divida2-e7 medida pelo dono: 200 em 28,9 s, 34 canais, 0 leitura_falhou, 0 cortados
 }
 
 const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...X3_LOTE_27_10, ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
@@ -733,9 +734,20 @@ export const REABERTAS: ReadonlySet<string> = new Set([
   'e11-d5',
 ])
 
+/**
+ * Adiamento por id, decisão do dono: o vencimento conta da data daqui e `feitaEm` segue nulo, porque a conferência não foi feita.
+ * e10-ensaio (dono, 02/11): o único canal de teste está reservado à M9b até a selagem de 28/11; o ensaio entra na etapa E10 do
+ * passo 19 da M9b. Se a selagem escorregar, fica vermelha a partir de 09/12, de propósito.
+ */
+export const ADIADAS: Readonly<Record<string, string>> = {
+  'e10-ensaio': '2026-12-01',
+}
+
 export const CONFERENCIAS: readonly Conferencia[] = TODAS.map(c => {
   const feitaEm = c.feitaEm ?? FEITAS[c.id] ?? null
-  return feitaEm === null && REABERTAS.has(c.id) ? { ...c, feitaEm, reabertaEm: REABERTAS_EM } : { ...c, feitaEm }
+  if (feitaEm !== null) return { ...c, feitaEm }
+  const reabertaEm = ADIADAS[c.id] ?? (REABERTAS.has(c.id) ? REABERTAS_EM : undefined)
+  return reabertaEm === undefined ? { ...c, feitaEm } : { ...c, feitaEm, reabertaEm }
 })
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })

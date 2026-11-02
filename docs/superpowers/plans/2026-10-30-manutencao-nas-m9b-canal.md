@@ -52,6 +52,10 @@ Fonte: `.superpowers/sdd/manutencao-nas/saidas/m9b-rev-phil.md`, `m9b-rev-yannis
 
 ---
 
+## Emenda 02/11: o ensaio da E10 entra no passo 19
+
+Decisão do dono (02/11, conferência `e10-ensaio` adiada a 01/12). A etapa E10 do passo 19 passa a valer como o ensaio do item 82 e soma ao que este plano já pede: contagens do fecho da cascata antes e depois contra `row_count`, um segundo canal e `\copy` local. O resultado vai ao §11 de `docs/ops/observatorio-arquivo-runbook.md` (canal, endereço do banco, tempos, recusas, `sha256sum -c`); só então `e10-ensaio` entra em `FEITAS`.
+
 ## A decisão: `expurgar --canal` não é preciso para o passo 19 (Hanna H4 confirmada, com uma ressalva)
 
 **O caminho sem `--canal`, conferido no código de `84f351eca`:**
