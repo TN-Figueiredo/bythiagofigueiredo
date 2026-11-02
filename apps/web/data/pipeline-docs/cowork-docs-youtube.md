@@ -819,7 +819,7 @@ Cada canal traz `medidas` com as mesmas nove medidas, sempre: `direcao_do_canal`
 
 **Tempo:** a rota tem um prazo por pedido. Se `canais_cortados_por_tempo` for maior que zero, repita a chamada uma vez; se continuar maior que zero, não repita de novo: relate quais canais ficaram sem medida.
 
-**Ferramenta:** a ferramenta `youtube_observatory`, ação `list_channels`, devolve o mesmo conteúdo desta rota, sem indentação no texto.
+**Ferramenta:** a ferramenta `youtube_observatory`, ação `list_channels`, devolve o mesmo conteúdo desta rota, sem indentação no texto. Quando a lista não cabe em uma resposta, ela sai em páginas: a resposta traz `offset`, `canais_omitidos` e `proximo_offset`. Enquanto `proximo_offset` não for nulo, chame de novo com `offset` igual a esse valor; só depois fale da lista inteira. `count` e `medidas_indisponiveis` são sempre do total, não da página.
 
 ---
 

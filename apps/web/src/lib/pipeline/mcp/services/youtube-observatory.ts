@@ -11,6 +11,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import * as competitors from '@/lib/pipeline/services/competitors'
+import type { CompetitorChannelList } from '@/lib/pipeline/services/competitors'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import * as nicheSignals from '@/lib/pipeline/services/niche-signals'
 import { lerLeituraDosConcorrentes, type RespostaLeitura } from '@/lib/pipeline/services/leitura-concorrentes'
@@ -21,7 +22,7 @@ import { toMcpError, toMcpSuccess } from '../errors'
 type Params = Record<string, unknown>
 
 /** Os parâmetros que este adaptador lê: o anúncio (`YoutubeObservatoryShape`) tem de ter exatamente estes (teste nos dois sentidos). */
-export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt', 'campos', 'signal_id', 'status', 'motivo'] as const
+export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt', 'campos', 'signal_id', 'status', 'motivo', 'offset'] as const
 
 /**
  * Teto do `limit` de `get_changes` com `campos=todos`: com o pior valor de `tags` medido (561 bytes) o texto
@@ -44,6 +45,33 @@ function avisarSeGrande(caracteres: number, canais: number): void {
   } catch {
     // o aviso falhou: a resposta segue
   }
+}
+
+/**
+ * Dívida 2 da E7: `list_channels` acima do limite sai em páginas. A página leva os canais que couberem a partir de `offset`; `proximo_offset`
+ * (null no fim) e `canais_omitidos` dizem o que falta. `count` e as medidas agregadas seguem as do total. Cabendo inteira sem offset, a resposta é
+ * idêntica à da rota. Uma página leva ao menos 1 canal, senão o cliente nunca avançaria.
+ */
+export function cabeCanais(data: CompetitorChannelList, offset = 0, limite: number = LIMITE_DO_TEXTO_DA_FERRAMENTA): { texto: string; cortada: boolean; canais: number } {
+  const todos = data.channels ?? []
+  const inteiro = JSON.stringify(data)
+  if (offset === 0 && inteiro.length <= limite) return { texto: inteiro, cortada: false, canais: todos.length }
+  const montar = (fim: number) => JSON.stringify({
+    ...data,
+    channels: todos.slice(offset, fim),
+    offset,
+    canais_omitidos: todos.length - Math.max(0, fim - offset),
+    proximo_offset: fim < todos.length ? fim : null,
+  })
+  let fim = Math.min(offset, todos.length)
+  let usados = montar(fim).length + 8 // folga para os dígitos de proximo_offset
+  while (fim < todos.length) {
+    const custo = JSON.stringify(todos[fim]).length + 1
+    if (fim > offset && usados + custo > limite) break
+    usados += custo
+    fim++
+  }
+  return { texto: montar(fim), cortada: true, canais: Math.max(0, fim - offset) }
 }
 
 /** Quantos outliers por sugestão o `get_signals` tenta levar, do mais cheio ao mais enxuto (a evidência guarda até 20). */
@@ -127,9 +155,9 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
     switch (action) {
       case 'list_channels': {
         const result = await competitors.listCompetitorChannels(buildCtx())
-        const text = JSON.stringify(result.data)
-        avisarSeGrande(text.length, result.data.channels?.length ?? 0)
-        return { content: [{ type: 'text', text }], isError: false }
+        const { texto, cortada, canais } = cabeCanais(result.data, (params.offset as number) || 0)
+        if (!cortada) avisarSeGrande(texto.length, canais)
+        return { content: [{ type: 'text', text: texto }], isError: false }
       }
 
       case 'get_changes': {

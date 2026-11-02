@@ -239,6 +239,67 @@ describe('list_channels: texto sem indentação e aviso de tamanho', () => {
     expect(JSON.parse(t2)).toEqual(acima)
   })
 
+  describe('list_channels acima do limite: páginas', () => {
+    const canal = (i: number) => ({ id: 'c' + i, channel_name: 'Canal ' + i, recheio: 'x'.repeat(2_300) })
+    const dado = (n: number) => ({ channels: Array.from({ length: n }, (_, i) => canal(i)), count: n, medidas_indisponiveis: { total: 9, indisponiveis: 2, por_motivo: {} } })
+    const pagina = async (d: unknown, offset?: number) => {
+      servico.listCompetitorChannels.mockResolvedValueOnce({ data: d } as never)
+      const r = await youtubeObservatory({ action: 'list_channels', ...(offset === undefined ? {} : { offset }) })
+      const c = r.content[0]
+      return { r, t: c && c.type === 'text' ? c.text : '' }
+    }
+
+    it('34 canais: cada página cabe, percorrer proximo_offset traz todos sem repetir, e as contagens seguem as do total', async () => {
+      const d = dado(34)
+      const vistos: string[] = []
+      let offset: number | null = 0
+      let paginas = 0
+      while (offset !== null) {
+        const { r, t }: { r: { isError?: boolean }; t: string } = await pagina(d, offset)
+        expect(r.isError).toBe(false)
+        expect(t.length).toBeLessThanOrEqual(LIMITE_DO_TEXTO_DA_FERRAMENTA)
+        const j = JSON.parse(t)
+        expect(j.count).toBe(34)
+        expect(j.medidas_indisponiveis).toEqual(d.medidas_indisponiveis)
+        expect(j.canais_omitidos).toBe(34 - j.channels.length)
+        vistos.push(...j.channels.map((c: { id: string }) => c.id))
+        offset = j.proximo_offset
+        expect(++paginas).toBeLessThan(5)
+      }
+      expect(paginas).toBe(2)
+      expect(vistos).toEqual(d.channels.map((c) => c.id))
+    })
+
+    it('sem offset, a primeira página diz quantos ficaram de fora', async () => {
+      const j = JSON.parse((await pagina(dado(34))).t)
+      expect(j.channels[0].id).toBe('c0')
+      expect(j.canais_omitidos).toBeGreaterThan(0)
+      expect(j.proximo_offset).toBe(j.channels.length)
+    })
+
+    it('offset com a lista inteira cabendo: página certa, sem repetir o início', async () => {
+      const j = JSON.parse((await pagina(dado(5), 3)).t)
+      expect(j.channels.map((c: { id: string }) => c.id)).toEqual(['c3', 'c4'])
+      expect(j.proximo_offset).toBeNull()
+      expect(j.canais_omitidos).toBe(3)
+    })
+
+    it('offset além do fim: lista vazia e fim, sem erro', async () => {
+      const { r, t } = await pagina(dado(5), 99)
+      expect(r.isError).toBe(false)
+      const j = JSON.parse(t)
+      expect(j.channels).toEqual([])
+      expect(j.proximo_offset).toBeNull()
+      expect(j.count).toBe(5)
+    })
+
+    it('resposta cortada não aciona o aviso do Sentry: o corte já é o conserto', async () => {
+      sentry.captureMessage.mockClear()
+      await pagina(dado(34))
+      expect(sentry.captureMessage).not.toHaveBeenCalled()
+    })
+  })
+
   it('o aviso que lança não derruba a resposta', async () => {
     sentry.captureMessage.mockImplementation(() => { throw new Error('Sentry fora do ar') })
     const acima = listaComTamanho(0.8 * LIMITE_DO_TEXTO_DA_FERRAMENTA + 1)

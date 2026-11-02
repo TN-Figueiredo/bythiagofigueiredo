@@ -729,6 +729,8 @@ export const YoutubeObservatoryShape = {
     .describe('get_changes: only bookmarked (true) or only not bookmarked (false) changes'),
   tier: z.enum(['all', 'top', 'high', 'mid']).optional()
     .describe('get_outliers: only this tier of multiplier (default all)'),
+  offset: z.number().int().min(0).optional()
+    .describe('list_channels: where the page starts. When proximo_offset is not null the list was cut: call again with offset=proximo_offset until it is null. count and medidas_indisponiveis are for all channels, not the page'),
   limit: z.number().int().min(1).max(100).default(50)
     .describe('Max results for get_changes and get_outliers'),
   fmt: z.enum(['long', 'short']).optional()
