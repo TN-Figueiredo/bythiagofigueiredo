@@ -149,7 +149,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
           estourou = { tipo: 'nao_carregou' }
         }
         medidas = lidas === null ? medidasDoVideoNaoCarregaram() : projetarMedidasDoVideo(lidas.d, estourou)
-        // a seção de comentários só existe na tela quando o conjunto foi lido; o nível é o do leitor, com as mesmas provas da página (edição: nula, como na página)
+        // a seção de comentários só existe na tela quando o conjunto foi lido; o nível é o do leitor, com as provas da página, mas o corte da IA em `lerSecaoDeComentarios` (origem 'contexto-ia') zera a edição: nunca passa do nível texto
         if (lidas !== null) {
           const canais = new Map(m.pagina.obs.channels.map((x) => [x.id, { nome: x.name }] as const))
           const canalNome = canais.get(doMotor.ch)?.nome ?? ''

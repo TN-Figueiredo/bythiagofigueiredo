@@ -10,7 +10,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { lerComentariosDeDestaque } from '@/lib/youtube/observatorio/comentarios/leitor'
 import type { ComentariosDoVideo, ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import type { CriadorDoFio } from '../_chrome/comentarios/fio-model'
@@ -29,12 +28,12 @@ export interface ProvasResolvidas { provas: ProvasDeQuemVe | null; permissaoFalh
 /**
  * Do acesso privado (que a página pede SEM esperar, para o cabeçalho sair na hora) às provas de quem vê. Nunca rejeita: que a prova lance (não
  * deveria) é nível contagem com a faixa de permissão, nunca texto. A página NÃO chama `provarEdicao` nem decide nível (quem decide é o leitor).
- * `edicao` é o campo do pedido P11 (passo 0 da E17): enquanto `AcessoPrivado` não o tiver, é sempre nulo (no máximo texto).
+ * `edicao` vem do `AcessoPrivado` (preenchido só para quem edita): é o que leva o leitor ao nível `identidade`. O pacote da IA corta isso em `lerSecaoDeComentarios`.
  */
 export async function resolverProvas(acesso: Promise<AcessoPrivado>): Promise<ProvasResolvidas> {
   try {
     const a = await acesso
-    const edicao = 'edicao' in a ? ((a as AcessoPrivado & { edicao?: EdicaoDoSite | null }).edicao ?? null) : null
+    const edicao = a.edicao ?? null
     return { provas: { leitura: a.leitura, edicao }, permissaoFalhou: a.negativa === 'nao_foi_possivel_conferir' }
   } catch {
     return { provas: null, permissaoFalhou: true }
@@ -67,7 +66,10 @@ export type SecaoLida =
 /** Nunca lança: parte não lida vira `ok: false` com o título do estado de erro, e o motivo vai ao Sentry (sem texto nem id de autor). */
 export async function lerSecaoDeComentarios(p: PropsDaLeitura): Promise<SecaoLida> {
   let lido: Awaited<ReturnType<typeof lerComentariosDeDestaque>>
-  const { provas, permissaoFalhou } = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
+  const resolvidas = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
+  const { permissaoFalhou } = resolvidas
+  // o corte da IA, num ponto só: o pacote "Perguntar a uma IA" nunca passa do nível `texto`, mesmo para quem edita (sem nome, id nem foto de espectador)
+  const provas = p.origem === 'contexto-ia' && resolvidas.provas !== null ? { ...resolvidas.provas, edicao: null } : resolvidas.provas
   try {
     lido = await lerComentariosDeDestaque(p.sb, {
       siteDaGuarda: p.siteId, provas, videoId: p.videoId, agoraMs: p.agoraMs, canaisDoSite: p.canaisDoSite, video: p.video,

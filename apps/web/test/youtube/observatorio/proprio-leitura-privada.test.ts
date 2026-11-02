@@ -45,6 +45,16 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(criarCliente).not.toHaveBeenCalled()
     expect(rpc).not.toHaveBeenCalled()
   })
+  it('quem edita recebe também o token de edição (`edicao`); só leitura e sem direito não o recebem', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: USUARIA } })
+    const ed = await provarAcessoPrivado(SITE)
+    expect(ed.edicao).toBeInstanceOf(EdicaoDoSite)
+    expect(ed.edicao!.siteId).toBe(SITE)
+    soLe(); rpc.mockResolvedValue({ data: true, error: null })
+    expect((await provarAcessoPrivado(SITE)).edicao ?? null).toBeNull()
+    soLe(); rpc.mockResolvedValue({ data: false, error: null })
+    expect((await provarAcessoPrivado(SITE)).edicao ?? null).toBeNull()
+  })
   it('quem não edita, tem vínculo e a função responde true: recebe a leitura e edita = false', async () => {
     soLe(); rpc.mockResolvedValue({ data: true, error: null })
     const a = await provarAcessoPrivado(SITE)
@@ -216,6 +226,10 @@ describe('provarAcessoPrivadoDaChave: a leitura privada por chave do perfil', ()
     expect(a.leitura!.siteId).toBe(SITE)
     expect(a.edita).toBe(false)
     expect(a.negativa).toBeNull()
+  })
+  it('a prova da porta nunca devolve `edicao`', async () => {
+    responde({ data: true, error: null })
+    expect((await provarAcessoPrivadoDaChave(prova())).edicao ?? null).toBeNull()
   })
   it('a função responde false: sem token, negativa sem_direito', async () => {
     responde({ data: false, error: null })

@@ -28,6 +28,22 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: async () => true }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: SITE }) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: USUARIO } }) }))
+const SENT_NOME = 'zz-sentinela-nome-do-espectador'
+const SENT_ID = 'zz-sentinela-id-do-autor'
+const SENT_FOTO = 'https://yt3.ggpht.com/zz-sentinela-foto'
+/** Leitor falso que EMULA o real: com o nível `identidade` (decidido pelo `nivelDeQuemVe` verdadeiro) o autor vem com nome, id e foto; senão, "espectador". */
+vi.mock('@/lib/youtube/observatorio/comentarios/leitor', async () => {
+  const { nivelDeQuemVe } = await import('@/lib/youtube/observatorio/comentarios/leitor-nivel')
+  return {
+    lerComentariosDeDestaque: async (_sb: unknown, p: { siteDaGuarda: string; provas: Parameters<typeof nivelDeQuemVe>[0] }) => {
+      const nivel = nivelDeQuemVe(p.provas, p.siteDaGuarda).nivel
+      const cartao = { ordem: 1, motivo: 'curtidos', curtidas: { 1: 'ainda_nao', 7: 3, 30: 'ainda_nao' }, respostas: 1, criador: 'respondeu', criadorNome: 'Matt', posicao: { 1: null, 7: null, 30: null }, doCriador: false, entrouNoMarco: 7, nosMarcos: [7], saiuDoYouTubeDesde: null, faixas: { tamanho: null, razao: null }, texto: 'oi', cortado: false, publicadoEm: '2026-10-07T12:00:00.000Z', respostasDoCriador: [], mencoesTrocadas: 0,
+        autor: nivel === 'identidade' ? { tipo: 'com_identidade', nome: SENT_NOME, fotoUrl: SENT_FOTO, guardadaAte: '2026-11-20T00:00:00.000Z', id: SENT_ID } : { tipo: 'espectador' } }
+      const marcos = { 1: { estado: 'desligados' }, 7: { estado: 'desligados' }, 30: { estado: 'desligados' } }
+      return { lido: true, dados: nivel === 'contagem' ? { nivel, comentarios: [], marcos } : { nivel, comentarios: [cartao], marcos } }
+    },
+  }
+})
 vi.mock('@/lib/youtube/observatorio/contexto-ia/registrar-acesso', () => ({ registrarAcesso: async () => ({ ok: true }) }))
 vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({ carregarMedidasDoSite: async () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
@@ -58,6 +74,10 @@ vi.mock('@/lib/youtube/observatorio/contexto-ia/regras', async (orig) => {
 })
 
 import { fila, video as itemVideo, canal as itemCanal, grupo as itemGrupo, apagando as itemApagando, respondidoMantido, respondidoApagado, voltouApagado } from './saiu-fixtures'
+import { edicaoDe } from './edicao-teste'
+import { leituraDe } from './leitura-teste'
+import { lerSecaoDeComentarios, resolverProvas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
+import { projetarComentariosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-comentarios'
 import { gerarPacoteIa } from '@/app/cms/(authed)/youtube/competitors/contexto-ia-actions'
 
 const proprioVideo = w.obs.videos.find((v) => v.ch === w.canalId)!
@@ -185,5 +205,26 @@ describe('a varredura de saída, por tela do registro', () => {
     for (const tela of ['canal', 'video', 'canal-proprio', 'video-proprio'] as const) {
       expect(await gerarPacoteIa({ tela, id: 'nao-existe', consulta: '' }), tela).toEqual({ ok: false, motivo: 'nao_encontrado' })
     }
+  })
+})
+
+describe('comentários do vídeo no pacote da IA: quem edita não leva identidade (corte de origem)', () => {
+  const base = async (origem: 'pagina' | 'contexto-ia') => {
+    const provas = resolverProvas(Promise.resolve({ leitura: await leituraDe(SITE), edita: true, negativa: null, edicao: await edicaoDe(SITE) }))
+    return lerSecaoDeComentarios({
+      sb: {} as never, siteId: SITE, provas, videoId: concVideo.id, agoraMs: w.obs.NOW, canaisDoSite: new Map([[concVideo.ch, { nome: 'Matt' }]]),
+      video: { t0Ms: concVideo.pub, descobertoEmMs: null, canalId: concVideo.ch }, canalNome: 'Matt', origem,
+    })
+  }
+  it('origem da página, editor: o nome, o id e a foto do autor chegam (controle: a fixture realmente tem identidade)', async () => {
+    const lida = await base('pagina')
+    expect(lida.ok).toBe(true)
+    if (lida.ok) expect(JSON.stringify(lida.dados)).toContain(SENT_NOME)
+  })
+  it('origem contexto-ia, editor: nenhum nome, id nem URL de foto no que vira pacote', async () => {
+    const lida = await base('contexto-ia')
+    expect(lida.ok).toBe(true)
+    const saida = JSON.stringify(lida) + JSON.stringify(projetarComentariosDoVideo(lida, 'Matt'))
+    for (const proibido of [SENT_NOME, SENT_ID, SENT_FOTO, 'zz-sentinela']) expect(saida).not.toContain(proibido)
   })
 })
