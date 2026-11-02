@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "regions": ["gru1"],
   "installCommand": "cd ../.. && npm ci --legacy-peer-deps",
   "buildCommand": "cd ../.. && npm run build -w apps/web",
   "crons": [
