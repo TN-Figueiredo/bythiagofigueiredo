@@ -511,13 +511,16 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     setAnuncio(anuncioFmt(v))
     go({ fmt: v }, { fmt: v, busy: true })
   }
-  // URL sem um formato válido: grava o lembrado (ou Longos) uma vez; roda de novo só se a query voltar a perdê-lo (por valor, não por montagem)
+  // URL sem um formato válido: grava o lembrado (ou Longos) uma vez; roda de novo só se a query voltar a perdê-lo (por valor, não por montagem).
+  // Se o servidor já desenhou esse formato, só a URL muda: um router.replace refaria a página inteira no servidor para devolver a mesma tela.
   const query = search?.toString() ?? ''
   useEffect(() => {
-    if (view.fmtNaUrl) return
+    if (view.fmtNaUrl || parseCanaisFmt(search?.get('fmt') ?? undefined)) return
     let lembrado: CanaisFmt | null = null
     try { lembrado = parseCanaisFmt(localStorage.getItem(FMT_LEMBRADO) ?? undefined) } catch { lembrado = null }
-    router.replace(urlWith({ fmt: lembrado ?? FMT_PADRAO }), { scroll: false })
+    const alvo = lembrado ?? FMT_PADRAO
+    if (alvo !== view.fmt) { router.replace(urlWith({ fmt: alvo }), { scroll: false }); return }
+    try { window.history.replaceState(window.history.state, '', urlWith({ fmt: alvo })) } catch { /* sem history a tela segue certa, só sem o formato na URL */ }
   }, [view.fmtNaUrl, query]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickScale = (v: CanaisView['scale']) => go({ scale: v === 'per-mil' ? null : v }, { scale: v, busy: true })
   const pickLayout = (v: CanaisView['layout']) => go({ layout: v === 'table' ? null : v }, { layout: v })

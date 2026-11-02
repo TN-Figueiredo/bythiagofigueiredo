@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { observatoryTag } from '../cache-tag'
+import { contarFrio } from '../medicao-abertura'
 import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '../medidas/do-canal'
@@ -79,6 +80,7 @@ const tudoLido = (p: InsumosPlanos): boolean => p.canal.lido && p.videos.lido &&
 export const ORCAMENTO_DA_ENTRADA = 1_500_000
 
 async function lerParaOCache(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, avisos: Avisos): Promise<EntradaDoCanal> {
+  contarFrio('medidas')
   const planos = await lerPartes(sb, o)
   // o que não foi lido por inteiro não é guardado
   if (!tudoLido(planos)) throw new LeituraParcial(planos)

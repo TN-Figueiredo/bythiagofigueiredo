@@ -18,6 +18,7 @@ import { contarParaAAbaSugestoes } from '../_sugestoes/dados-da-tela'
 import type { PropsPerguntarIa } from './perguntar-ia/botao'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { arquivoNoChrome } from './arquivo-do-chrome'
+import { medirEtapa, type MedicaoDaAbertura } from '@/lib/youtube/observatorio/medicao-abertura'
 import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
@@ -25,7 +26,7 @@ import { lerPendenciasDosCanais } from '../_arquivo/pendencias-dos-canais'
 import { listaDosRemovidos } from '../_arquivo/leituras'
 import { esperaSnapshots, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 
-export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
+export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, medicao, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
   /** A page that already built the engine passes it to avoid a second load. */
   obs?: Observatory; children: ReactNode
@@ -39,6 +40,8 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   readingCopy?: string | null
   /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`); a página que já abriu o site a passa, do contrário o cookie é lido aqui. */
   meuCanalLembrado?: string | null
+  /** A tela que mede a abertura passa a medição: o chrome renderiza fora de `comMedicao`. */
+  medicao?: MedicaoDaAbertura
   /** O botão "Perguntar a uma IA" (E17 degrau 1, Tarefa 11): a página passa a tela, os exemplos e a ação. */
   perguntarIa?: PropsPerguntarIa
 }) {
@@ -53,7 +56,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
     const arq = await arquivoNoChrome(siteId)
     return { siteId, arq, banco: arq.banco ?? null }
   })
-  const [lembrado, aba, sug, arquivo] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoP])
+  const [lembrado, aba, sug, arquivo] = await medirEtapa('chrome', () => Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoP]), medicao)
   const arquivoVisivel = arquivo.arq.arquivoVisivel
   let avisoBanco: AvisoV2 | null = null
   if (arquivo.arq.aviso.ok && arquivo.banco) {

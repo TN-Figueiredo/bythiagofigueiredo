@@ -18,6 +18,7 @@ import { createClock } from '@/lib/youtube/observatorio/time'
 import type { AcessoPrivado, LeituraPrivadaDoSite, MotivoSemLeitura } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { acessoPrivado, longosAcompanhadosDe } from '../_proprio/dados'
 import { ownMenuFromRows, type OwnMenu } from './own-menu'
+import { medirEtapa } from '@/lib/youtube/observatorio/medicao-abertura'
 import { COOKIE_MEU_CANAL, parseMeuCanal } from './meu-canal-lembrado'
 
 /**
@@ -64,7 +65,7 @@ export async function carregarObservatorio<T>(a: {
 /** `extra`: a page's own read (swipe file, unlock permission), run in parallel with the dataset, after the guard. */
 export async function openObservatoryPage<T = undefined>(extra?: (siteId: string) => Promise<T>): Promise<ObservatoryPage<T>> {
   const { siteId } = await getSiteContext()
-  const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const access = await medirEtapa('guarda', () => requireSiteScope({ area: 'cms', siteId, mode: 'view' }))
   // the same two exits as the CMS layout
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
   return { ...(await carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: access.user.id, meuCanalLembrado: lerMeuCanalLembrado(), extra })), userId: access.user.id }

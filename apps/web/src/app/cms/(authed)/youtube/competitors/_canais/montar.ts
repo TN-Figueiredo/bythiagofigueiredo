@@ -4,6 +4,7 @@ import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observa
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
 import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
+import { medirEtapa } from '@/lib/youtube/observatorio/medicao-abertura'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { permissoesDoSite, type PermissoesDoSite } from '../_chrome/permissoes'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
@@ -62,7 +63,7 @@ export async function montarCanais(sp: Record<string, string | undefined>, opcoe
   }
   // A5 E5a R9b: os retratos públicos diários do canal próprio (MG20) vêm do motor (`rows.ownSnapshots`, lidos uma vez em load.ts): lista, cabeçalho, Comparar e Cowork leem a mesma fonte. Falha = 'erro' (pílula do motivo; o evento vai ao Sentry no carregador).
   const retratosProprios: ReadonlyMap<string, RetratosProprios> | 'erro' = rows.ownSnapshots === 'erro' ? 'erro' : new Map(Object.entries(rows.ownSnapshots ?? {}))
-  const [extras, medidas] = await Promise.all([carregarExtrasProprio(obs, siteId, now), carregarMedidas()])
+  const [extras, medidas] = await Promise.all([medirEtapa('diario', () => carregarExtrasProprio(obs, siteId, now)), medirEtapa('medidas', carregarMedidas)])
   const view = buildCanaisView(obs, {
     medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
