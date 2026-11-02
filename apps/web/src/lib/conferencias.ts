@@ -687,6 +687,7 @@ const FEITAS: Readonly<Record<string, string>> = {
   'e7-l2-d7': '2026-11-01', // divida2-e7 medida pelo dono: 200 em 28,9 s, 34 canais, 0 leitura_falhou, 0 cortados
   // lote feitaEm 02/11: .superpowers/sdd/a5/feitaem-02-11/resultado.md
   'e5a-d0': '2026-11-02', // dono em 1440: 4 de 34 igual à consulta mede; console sem erro do app; 390 e só leitura não vistos
+  'e5a-comentarios-d0': '2026-11-02', // feita, parcial com defeito: como dono a tela fica no nível texto (nome e foto ocultos); `identidade` nunca chega, AcessoPrivado sem `edicao` (P11). 3 vídeos e canal ok; desligados, só leitura e 390 não vistos. a5/feitaem-02-11/comentarios/resultado.md
   'e5a-ri-d0': '2026-11-02', // 1 subindo, 3 descendo, 30 sem medida; canal próprio sincronizado há 6 h
   'e5a-aviso-contagem': '2026-11-02', // aviso de 18/10 ausente na lista de Canais, 1440
   'e5a-ri-d1-sete-dias': '2026-11-02', // CP-RI4: mediana 0,709 em 13 vídeos, faixa 0,5 a 0,9
