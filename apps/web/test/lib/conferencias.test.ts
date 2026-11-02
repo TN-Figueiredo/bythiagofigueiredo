@@ -1051,11 +1051,14 @@ describe('ADIADAS', () => {
     expect(conferenciasEmFalha('2026-12-09').map(c => c.id)).toContain('e10-ensaio')
   })
 
-  it('todo id adiado existe e não colide com REABERTAS', () => {
-    for (const id of Object.keys(ADIADAS)) {
-      expect(CONFERENCIAS.some(c => c.id === id), id).toBe(true)
-      expect(REABERTAS.has(id), id).toBe(false)
+  it('todo id adiado existe, segue sem feitaEm e ADIADAS vence REABERTAS', () => {
+    for (const [id, data] of Object.entries(ADIADAS)) {
+      const c = CONFERENCIAS.find(x => x.id === id)
+      expect(c, id).toBeDefined()
+      expect(c?.feitaEm, id).toBeNull()
+      expect(c?.reabertaEm, id).toBe(data)
     }
+    expect(REABERTAS.has('e10-miniaturas')).toBe(true)
   })
 })
 
@@ -1067,6 +1070,7 @@ describe('reabertas (fecho da A5)', () => {
       const c = CONFERENCIAS.find(x => x.id === id)
       expect(c, id).toBeDefined()
       if (c?.feitaEm) { expect(c.feitaEm >= '2026-10-23', id).toBe(true); continue } // feita depois (lote de 27/10 em FEITAS): sai do vermelho por prova
+      if (id in ADIADAS) continue // adiada depois por decisão do dono: conta da data de ADIADAS
       expect(c?.reabertaEm, id).toBe(REABERTAS_EM)
       expect(diasDeAtraso(REABERTAS_EM, c!), id).toBe(0)
     }
