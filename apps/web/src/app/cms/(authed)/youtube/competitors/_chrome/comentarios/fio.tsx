@@ -21,11 +21,14 @@ function Silhueta() {
 /** A foto de quem editou o site (nível identidade): sem Referer, preguiçosa; se o YouTube tirar a foto cai na inicial. */
 function FotoDeIdentidade({ url, nome }: { url: string | null; nome: string }) {
   const [quebrou, setQuebrou] = useState(false)
+  const ref = useRef<HTMLImageElement>(null)
+  // a foto pode falhar ANTES da hidratação (o onError já passou): confere ao montar
+  useEffect(() => { if (ref.current?.complete && ref.current.naturalWidth === 0) setQuebrou(true) }, [])
   if (!url || quebrou) return <span className="cf-av" data-avatar="ini" aria-hidden="true"><span className="ini">{inicialDe(nome)}</span></span>
   return (
     <span className="cf-av" data-avatar="img" aria-hidden="true">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="" width={32} height={32} referrerPolicy="no-referrer" loading="lazy" onError={() => setQuebrou(true)} />
+      <img ref={ref} src={url} alt="" width={32} height={32} referrerPolicy="no-referrer" loading="lazy" onError={() => setQuebrou(true)} />
     </span>
   )
 }

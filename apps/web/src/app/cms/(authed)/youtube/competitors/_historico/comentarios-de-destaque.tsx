@@ -10,7 +10,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { lerComentariosDeDestaque } from '@/lib/youtube/observatorio/comentarios/leitor'
 import type { ComentariosDoVideo, ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import type { CriadorDoFio } from '../_chrome/comentarios/fio-model'
@@ -29,12 +28,12 @@ export interface ProvasResolvidas { provas: ProvasDeQuemVe | null; permissaoFalh
 /**
  * Do acesso privado (que a página pede SEM esperar, para o cabeçalho sair na hora) às provas de quem vê. Nunca rejeita: que a prova lance (não
  * deveria) é nível contagem com a faixa de permissão, nunca texto. A página NÃO chama `provarEdicao` nem decide nível (quem decide é o leitor).
- * `edicao` é o campo do pedido P11 (passo 0 da E17): enquanto `AcessoPrivado` não o tiver, é sempre nulo (no máximo texto).
+ * `edicao` vem do `AcessoPrivado` (preenchido só para quem edita): é o que leva o leitor ao nível `identidade`. O pacote da IA corta isso em `lerSecaoDeComentarios`.
  */
 export async function resolverProvas(acesso: Promise<AcessoPrivado>): Promise<ProvasResolvidas> {
   try {
     const a = await acesso
-    const edicao = 'edicao' in a ? ((a as AcessoPrivado & { edicao?: EdicaoDoSite | null }).edicao ?? null) : null
+    const edicao = a.edicao ?? null
     return { provas: { leitura: a.leitura, edicao }, permissaoFalhou: a.negativa === 'nao_foi_possivel_conferir' }
   } catch {
     return { provas: null, permissaoFalhou: true }
@@ -56,7 +55,7 @@ export interface PropsDaLeitura {
   /** `link.saiu`: o botão "Ver na fila “Saíram do YouTube”" só existe se este link existir. */
   hrefFilaSaiu?: string
   /** Quem pediu a leitura: vira tag do Sentry para separar a falha da tela da falha do pacote da IA (M5 do portão Yannis). */
-  origem?: 'pagina' | 'contexto-ia'
+  origem: 'pagina' | 'contexto-ia'
 }
 
 /** O que a seção lê e monta, antes de virar tela: a página e o pacote "Perguntar a uma IA" usam o MESMO caminho (leitor, nível e modelo). */
@@ -67,19 +66,22 @@ export type SecaoLida =
 /** Nunca lança: parte não lida vira `ok: false` com o título do estado de erro, e o motivo vai ao Sentry (sem texto nem id de autor). */
 export async function lerSecaoDeComentarios(p: PropsDaLeitura): Promise<SecaoLida> {
   let lido: Awaited<ReturnType<typeof lerComentariosDeDestaque>>
-  const { provas, permissaoFalhou } = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
+  const resolvidas = await p.provas.catch((): ProvasResolvidas => ({ provas: null, permissaoFalhou: true }))
+  const { permissaoFalhou } = resolvidas
+  // o corte falha fechado, num ponto só: só a tela ('pagina') vê a edição; qualquer outra origem (a IA, uma desconhecida) cai no nível `texto`. O pacote "Perguntar a uma IA" nunca passa do nível `texto`, mesmo para quem edita (sem nome, id nem foto de espectador)
+  const provas = p.origem === 'pagina' ? resolvidas.provas : (resolvidas.provas && { ...resolvidas.provas, edicao: null })
   try {
     lido = await lerComentariosDeDestaque(p.sb, {
       siteDaGuarda: p.siteId, provas, videoId: p.videoId, agoraMs: p.agoraMs, canaisDoSite: p.canaisDoSite, video: p.video,
     })
   } catch (err) {
     // por contrato o leitor não relata ("quem relata é a página"): quem relata é esta seção, com tags e sem id de autor nem texto (portão Yannis I-5)
-    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem ?? 'pagina' } })
+    Sentry.captureException(err, { tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem } })
     lido = { lido: false, causa: 'erro_do_banco', codigo: 'excecao' }
   }
   if (!lido.lido) {
     if (lido.codigo !== 'excecao') {
-      Sentry.captureMessage('observatório: comentários de destaque não lidos', { level: 'warning', tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem ?? 'pagina' }, extra: { causa: lido.causa, codigo: lido.codigo } })
+      Sentry.captureMessage('observatório: comentários de destaque não lidos', { level: 'warning', tags: { component: 'observatorio', step: 'comentarios-destaque', origem: p.origem }, extra: { causa: lido.causa, codigo: lido.codigo } })
     }
     return { ok: false, titulo: estadoDeErro().titulo }
   }
@@ -88,11 +90,11 @@ export async function lerSecaoDeComentarios(p: PropsDaLeitura): Promise<SecaoLid
 }
 
 /** A tela recebe o criador inteiro (nome, foto, inicial e cor do canal); a leitura continua recebendo só o nome. */
-export type PropsComentariosDeDestaque = Omit<PropsDaLeitura, 'canalNome'> & { criador: CriadorDoFio }
+export type PropsComentariosDeDestaque = Omit<PropsDaLeitura, 'canalNome' | 'origem'> & { criador: CriadorDoFio }
 
 export async function ComentariosDeDestaque(p: PropsComentariosDeDestaque) {
   const { criador, ...resto } = p
-  const r = await lerSecaoDeComentarios({ ...resto, canalNome: criador.nome })
+  const r = await lerSecaoDeComentarios({ ...resto, canalNome: criador.nome, origem: 'pagina' })
   if (!r.ok) {
     return (
       <section className="cd-secao" aria-labelledby="cd-titulo" data-comentarios="erro">

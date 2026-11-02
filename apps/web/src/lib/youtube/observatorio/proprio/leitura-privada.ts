@@ -13,7 +13,7 @@ import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { edicaoValida, provarEdicaoComAviso } from './edicao'
+import { edicaoValida, provarEdicaoComAviso, type EdicaoDoSite } from './edicao'
 import { chaveProvada, type ChaveDoPerfilProvada } from '../acesso-ia/prova'
 
 const PRAZO_MS = 5_000
@@ -48,6 +48,8 @@ export interface AcessoPrivado {
   leitura: LeituraPrivadaDoSite | null; edita: boolean; negativa: MotivoSemLeitura | null
   /** Decisão 75 (M4): a guarda de EDIÇÃO caiu, mas a de leitura concedeu. `edita:false` aqui não é "não pode editar": é "não deu para conferir". A tela mostra `falhou`, nunca o cadeado, no link do teste A/B. */
   edicaoNaoConferida?: boolean
+  /** O token de EDIÇÃO, só quando a guarda de edição aceitou (quem edita). Dá o nível `identidade` nos comentários; fica no servidor, nunca vai a client component. A prova da porta (IA externa) nunca o leva. */
+  edicao?: EdicaoDoSite | null
 }
 
 type MotivoSentry = 'guarda_falhou' | 'funcao_ausente_ou_erro' | 'resposta_inesperada'
@@ -81,7 +83,7 @@ async function perguntarDireito(userId: string, siteId: string, prazoMs: number,
 /** A porta da sessão: nunca lança. O `extra` leva o código do erro, nunca a mensagem crua nem o id da pessoa. */
 export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado> {
   const { token: edicao, avisou: edicaoAvisou } = await provarEdicaoComAviso(siteId)
-  if (edicaoValida(edicao)) return { leitura: fabricar(edicao.siteId), edita: true, negativa: null }
+  if (edicaoValida(edicao)) return { leitura: fabricar(edicao.siteId), edita: true, negativa: null, edicao }
   if (!UUID.test(siteId)) return semDireito
   const avisar = (motivo: MotivoSentry, e?: unknown): void => {
     const code = codigoDe(e)

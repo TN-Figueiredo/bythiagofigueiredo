@@ -8,6 +8,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { canalWorld } from './canal-fixture'
+import { edicaoDe } from './edicao-teste'
+import { leituraDe } from './leitura-teste'
+import { nivelDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-nivel'
 
 const mocks = vi.hoisted(() => ({
   carregar: vi.fn(),
@@ -17,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   leitor: vi.fn(),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('server-only', () => ({}))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u1' } })) }))
 import * as Sentry from '@sentry/nextjs'
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: mocks.servico }))
 vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-canal', () => ({ carregarMedidasDoCanalInteiro: mocks.carregar }))
@@ -33,7 +38,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/contexto-ia-actions', () => ({ g
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { BlocosDoVideo } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/blocos-do-video'
 import { HistoricoScreen } from '@/app/cms/(authed)/youtube/competitors/_historico/historico-screen'
-import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA, lerSecaoDeComentarios, type ProvasResolvidas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
+import { ComentariosDeDestaque, FAIXA_PERMISSAO_NAO_CONFERIDA, lerSecaoDeComentarios, resolverProvas, type ProvasResolvidas } from '@/app/cms/(authed)/youtube/competitors/_historico/comentarios-de-destaque'
 import { EstadoDoPainel } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/estados'
 import { SecaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/secao'
 import { FRASES } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/frases'
@@ -121,8 +126,42 @@ describe('a seção, depois do último bloco do Histórico', () => {
   it('N1: lerSecaoDeComentarios continua aceitando { canalNome } sem `criador` (o pacote da IA não muda)', async () => {
     mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
     const { criador: _c, ...semCriador } = props()
-    const r = await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt' })
+    const r = await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'contexto-ia' })
     expect(r.ok).toBe(true)
+  })
+
+  it('corte falha fechado: origem desconhecida (não é \'pagina\') nunca entrega a edição ao leitor', async () => {
+    mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
+    const provas = resolverProvas(Promise.resolve({ leitura: await leituraDe('s1'), edita: true, negativa: null, edicao: await edicaoDe('s1') }))
+    const { criador: _c, ...semCriador } = props({ provas })
+    await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'outra' as never })
+    expect((mocks.leitor.mock.calls.at(-1)![1] as { provas: ProvasDeQuemVe }).provas.edicao).toBeNull()
+  })
+
+  it('resolverProvas: com `edicao` no acesso, as provas levam a edição e o leitor decide o nível identidade', async () => {
+    const edicao = await edicaoDe('s1')
+    const leitura = await leituraDe('s1')
+    const r = await resolverProvas(Promise.resolve({ leitura, edita: true, negativa: null, edicao }))
+    expect(r.provas?.edicao).toBe(edicao)
+    expect(nivelDeQuemVe(r.provas, 's1').nivel).toBe('identidade')
+    const sem = await resolverProvas(Promise.resolve({ leitura, edita: false, negativa: null }))
+    expect(sem.provas?.edicao).toBeNull()
+    expect(nivelDeQuemVe(sem.provas, 's1').nivel).toBe('texto')
+  })
+
+  it('corte da IA: origem contexto-ia entrega ao leitor edicao nula (nunca passa de texto) mesmo para quem edita; a página mantém a edição', async () => {
+    mocks.leitor.mockResolvedValue({ lido: true, dados: contagem })
+    const edicao = await edicaoDe('s1')
+    const leitura = await leituraDe('s1')
+    const provas = resolverProvas(Promise.resolve({ leitura, edita: true, negativa: null, edicao }))
+    const { criador: _c, ...semCriador } = props({ provas })
+    await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'contexto-ia' })
+    const dadoAoLeitor = mocks.leitor.mock.calls.at(-1)![1] as { provas: ProvasDeQuemVe }
+    expect(dadoAoLeitor.provas.edicao).toBeNull()
+    expect(dadoAoLeitor.provas.leitura).toBe(leitura)
+    expect(nivelDeQuemVe(dadoAoLeitor.provas, 's1').nivel).toBe('texto')
+    await lerSecaoDeComentarios({ ...semCriador, canalNome: 'Matt', origem: 'pagina' })
+    expect((mocks.leitor.mock.calls.at(-1)![1] as { provas: ProvasDeQuemVe }).provas.edicao).toBe(edicao)
   })
 
   it('estreia: o marco de comentário conta do início real (live_actual_start_at), não de published_at (portão Phil I4)', async () => {
