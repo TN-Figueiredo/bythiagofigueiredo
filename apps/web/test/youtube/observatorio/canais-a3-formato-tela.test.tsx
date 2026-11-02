@@ -84,37 +84,45 @@ describe('A3.1 controle de formato', () => {
     const u = new URL('http://x' + replace.mock.calls.at(-1)![0])
     expect([u.searchParams.get('fmt'), u.searchParams.get('sort'), u.searchParams.get('scale')]).toEqual(['todos', 'subs', 'abs'])
   })
-  it('URL sem fmt: grava o lembrado (ou longos) com replace, uma vez só; localStorage que lança não quebra a tela', () => {
-    // nada lembrado: Longos
+  it('URL sem fmt: grava o lembrado (ou longos) uma vez; só o formato que o servidor não desenhou vai ao servidor; localStorage que lança não quebra a tela', () => {
+    const soUrl = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {})
+    // nada lembrado: Longos, que o servidor já desenhou: só a URL muda
     const a = mount()
-    expect(replace).toHaveBeenCalledTimes(1)
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=longos', { scroll: false })
+    expect(soUrl).toHaveBeenCalledTimes(1)
+    expect(soUrl.mock.calls[0]![2]).toBe('/cms/youtube/competitors?fmt=longos')
+    expect(replace).not.toHaveBeenCalled()
     a.rerender(tree(view())) // a mesma tela de novo: não grava outra vez
-    expect(replace).toHaveBeenCalledTimes(1)
+    expect(soUrl).toHaveBeenCalledTimes(1)
     a.unmount()
-    // lembrado: Shorts
-    replace.mockReset(); lembrado('shorts')
+    // lembrado: Shorts, que o servidor não desenhou
+    soUrl.mockClear(); lembrado('shorts')
     const b = mount()
     expect(replace).toHaveBeenCalledTimes(1)
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=shorts', { scroll: false })
+    expect(soUrl).not.toHaveBeenCalled()
     b.unmount()
     // lembrado lixo: Longos
     replace.mockReset(); lembrado('abc')
     const c = mount()
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=longos', { scroll: false })
+    expect(soUrl.mock.calls.at(-1)![2]).toBe('/cms/youtube/competitors?fmt=longos')
+    expect(replace).not.toHaveBeenCalled()
     c.unmount()
     // o armazenamento lança: a tela abre e grava Longos
-    replace.mockReset(); falha = true
+    soUrl.mockClear(); falha = true
     mount()
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=longos', { scroll: false })
+    expect(soUrl.mock.calls.at(-1)![2]).toBe('/cms/youtube/competitors?fmt=longos')
     expect(grupo()).toBeInTheDocument()
+    soUrl.mockRestore()
   })
   it('URL com fmt inválido (fmt=abc) é reescrita para um formato válido, sem mensagem de erro', () => {
+    const soUrl = vi.spyOn(window.history, 'replaceState').mockImplementation(() => {})
     search = 'fmt=abc&sort=subs'
     const { container } = mount({ fmt: 'abc', sort: 'subs' })
-    const u = new URL('http://x' + replace.mock.calls.at(-1)![0])
+    const u = new URL('http://x' + soUrl.mock.calls.at(-1)![2])
     expect([u.searchParams.get('fmt'), u.searchParams.get('sort')]).toEqual(['longos', 'subs'])
+    expect(replace).not.toHaveBeenCalled()
     expect(container.querySelector('[role="alert"]')).toBeNull()
+    soUrl.mockRestore()
   })
   it('URL com fmt válido não grava nada', () => {
     search = 'fmt=short'

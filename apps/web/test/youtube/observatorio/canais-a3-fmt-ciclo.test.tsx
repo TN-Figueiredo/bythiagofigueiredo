@@ -19,6 +19,7 @@ import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrom
 import type { NicheScope } from '@/lib/youtube/observatorio/types'
 
 const PATH = '/cms/youtube/competitors'
+const soUrl = vi.spyOn(window.history, 'replaceState')
 const replace = vi.fn(), push = vi.fn(), refresh = vi.fn(), prefetch = vi.fn()
 let search = ''
 vi.mock('next/navigation', () => ({
@@ -51,6 +52,7 @@ function abrir(qs: string): void {
   historico = [qs]; search = qs
   replace.mockImplementation((url: string) => { historico[historico.length - 1] = new URL('http://x' + url).search.replace(/^\?/, '') })
   push.mockImplementation((url: string) => { historico.push(new URL('http://x' + url).search.replace(/^\?/, '')) })
+  soUrl.mockImplementation((_e: unknown, _t: string, url?: string | URL | null) => { historico[historico.length - 1] = new URL('http://x' + String(url)).search.replace(/^\?/, '') })
   r = render(tree(viewDaUrl(qs)))
 }
 /** O roteador concluiu a navegação: a query é a última do histórico e a página (servidor) entrega a view dela. */
@@ -71,22 +73,25 @@ const armazenamento = {
   removeItem: (k: string) => { store.delete(k) }, clear: () => { store.clear() },
 }
 beforeEach(() => {
-  replace.mockReset(); push.mockReset(); refresh.mockReset(); prefetch.mockReset(); search = ''; historico = []
+  soUrl.mockReset(); replace.mockReset(); push.mockReset(); refresh.mockReset(); prefetch.mockReset(); search = ''; historico = []
   store = new Map(); vi.stubGlobal('localStorage', armazenamento)
 })
 afterEach(() => { vi.unstubAllGlobals(); document.getElementById('flut')?.remove() })
 
 describe('A3.1 o fmt entra na URL uma vez e não apaga os outros parâmetros (ciclo real: replace -> query nova -> view nova)', () => {
-  it('(a) primeira visita sem fmt: UM replace grava fmt=longos; depois da navegação nada mais é gravado e o histórico não cresce', () => {
+  it('(a) primeira visita sem fmt: só a URL recebe fmt=longos, sem ida ao servidor; depois nada mais é gravado e o histórico não cresce', () => {
     abrir('')
-    expect(replace).toHaveBeenCalledTimes(1)
+    expect(soUrl).toHaveBeenCalledTimes(1)
+    expect(replace).not.toHaveBeenCalled()
     expect(historico).toEqual(['fmt=longos'])
-    concluir() // a query agora traz o fmt e a view diz fmtNaUrl: o efeito sai cedo
-    expect(replace).toHaveBeenCalledTimes(1)
+    search = historico[0]! // a query muda, mas o servidor não foi chamado: a view continua a de antes (fmtNaUrl false)
+    act(() => { r.rerender(tree(viewDaUrl(''))) })
+    expect(soUrl).toHaveBeenCalledTimes(1)
+    concluir(); concluir() // re-renders seguintes (a mesma query) também não regravam
+    expect(soUrl).toHaveBeenCalledTimes(1)
+    expect(replace).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
     expect(historico).toHaveLength(1)
-    concluir(); concluir() // re-renders seguintes (a mesma query) também não regravam
-    expect(replace).toHaveBeenCalledTimes(1)
     expect(formatoPressionado()).toEqual(['Longos'])
   })
   it('(a) o formato lembrado (Shorts) é o gravado, e a tela passa a mostrar Shorts', () => {
@@ -100,13 +105,14 @@ describe('A3.1 o fmt entra na URL uma vez e não apaga os outros parâmetros (ci
   })
   it('(a) fmt=abc (e fmt= vazio) é reescrito UMA vez para um formato válido, com o resto da query; depois não regrava', () => {
     for (const ruim of ['fmt=abc&sort=subs&niche=viagem', 'fmt=&sort=subs&niche=viagem']) {
-      replace.mockReset(); r?.unmount()
+      soUrl.mockClear(); r?.unmount()
       abrir(ruim)
-      expect(replace).toHaveBeenCalledTimes(1)
+      expect(soUrl).toHaveBeenCalledTimes(1)
       const u = new URLSearchParams(historico[0])
       expect([u.get('fmt'), u.get('sort'), u.get('niche')]).toEqual(['longos', 'subs', 'viagem'])
       concluir()
-      expect(replace).toHaveBeenCalledTimes(1)
+      expect(soUrl).toHaveBeenCalledTimes(1)
+      expect(replace).not.toHaveBeenCalled()
     }
   })
   it('(b) com fmt válido (longos, todos, shorts, short, long) nada é gravado, nem na montagem nem depois', () => {
@@ -140,7 +146,7 @@ describe('A3.1 o fmt entra na URL uma vez e não apaga os outros parâmetros (ci
   it('(c) trocar a ordenação (clique) depois da gravação preserva o fmt e não grava outra vez por conta própria', () => {
     abrir('')
     concluir()
-    expect(replace).toHaveBeenCalledTimes(1)
+    expect(soUrl).toHaveBeenCalledTimes(1)
     act(() => { document.querySelector<HTMLButtonElement>('th[data-k="outliers"] button')!.click() })
     const u = new URLSearchParams(historico.at(-1))
     expect([u.get('fmt'), u.get('sort')]).toEqual(['longos', 'outliers'])
@@ -164,12 +170,13 @@ describe('A3.1 o fmt entra na URL uma vez e não apaga os outros parâmetros (ci
   })
   it('(c) outra gravação chega antes de o servidor devolver o fmt (a query muda e o fmt continua faltando): o efeito grava de novo, sobre a query nova, sem perdê-la', () => {
     abrir('sort=subs')
-    expect(replace).toHaveBeenCalledTimes(1)
+    expect(soUrl).toHaveBeenCalledTimes(1)
     irPara('sort=subs&q=abc', 'replace') // por cima da gravação do fmt, sem passar por uma view com fmt
-    expect(replace).toHaveBeenCalledTimes(2)
+    expect(soUrl).toHaveBeenCalledTimes(2)
     expect(Object.fromEntries(new URLSearchParams(historico.at(-1)))).toEqual({ sort: 'subs', q: 'abc', fmt: 'longos' })
     concluir()
-    expect(replace).toHaveBeenCalledTimes(2)
+    expect(soUrl).toHaveBeenCalledTimes(2)
+    expect(replace).not.toHaveBeenCalled()
     expect(historico).toHaveLength(1)
   })
   it('(d) links antigos: fmt=short abre em Shorts, fmt=long em Longos, sem gravar e sem erro', () => {

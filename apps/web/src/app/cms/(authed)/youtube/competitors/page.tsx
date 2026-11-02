@@ -1,3 +1,4 @@
+import { comMedicao, gravarAoFim, novaMedicao } from '@/lib/youtube/observatorio/medicao-abertura'
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
 import { marcarRodado, desfazerRodado } from './_arquivo/actions-canal'
 import { gerarPacoteIa } from './contexto-ia-actions'
@@ -33,9 +34,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // O redirecionamento roda logo depois de abrir o conjunto e antes de qualquer leitura privada (montarCanais, aoAbrir).
   // O e-mail da sessão (só para admin) é lido em paralelo com a montagem; o redirecionamento de `aoAbrir` continua antes de qualquer leitura privada.
   const meuEmailP = meuEmailDoSite()
-  const [{ pagina: { siteId, now, obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await Promise.all([
+  const medicao = novaMedicao('canais')
+  gravarAoFim(medicao)
+  const [{ pagina: { siteId, now, obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await comMedicao(medicao, () => Promise.all([
     montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) }), meuEmailP,
-  ])
+  ]))
   // Peça 7 (M5 T10): lida só com o filtro "Saíram do YouTube" aberto e só depois da guarda de edição (dentro de lerPendenciasDaFila); sem edição, nem o cliente de serviço é criado.
   // Os nomes saem de mapas montados uma vez (canal pelo id, vídeo pelo id do YouTube): nada de `find` por item.
   const pendencias = view.filter === 'sairam'
@@ -43,7 +46,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
       { verificadorEm: permissoes.podeEditar && process.env.OBS_ARQUIVO === 'on' ? await forjaVerificouEm(siteId) : undefined })
     : null
   return (
-    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
+    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado} medicao={medicao}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
         view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} onMarcarRodado={marcarRodado} onDesfazerRodado={desfazerRodado} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}

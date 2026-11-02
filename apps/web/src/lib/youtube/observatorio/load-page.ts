@@ -16,6 +16,7 @@ import { loadChannelRows, assembleRows } from './load-channel'
 import { packWithinBudget, unpackChannel, PACK_VERSION, PACK_BUDGET, type ChannelRows } from './pack'
 import { observatoryTag } from './cache-tag'
 import { observatoryNow } from './now'
+import { contarFrio, medirEtapa } from './medicao-abertura'
 
 /**
  * Safety net for a write that did not invalidate (a sync killed before its end, a writer added without the call):
@@ -51,6 +52,7 @@ const warn = (message: string, extra: Record<string, unknown>) => {
  */
 async function buildPack(siteId: string, channelId: string, videoLimit: number, seriesStart: number | null, okSyncedAt: string): Promise<string> {
   void okSyncedAt
+  contarFrio('pacotes')
   // a database error throws here and nothing is stored: a failed read is never cached as an empty channel
   const rows = await loadChannelRows(getSupabaseServiceClient(), { channelId, videoLimit, seriesStart, now: observatoryNow() })
   const { packed, weeklyOmitted } = packWithinBudget(rows, new Set(observedVideoIds([{ id: channelId, video_limit: videoLimit }], rows.videos)))
@@ -77,8 +79,8 @@ async function readChannel(sb: SupabaseClient, siteId: string, c: ChannelRow, se
 
 export async function loadPageRows(siteId: string, now: number): Promise<ObservatoryRows> {
   const sb = getSupabaseServiceClient()
-  const { seriesStartAt, ...live } = await loadLiveRows(sb, siteId, now)
-  const parts = await mapLimit(live.channels, CHANNEL_CONCURRENCY, c => readChannel(sb, siteId, c, seriesStartAt, now))
+  const { seriesStartAt, ...live } = await medirEtapa('vivas', () => loadLiveRows(sb, siteId, now))
+  const parts = await medirEtapa('pacotes', () => mapLimit(live.channels, CHANNEL_CONCURRENCY, c => readChannel(sb, siteId, c, seriesStartAt, now)))
   return assembleRows(live, parts, seriesStartAt, now)
 }
 
