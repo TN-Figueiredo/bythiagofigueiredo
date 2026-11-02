@@ -685,6 +685,13 @@ const FEITAS: Readonly<Record<string, string>> = {
   'e19-30o-dia': '2026-10-31', // janela fechada em 21/10, recusa desde 23/10
   'e8-primeira-leva': '2026-11-01', // critério histórico REPROVADO (14, 15 e 16/10); sem perda, K6 0/36, K7 0/36; causa não achada; dono 01/11
   'e7-l2-d7': '2026-11-01', // divida2-e7 medida pelo dono: 200 em 28,9 s, 34 canais, 0 leitura_falhou, 0 cortados
+  // lote feitaEm 02/11: .superpowers/sdd/a5/feitaem-02-11/resultado.md
+  'e5a-d0': '2026-11-02', // dono em 1440: 4 de 34 igual à consulta mede; console sem erro do app; 390 e só leitura não vistos
+  'e5a-ri-d0': '2026-11-02', // 1 subindo, 3 descendo, 30 sem medida; canal próprio sincronizado há 6 h
+  'e5a-aviso-contagem': '2026-11-02', // aviso de 18/10 ausente na lista de Canais, 1440
+  'e5a-ri-d1-sete-dias': '2026-11-02', // CP-RI4: mediana 0,709 em 13 vídeos, faixa 0,5 a 0,9
+  'e11-d5': '2026-11-02', // C1 0; C2 0 e 0; C3 0 de 7 vídeos com view
+  'e17d2-d0': '2026-11-02', // K1 0; K6 forja (fila) usada há 9 min, user_id e expires_at nulos; env ausente na Vercel; curl 401 em 27/10
 }
 
 const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...X3_LOTE_27_10, ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
@@ -741,6 +748,7 @@ export const REABERTAS: ReadonlySet<string> = new Set([
  */
 export const ADIADAS: Readonly<Record<string, string>> = {
   'e10-ensaio': '2026-12-01',
+  'e10-miniaturas': '2026-12-01', // critério: sem remoção, anotar e adiar; 0 lotes em obs_archive_batches em 02/11
 }
 
 export const CONFERENCIAS: readonly Conferencia[] = TODAS.map(c => {
