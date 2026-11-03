@@ -197,7 +197,7 @@ const nextConfig: NextConfig = {
 // trifecta is configured (org + project + auth token). Without all three the
 // `@sentry/nextjs` build plugin either no-ops loudly or attempts an upload
 // that fails — neither is acceptable for local dev or branch builds without
-// the secret. The runtime SDK (instrumentation.ts + sentry.*.config.ts) still
+// the secret. The runtime SDK (src/instrumentation.ts + sentry.*.config.ts) still
 // initializes from NEXT_PUBLIC_SENTRY_DSN, so errors flow to Sentry in prod
 // regardless; only source-map upload is gated here.
 const sentryUploadEnabled =
