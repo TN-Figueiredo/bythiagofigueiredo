@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { CmsLogin } from '@tn-figueiredo/cms/login'
 import { loadBranding } from '@/lib/auth/auth-branding'
 import { buildAuthTheme } from '@/lib/auth/auth-theme'
+import { LoginSemGoogle } from '@/lib/auth/login-sem-google'
 import { signInWithPassword, signInWithGoogle } from './actions'
 
 export default async function Page({
@@ -30,17 +31,19 @@ export default async function Page({
   // wrap explicitly here.
   return (
     <Suspense fallback={null}>
-      <CmsLogin
-        actions={{ signInWithPassword, signInWithGoogle }}
-        redirectTo={redirectTo}
-        logo={logo}
-        theme={theme}
-        turnstile={
-          process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-            ? { siteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY }
-            : undefined
-        }
-      />
+      <LoginSemGoogle>
+        <CmsLogin
+          actions={{ signInWithPassword, signInWithGoogle }}
+          redirectTo={redirectTo}
+          logo={logo}
+          theme={theme}
+          turnstile={
+            process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+              ? { siteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY }
+              : undefined
+          }
+        />
+      </LoginSemGoogle>
     </Suspense>
   )
 }
