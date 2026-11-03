@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { scrubBreadcrumbPii, scrubEventPii } from './src/lib/sentry-pii'
 import { registerSecretLiteral } from './src/lib/redact-secrets'
 import { agendarFlushNaVercel } from './src/lib/sentry-flush'
-import { criarTravaDeTaxa } from './src/lib/sentry-rate-limit'
+import { criarTravaDeTaxa, ehNotFoundDoNext } from './src/lib/sentry-rate-limit'
 
 // P5: teto por instância; error/fatal e exceções passam sempre.
 const trava = criarTravaDeTaxa()
@@ -35,7 +35,7 @@ if (dsn) {
     // Node na Vercel congela ao responder: sem isto o evento fica na fila (ver sentry-flush.ts).
     beforeSend: (event) => {
       const limpo = scrubEventPii(event)
-      if (limpo && !trava.permitir(limpo)) return null
+      if (limpo && (ehNotFoundDoNext(limpo) || !trava.permitir(limpo))) return null
       agendarFlushNaVercel()
       return limpo
     },
