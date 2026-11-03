@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { criarTravaDeTaxa } from '../../src/lib/sentry-rate-limit'
+import { criarTravaDeTaxa, ehNotFoundDoNext } from '../../src/lib/sentry-rate-limit'
 
 type Ev = { message?: string; level?: string; exception?: { values?: Array<{ value?: string }> } }
 
@@ -45,5 +45,15 @@ describe('trava de taxa do Sentry Node', () => {
     for (let i = 0; i < 1000; i++) if (t.permitir({ message: 'm', level: 'warning' } as Ev, 0)) passou++
     expect(passou).toBeGreaterThan(0)
     expect(passou).toBeLessThan(50)
+  })
+})
+
+describe("ehNotFoundDoNext", () => {
+  it("reconhece o 404 do Next", () => {
+    expect(ehNotFoundDoNext({ exception: { values: [{ value: "NEXT_HTTP_ERROR_FALLBACK;404" }] } })).toBe(true)
+  })
+  it("não pega outro erro nem evento sem exceção", () => {
+    expect(ehNotFoundDoNext({ exception: { values: [{ value: "NEXT_HTTP_ERROR_FALLBACK;500" }] } })).toBe(false)
+    expect(ehNotFoundDoNext({ message: "x" })).toBe(false)
   })
 })

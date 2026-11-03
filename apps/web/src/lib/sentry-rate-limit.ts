@@ -46,3 +46,8 @@ export function criarTravaDeTaxa(opcoes: Partial<OpcoesTrava> = {}) {
     },
   }
 }
+
+/** notFound() do Next chega como exceção não tratada; é página 404 normal e gastaria a cota de erros. */
+export function ehNotFoundDoNext(evento: EventoMinimo): boolean {
+  return evento.exception?.values?.some((v) => v.value === "NEXT_HTTP_ERROR_FALLBACK;404") ?? false
+}
