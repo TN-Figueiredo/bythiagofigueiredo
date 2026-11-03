@@ -1,0 +1,6 @@
+/* O login por Google está desligado no Supabase, mas CmsLogin e AdminLogin desenham o botão
+   sem opção de esconder. Some o botão (o único fora do form) e o divisor "ou" logo depois dele. */
+.login-sem-google button:not(form button),
+.login-sem-google button:not(form button) + div {
+  display: none;
+}
