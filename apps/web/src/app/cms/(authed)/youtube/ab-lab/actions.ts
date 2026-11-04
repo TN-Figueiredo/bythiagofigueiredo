@@ -15,6 +15,7 @@ import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
 import { z } from 'zod'
+import { boundedArray } from '../../../../../../lib/validation/bounded-array'
 import { refTrocaValida } from '@/lib/youtube/ab-referencia'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
@@ -1199,7 +1200,8 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 // retryRestore / dismissRestore (P4b): "Tentar agora" e "Já corrigi no YouTube"
 // ---------------------------------------------------------------------------
 
-const CamposSchema = z.array(z.enum(['title', 'thumbnail'])).min(1).max(2)
+// GHSA-mrhx-c7xc-m3w5: teto antes do zod.
+const CamposSchema = boundedArray(z.enum(['title', 'thumbnail']), 2).refine((a) => a.length >= 1, { message: 'Array must contain at least 1 element(s)' })
 
 const MSG_NEGA_VARIANTE = 'tentar de novo ou dispensar a restauração de uma variante'
 

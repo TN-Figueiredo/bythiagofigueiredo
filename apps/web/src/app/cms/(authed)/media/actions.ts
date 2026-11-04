@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
+import { boundedArray } from '../../../../../lib/validation/bounded-array'
 import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -74,7 +75,7 @@ const MEDIA_FOLDERS = [
 const ListFiltersSchema = z.object({
   folder: z.enum(MEDIA_FOLDERS).optional(),
   search: z.string().max(200).optional(),
-  tags: z.array(z.string()).optional(),
+  tags: boundedArray(z.string().max(50), 20).optional(), // GHSA-mrhx-c7xc-m3w5
   includeDeleted: z.boolean().optional(),
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).optional(),
@@ -82,7 +83,7 @@ const ListFiltersSchema = z.object({
 
 const UpdateAssetSchema = z.object({
   altText: z.string().max(500).optional(),
-  tags: z.array(z.string().max(50)).max(20).optional(),
+  tags: boundedArray(z.string().max(50), 20).optional(),
   folder: z.enum(MEDIA_FOLDERS).optional(),
 })
 

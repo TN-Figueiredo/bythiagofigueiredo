@@ -48,6 +48,14 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 /* ------------------------------------------------------------------ */
 
 describe('bulkPublishCampaigns', () => {
+
+  it('GHSA-mrhx-c7xc-m3w5: 1 milhão de ids inválidos recusa rápido, com teto antes do zod', async () => {
+    const { bulkPublishCampaigns } = await import('@/app/cms/(authed)/campaigns/bulk-actions')
+    const t = performance.now()
+    const result = await bulkPublishCampaigns(new Array<string>(1_000_000).fill('x'))
+    expect(performance.now() - t).toBeLessThan(500)
+    expect(result.ok).toBe(false)
+  })
   beforeEach(() => vi.clearAllMocks())
 
   it('rejects empty array', async () => {

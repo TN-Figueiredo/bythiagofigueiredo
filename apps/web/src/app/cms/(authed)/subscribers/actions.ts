@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { boundedArray } from '../../../../../lib/validation/bounded-array'
 import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -47,7 +48,7 @@ const exportSchema = z.object({
 })
 
 const batchUnsubscribeSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(500),
+  ids: boundedArray(z.string().uuid(), 500).refine((a) => a.length >= 1, { message: 'Array must contain at least 1 element(s)' }), // GHSA-mrhx-c7xc-m3w5
 })
 
 const toggleTrackingConsentSchema = z.object({
