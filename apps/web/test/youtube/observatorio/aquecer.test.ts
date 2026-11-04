@@ -216,3 +216,31 @@ describe('aquecerCanais (núcleo): espera, prazo e confirmação', () => {
     expect(await x.mod.aquecerCanais(['c0', 'c1', 'fora'], x.deps)).toMatchObject({ status: 'ok', N: 2, descartados: 1 })
   })
 })
+
+describe('M2: acima do orçamento conta como não aquecido', () => {
+  it('pacote acima do orçamento: não aquecido (pacote_acima_do_orcamento), nunca aquecido/regravado', async () => {
+    const mod = await import('@/lib/youtube/observatorio/aquecer')
+    const r = await mod.aquecerCanais(null, {
+      lerVivas: async () => ({ canais: [{ id: 'c0', last: 1 }], descartados: 0 }),
+      lerPacote: async () => ({}), parcialDoPacote: () => 'pacote_acima_do_orcamento',
+      lerMedidas: async () => ({ resposta: {}, parcial: null }),
+      agora: () => NOW, prazoMs: 90_000, dormir: async () => undefined,
+    })
+    expect(r.status).toBe('falha')
+    expect(r.aquecidos).toBe(0)
+    expect(r.regravados).toBe(0)
+    expect(r.nao_aquecidos).toEqual({ pacote_acima_do_orcamento: 1 })
+  })
+  it('medidas acima de 2 MB: não aquecido (medidas_acima_do_teto)', async () => {
+    const mod = await import('@/lib/youtube/observatorio/aquecer')
+    const r = await mod.aquecerCanais(null, {
+      lerVivas: async () => ({ canais: [{ id: 'c0', last: 1 }], descartados: 0 }),
+      lerPacote: async () => ({}),
+      lerMedidas: async () => ({ resposta: 'x'.repeat(mod.TETO_MEDIDAS + 10), parcial: null }),
+      agora: () => NOW, prazoMs: 90_000, dormir: async () => undefined,
+    })
+    expect(r.status).toBe('falha')
+    expect(r.aquecidos).toBe(0)
+    expect(r.nao_aquecidos).toEqual({ medidas_acima_do_teto: 1 })
+  })
+})

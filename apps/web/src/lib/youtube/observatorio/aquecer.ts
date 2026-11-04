@@ -14,6 +14,8 @@ export const PRAZO_INTERNO_MS = 90_000
 export const AQUECER_CONCORRENCIA = 6
 /** Quantos canais do fim da 1ª passada ainda podem estar em PUT na 2ª; contados à parte. */
 export const ULTIMOS_DA_PASSADA = 6
+/** Acima disto o Next não guarda a entrada das medidas (o mesmo teto do pacote). */
+export const TETO_MEDIDAS = 2_000_000
 
 export interface CanalViva { id: string; last: number | null }
 
@@ -27,6 +29,8 @@ export interface DepsAquecer<C extends CanalViva> {
   lerPacote(c: C): Promise<unknown>
   /** As medidas do canal pela mesma função da tela (`lerPlanosDoCanal`); `parcial` = causa quando o Next não guardou. */
   lerMedidas(c: C): Promise<{ resposta: unknown; parcial: string | null }>
+  /** Causa se o pacote lido não cabe no que o Next guarda (então a tela nunca acha a entrada); null = cabe. */
+  parcialDoPacote?(c: C, pacote: unknown): string | null
   agora(): number
   dormir(ms: number): Promise<void>
   prazoMs: number
@@ -84,6 +88,8 @@ async function umCanal<C extends CanalViva>(c: C, deps: DepsAquecer<C>, restante
   if (pacote.status === 'rejected' || medidas.status === 'rejected') return { estado: 'erro', causa: 'leitura_falhou', frios: total(), bytes: 0 }
   const frios = total()
   const bytes = tam(pacote.value) + tam(medidas.value.resposta)
+  const foraDoOrcamento = deps.parcialDoPacote?.(c, pacote.value) ?? (tam(medidas.value.resposta) > TETO_MEDIDAS ? 'medidas_acima_do_teto' : null)
+  if (foraDoOrcamento) return { estado: 'parcial', causa: foraDoOrcamento, frios, bytes }
   if (medidas.value.parcial) return { estado: 'parcial', causa: 'leitura_parcial', frios, bytes }
   return { estado: 'ok', frios, bytes }
 }

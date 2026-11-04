@@ -61,6 +61,10 @@ async function buildPack(siteId: string, channelId: string, videoLimit: number, 
   if (packed.length > PACK_BUDGET) warn('observatório: o pacote do canal ' + channelId + ' passou do orçamento do cache (' + packed.length + ' de ' + PACK_BUDGET + ' caracteres)', { siteId, channelId, size: packed.length })
   return packed
 }
+/** O tamanho que o pacote do canal teria (o mesmo empacotador do `buildPack`): acima de `PACK_BUDGET` o Next não o guarda. */
+export function tamanhoDoPacote(rows: ChannelRows, c: { id: string; video_limit: number }): number {
+  return packWithinBudget(rows, new Set(observedVideoIds([{ id: c.id, video_limit: c.video_limit }], rows.videos))).packed.length
+}
 const cachedPack = (siteId: string, channelId: string) => unstable_cache(comChaveFixa(ENTRADAS.pacote, buildPack), [ENTRADAS.pacote, String(PACK_VERSION)], { tags: tagsDoCanal(siteId, channelId), revalidate: PACK_TTL_SECONDS })
 
 /** One channel's heavy rows: the stored pack when it can be trusted, the database otherwise. */

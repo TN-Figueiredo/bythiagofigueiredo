@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { recordCronFailure, recordCronSuccess } from '@/lib/cron-health'
 import { logCron } from '../../../../lib/logger'
 import { LIMITE_FUNCAO_MS } from './relogio'
+import { observatoryCacheEnabled } from '../observatorio/load-page'
 
 export const JOB_AQUECER = 'observatorio-aquecer'
 export const JOB_AQUECER_PEDIDO = 'observatorio-aquecer-pedido'
@@ -42,36 +43,32 @@ export function criarPedidoDeAquecimento(d: DepsDoPedido): PedidoDeAquecimento {
 
   const pedir = async (): Promise<void> => {
     try {
+      // local e a fidelidade e2e (OBS_E2E=1 fora de produção) não têm cache: não grava o pedido nem chama
+      if (!observatoryCacheEnabled()) return
       if (limite - (d.agora() - d.t0) < SOBRA_MINIMA_PARA_PEDIR_MS) return await falhar('sem tempo para pedir')
       const base = process.env.NEXT_PUBLIC_APP_URL
       const segredo = process.env.CRON_SECRET
       if (!base) return await falhar('sem endereço')
       if (!segredo) return await falhar('sem segredo')
-      // a rota aceita no máximo 500 ids por corpo
-      const lotes = [...alvos].flatMap(([siteId, v]): Array<{ siteId: string; ids?: string[] }> => {
-        if (v === 'inteiro') return [{ siteId }]
-        const todos = [...v]
-        return Array.from({ length: Math.ceil(todos.length / 500) }, (_x, k) => ({ siteId, ids: todos.slice(k * 500, (k + 1) * 500) }))
-      })
+      // um só corpo por disparo; a rota aceita no máximo 500 ids por alvo (acima disso o site vai inteiro, que é um superconjunto)
+      const lista = [...alvos].map(([siteId, v]): { siteId: string; ids?: string[] } => (v === 'inteiro' || v.size > 500 ? { siteId } : { siteId, ids: [...v] }))
       // medido aqui, logo antes do envio: é quando o envio das etiquetas do cron termina (a agenda ainda avisa o dono e fecha apagamentos depois da invalidação)
       const invalidadoEm = d.agora()
       // a linha "pedido" do vigia; se o upsert falha o cron_health só faz console.error, então a falha de gravar é vista no Sentry
       try { await saude.sucesso(JOB_AQUECER_PEDIDO, 'info') } catch (e) { Sentry.captureException(e, { fingerprint: ['observatorio-aquecer', 'pedido-nao-gravado'], tags: { component: 'observatorio-aquecer' } }) }
-      await Promise.all(lotes.map(async lote => {
-        try {
-          const r = await d.fetch(base.replace(/\/+$/, '') + '/api/cron/observatorio-aquecer', {
-            method: 'POST',
-            headers: { authorization: 'Bearer ' + segredo, 'content-type': 'application/json' },
-            body: JSON.stringify({ ...lote, invalidadoEm }),
-            signal: AbortSignal.timeout(PRAZO_DO_202_MS),
-            redirect: 'manual',
-            cache: 'no-store',
-          })
-          if (r.status !== 202) await falhar('a rota respondeu ' + r.status + ' em vez de 202')
-        } catch (err) {
-          await falhar('o pedido não chegou (' + (err instanceof Error ? err.name : 'erro') + ')')
-        }
-      }))
+      try {
+        const r = await d.fetch(base.replace(/\/+$/, '') + '/api/cron/observatorio-aquecer', {
+          method: 'POST',
+          headers: { authorization: 'Bearer ' + segredo, 'content-type': 'application/json' },
+          body: JSON.stringify({ alvos: lista, invalidadoEm }),
+          signal: AbortSignal.timeout(PRAZO_DO_202_MS),
+          redirect: 'manual',
+          cache: 'no-store',
+        })
+        if (r.status !== 202) await falhar('a rota respondeu ' + r.status + ' em vez de 202')
+      } catch (err) {
+        await falhar('o pedido não chegou (' + (err instanceof Error ? err.name : 'erro') + ')')
+      }
     } catch (e) {
       Sentry.captureException(e, { tags: { component: 'observatorio-aquecer', step: 'pedido' } })
     }

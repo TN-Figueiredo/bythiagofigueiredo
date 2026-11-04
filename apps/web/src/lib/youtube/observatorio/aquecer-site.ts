@@ -4,7 +4,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { aquecerCanais, PRAZO_INTERNO_MS, type CanalViva, type ResultadoAquecer } from './aquecer'
 import { ms, seriesStartAt } from './load'
-import { readChannel } from './load-page'
+import { readChannel, tamanhoDoPacote } from './load-page'
+import { PACK_BUDGET, type ChannelRows } from './pack'
 import { lerPlanosDoCanal, novosAvisos } from './medidas-telas/carregar-do-site'
 
 interface CanalDaChave extends CanalViva { video_limit: number; last_ok_synced_at: string | null }
@@ -44,6 +45,7 @@ export async function aquecerSite(sb: SupabaseClient, p: PedidoAquecer, o: { ago
     return await aquecerCanais<CanalDaChave>(p.ids, {
       lerVivas: async ids => { const r = await lerVivasEstreito(sb, p.siteId, ids); serie = r.seriesStartAt; return { canais: r.canais, descartados: r.descartados } },
       lerPacote: c => readChannel(sb, p.siteId, c, serie, agora()),
+      parcialDoPacote: (c, pacote) => (tamanhoDoPacote(pacote as ChannelRows, c) > PACK_BUDGET ? 'pacote_acima_do_orcamento' : null),
       lerMedidas: async c => {
         const resposta = await lerPlanosDoCanal(sb, { siteId: p.siteId, channelId: c.id, agoraMs: agora() }, c.last, avisos)
         const nao = [resposta.canal, resposta.videos, resposta.marcas, resposta.retratos].find(x => !x.lido)
