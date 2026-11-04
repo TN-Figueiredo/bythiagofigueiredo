@@ -22,7 +22,7 @@ import { contarFrio, medirEtapa } from './medicao-abertura'
  * Safety net for a write that did not invalidate (a sync killed before its end, a writer added without the call):
  * after this many seconds the entry is served once more and recomputed in the background.
  */
-export const PACK_TTL_SECONDS = 900
+export const PACK_TTL_SECONDS = 3600
 /** Channels read at the same time (each one runs up to three reads in parallel). */
 const CHANNEL_CONCURRENCY = 6
 

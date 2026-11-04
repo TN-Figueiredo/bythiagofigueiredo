@@ -16,15 +16,18 @@ import type { IMotorDeMultiplos } from '../medidas-multiplos'
 /**
  * A5 E5a, Tarefa 2: as medidas de todos os canais concorrentes do site, para as telas (Canais, Comparar, Outliers, Insights...).
  * Lê com os leitores da E4 (que recebem o cliente por parâmetro: aqui nenhum cliente de serviço é criado), guarda em cache só o
- * que foi lido por inteiro (por canal, 900 s) e monta as medidas com `medidasDoCanal` a cada abertura (o montador depende do relógio
+ * que foi lido por inteiro (por canal, prazo 21.600 s; serve velha até 6 h) e monta as medidas com `medidasDoCanal` a cada abertura (o montador depende do relógio
  * e nunca é guardado). Nunca derruba a tela: canal que falha vira `{ naoCarregou: causa }`.
  */
 
 export const MEDIDAS_TELAS_V = 3
 export const CANAIS_AO_MESMO_TEMPO = 6
 export const PRAZO_DAS_MEDIDAS_MS = 12_000
-const VALIDADE_S = 900
-const VALIDADE_MS = VALIDADE_S * 1000
+/** Prazo do `unstable_cache` das medidas (linha de base do egress, 03/11): passado ele, o Next serve a entrada e recalcula por trás. */
+const VALIDADE_S = 21_600
+/** Teto de idade para servir velho: 6 h (cadência medida dos surtos). Acima, relê bloqueando. */
+export const TETO_SERVIR_VELHO_MS = 6 * 3_600_000
+const JANELA_SENTRY_MS = 15 * 60_000
 
 export type CausaDeFalha = CausaNaoLida | 'tempo_esgotado'
 
@@ -71,11 +74,39 @@ const tudoLido = (p: InsumosPlanos): boolean => p.canal.lido && p.videos.lido &&
 /** A entrada do cache passou de ~1,5 MB: o Next recusa acima de 2 MB (e só avisa no console), e toda abertura do canal vira fria. */
 export const ORCAMENTO_DA_ENTRADA = 1_500_000
 
+/** Limitador do Sentry do recálculo (primeiro plano ou por trás): por causa, 1 evento a cada 15 min por instância; `vezes` acumula as falhas desde o último evento. */
+const limiteDoRecalculo = new Map<string, { emitidoEm: number; vezes: number }>()
+/** Só para teste. */
+export function _esquecerLimiteDoRecalculo(): void { limiteDoRecalculo.clear() }
+function avisarFalhaDoRecalculo(causa: string, canal: string): void {
+  const agora = Date.now()
+  const e = limiteDoRecalculo.get(causa) ?? { emitidoEm: Number.NEGATIVE_INFINITY, vezes: 0 }
+  e.vezes++
+  limiteDoRecalculo.set(causa, e)
+  if (agora - e.emitidoEm < JANELA_SENTRY_MS) return
+  const vezes = e.vezes
+  e.emitidoEm = agora
+  e.vezes = 0
+  Sentry.captureMessage('observatório: recálculo das medidas das telas falhou (' + causa + ')', {
+    level: 'warning', fingerprint: ['medidas-telas', 'recalculo', causa], tags: { component: 'observatorio', step: 'medidas-telas-recalculo' },
+    extra: { vezes, exemplo: canal },
+  })
+}
+
 async function lerParaOCache(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, avisos: Avisos): Promise<EntradaDoCanal> {
   contarFrio('medidas')
-  const planos = await lerPartes(sb, o)
-  // o que não foi lido por inteiro não é guardado
-  if (!tudoLido(planos)) throw new LeituraParcial(planos)
+  let planos: InsumosPlanos
+  try {
+    planos = await lerPartes(sb, o)
+  } catch (err) {
+    avisarFalhaDoRecalculo('excecao', o.channelId)
+    throw err
+  }
+  // o que não foi lido por inteiro não é guardado; o Next só faz console.error se isto roda por trás, então o Sentry sai daqui
+  if (!tudoLido(planos)) {
+    for (const causa of new Set(naoLidas(planos).map(f => f.causa))) avisarFalhaDoRecalculo(causa, o.channelId)
+    throw new LeituraParcial(planos)
+  }
   if (JSON.stringify(planos).length > ORCAMENTO_DA_ENTRADA) avisos.add('cache', 'acima_do_orcamento', o.channelId)
   return { lidoEm: o.agoraMs, planos }
 }
@@ -166,7 +197,8 @@ export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; 
     if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
     else {
       const guardada = await unstable_cache(comChaveFixa(ENTRADAS.medidas, () => lerParaOCache(sb, o, avisos)), [ENTRADAS.medidas, String(MEDIDAS_TELAS_V), o.siteId, o.channelId, String(last)], { tags: tagsDoCanal(o.siteId, o.channelId), revalidate: VALIDADE_S })()
-      entrada = o.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o, avisos) : guardada
+      // serve a guardada até o teto (6 h) e deixa o Next recalcular por trás; acima do teto relê bloqueando
+      entrada = o.agoraMs - guardada.lidoEm > TETO_SERVIR_VELHO_MS ? await lerParaOCache(sb, o, avisos) : guardada
     }
     return entrada.planos
   } catch (err) {
