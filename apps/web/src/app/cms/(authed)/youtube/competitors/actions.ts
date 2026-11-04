@@ -150,8 +150,8 @@ export async function addCompetitorChannel(
       try { await syncCompetitorChannel(inserted, apiKey) } catch (err) {
         Sentry.captureException(err, { tags: { component: 'competitors', step: 'first-sync' }, extra: { channelId: inserted.channel_id, siteId } })
       } finally {
-        // the cached rows of this site were read before, or during, this sync
-        invalidateObservatory(siteId)
+        // the cached rows of this channel were read before, or during, this sync (extras are read live, no tag needed)
+        invalidateObservatory(siteId, [inserted.id])
       }
     })
   }
@@ -352,7 +352,7 @@ export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boo
 
   let result: Awaited<ReturnType<typeof syncCompetitorChannel>>
   // a sync that throws midway may have written part of its data: the cache goes either way
-  try { result = await syncCompetitorChannel(channel, apiKey) } finally { invalidateObservatory(siteId) }
+  try { result = await syncCompetitorChannel(channel, apiKey) } finally { invalidateObservatory(siteId, [channel.id]) }
   revalidatePath('/cms/youtube/competitors')
   if (result.paused) return { ok: false, error: FRASE_PAUSADA }
   return { ok: true, result }
@@ -467,7 +467,7 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }
   } finally {
-    invalidateObservatory(siteId)
+    invalidateObservatory(siteId, [channelRowId])
     revalidatePath('/cms/youtube/competitors')
   }
 }
@@ -484,6 +484,8 @@ export async function updateVideoLimit(channelRowId: string, limit: number): Pro
     .eq('id', channelRowId)
     .eq('site_id', siteId)
 
+  // video_limit is read by the cached measures of the channel (lerCanal) and is an argument of its pack
+  invalidateObservatory(siteId, [channelRowId])
   revalidatePath('/cms/youtube/competitors')
   return { ok: true }
 }
@@ -646,7 +648,9 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
   if (d.status !== 'ok') return PIN_FAILED
   // pinned_at lives in the cached rows of the channel: without this the button says "Fixado" and the screen reloads
   // with the video still unpinned. Also when it was already pinned (another tab may hold the stale pack).
-  invalidateObservatory(who.siteId)
+  // the channel of the video (no list = the whole site, never nothing)
+  const alvo = await pinTarget(supabase, who.siteId, videoId)
+  invalidateObservatory(who.siteId, typeof alvo === 'object' ? [alvo.channelId] : undefined)
   if (d.already !== true) revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
@@ -662,14 +666,14 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
   if (t === 'error') return UNPIN_FAILED
   if (t === 'not-found') return PIN_GONE
   // already unpinned in the database: a stale cached pack may still show it pinned, so the cache goes anyway
-  if (!t.pinnedAt) { invalidateObservatory(who.siteId); return { ok: true } }
+  if (!t.pinnedAt) { invalidateObservatory(who.siteId, [t.channelId]); return { ok: true } }
 
   const { data, error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
     .eq('id', t.id).eq('competitor_channel_id', t.channelId).select('id')
   if (error || !Array.isArray(data)) return UNPIN_FAILED
   // no row written: the video was removed between the read and the write
   if (!data.length) return PIN_GONE
-  invalidateObservatory(who.siteId)
+  invalidateObservatory(who.siteId, [t.channelId])
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }

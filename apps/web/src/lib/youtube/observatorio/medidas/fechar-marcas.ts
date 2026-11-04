@@ -26,6 +26,8 @@ export interface ResultadoFecharMarcas {
   ficaram: number | null
   motivo?: MotivoDasMarcas
   numeros: Record<string, number>
+  /** Os vídeos (e o site) cuja marca ou motivo foi enviado à gravação: o cache do canal deles cai (F3-cache). Só existe depois da gravação. */
+  escritos?: ReadonlyArray<{ videoId: string; siteId: string }>
 }
 
 const SCHEMA_AUSENTE = new Set(['PGRST202', '42883', '42P01'])
@@ -206,6 +208,11 @@ export async function runFecharMarcas(o: { sb: SupabaseClient; now: () => number
     const gravadas = a.marcas as number
     const gravadasFaltas = a.faltas as number
 
+    const siteDoVideo = new Map(lidos.map(({ pendente: p }) => [p.videoId, p.siteId]))
+    const escritos = [...new Set([...marcas.map(m => m.video_id), ...faltas.map(f => f.video_id)])].flatMap(videoId => {
+      const siteId = siteDoVideo.get(videoId)
+      return siteId === undefined ? [] : [{ videoId, siteId }]
+    })
     const feitos = gravadas + gravadasFaltas
     const ficaram = Math.max(0, d.total_pendentes - feitos - n.aguardando)
     const numeros: Record<string, number> = {
@@ -222,13 +229,13 @@ export async function runFecharMarcas(o: { sb: SupabaseClient; now: () => number
     }
 
     // 5. O veredito, na precedência de 6.1.
-    const fim = (motivo: MotivoDasMarcas, status: 'erro' | 'parcial'): ResultadoFecharMarcas => ({ status, feitos, ficaram, motivo, numeros })
+    const fim = (motivo: MotivoDasMarcas, status: 'erro' | 'parcial'): ResultadoFecharMarcas => ({ status, feitos, ficaram, motivo, numeros, escritos })
     if ((a.marcas_recusadas as number) > 0 || (a.faltas_recusadas as number) > 0) return fim('marca_recusada', 'erro')
     if (saude.em_duas_tabelas > 0 || saude.site_divergente > 0 || saude.base_divergente > 0) return fim('prova_inconsistente', 'erro')
     if (alarmam > 0) return fim('marcas_perdidas', 'erro')
     if (saude.atrasadas > 0 && ficaram === 0) return fim('marcas_atrasadas', 'erro')
     if (ficaram > 0) return fim('sobrou', 'parcial')
-    return { status: 'ok', feitos, ficaram, numeros }
+    return { status: 'ok', feitos, ficaram, numeros, escritos }
   } catch {
     return erro('leitura_falhou')
   }

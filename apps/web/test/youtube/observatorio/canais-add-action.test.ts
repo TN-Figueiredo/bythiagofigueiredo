@@ -150,7 +150,7 @@ describe('addCompetitorChannel', () => {
     expect((await (await load())(UC)).ok).toBe(true)
     expect(revalidateTag).not.toHaveBeenCalled() // nothing was written to the cached tables yet
     await queued[0]!()
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:n1', { expire: 0 }]])
   })
   it('a primeira sincronização falhou (dado parcial): invalida mesmo assim', async () => {
     setup({ own: null, existing: null, inserted: [] })
@@ -158,7 +158,7 @@ describe('addCompetitorChannel', () => {
     syncMock.mockRejectedValueOnce(new Error('YouTube API 500'))
     await add(UC)
     await queued[0]!()
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:n1', { expire: 0 }]])
   })
   it('a @handle not found on YouTube says so; without the API key (default) it does not pretend', async () => {
     setup({ own: null, existing: null, inserted: [] })

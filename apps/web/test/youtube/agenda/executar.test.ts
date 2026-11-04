@@ -119,7 +119,7 @@ const linha = (id: string, o: Partial<BatchRow> = {}): BatchRow => ({
   sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null, ...o,
 })
 const lote = (o: Partial<BatchResult> = {}): BatchResult => ({
-  synced: 2, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: ['s1', 's2'], healthSiteIds: ['s1', 's2'],
+  synced: 2, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: ['s1', 's2'], channelIdsBySite: {}, healthSiteIds: ['s1', 's2'],
   totals: {} as BatchResult['totals'], weekly: {} as BatchResult['weekly'], acao_do_dono: [], ownerNotices: { sent: 0, failed: 0 }, ...o,
 })
 const PROVA: ProvaHoraria = {
@@ -581,10 +581,10 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
   })
 
   describe('sincronizou canal pela agenda: o cache de cada site é invalidado', () => {
-    const comLote = (synced: number, siteIds: string[]) => async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: synced, deixadas: 0, extra: lote({ synced, siteIds }) })
+    const comLote = (synced: number, siteIds: string[]) => async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: synced, deixadas: 0, extra: lote({ synced, siteIds, channelIdsBySite: Object.fromEntries(siteIds.map(x => [x, [x.toLowerCase() + '1', x.toLowerCase() + '2']])) }) })
     it('synced 2 em dois sites: invalidateObservatory em cada um e revalidatePath', async () => {
       await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: comLote(2, ['A', 'B']) }) })
-      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A'], ['B']])
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a1', 'a2']], ['B', ['b1', 'b2']]])
       expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
     })
     it('synced 0: revalidatePath não é chamado', async () => {
@@ -592,9 +592,27 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
       expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled()
       expect(vi.mocked(invalidateObservatory)).not.toHaveBeenCalled()
     })
+    it('lote sem a lista de canais (campo ausente): o site inteiro, nunca nada', async () => {
+      await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: lote({ synced: 1, siteIds: ['A'], channelIdsBySite: undefined as never }) }) }) })
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A']])
+    })
+    // a agenda deixa só UMA tarefa pesada por disparo: o lote e a fase semanal nunca rodam juntos
+    it('as marcas de idade entram na lista do disparo, unidas à do lote', async () => {
+      await rodarAgenda({ catalogo: [
+        tarefa('sincronizar_canais', { ordem: 1, peso: 'pesada', nuncaDesliga: true, rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: lote({ synced: 1, siteIds: ['A'], channelIdsBySite: { A: ['a1'] } }) }) }),
+        tarefa('marcas_de_idade', { ordem: 2, rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: { channelIdsBySite: { A: ['a3'] }, sitesInteiros: ['C'] } }) }),
+      ] })
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a1', 'a3']], ['C']])
+    })
+    it('a fase semanal (grava a série diária e carimba só weekly_pass_date) entra na lista do disparo', async () => {
+      await rodarAgenda({ catalogo: [
+        tarefa('serie_semanal', { ordem: 1, peso: 'pesada', rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: { channelIdsBySite: { A: ['a2'], B: ['b1'] } } }) }),
+      ] })
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a2']], ['B', ['b1']]])
+    })
     it('só erros (dado parcial gravado): invalida o site mesmo com synced 0', async () => {
       await rodarAgenda({ catalogo: catalogoFalso({ sincronizar_canais: comLote(0, ['A']) }) })
-      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A']])
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a1', 'a2']]])
       expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled()
     })
   })

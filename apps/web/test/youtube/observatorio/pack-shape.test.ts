@@ -15,7 +15,7 @@ import { packChannel, PACK_VERSION } from '@/lib/youtube/observatorio/pack'
  * o que o teste mostrar como recebido.
  */
 const PORTRAIT = {
-  version: 3,
+  version: 4,
   /** As colunas que a leitura por canal pede a cada tabela (load-channel.ts), na ordem das consultas. */
   selects: [
     'competitor_videos: id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier, archive_frozen_at, archive_dropped_at',

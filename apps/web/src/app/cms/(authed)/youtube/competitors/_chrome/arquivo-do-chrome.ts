@@ -4,6 +4,7 @@ import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerSinalDoBanco, type SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
 import { arquivoBancoTag, lerAvisoLeve, type AvisoLeve } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-leve'
+import { ENTRADAS, comChaveFixa } from '@/lib/youtube/observatorio/cache-tag'
 import { podeEditarSite } from './permissoes'
 
 export type ArquivoNoChrome = { arquivoVisivel: boolean; aviso: { ok: true; leve: AvisoLeve } | { ok: false; porque: 'sem_permissao' | 'desligado' | 'funcao_ausente' | 'erro_do_banco' }; /** só quando o aviso foi lido: o tamanho do banco, lido em paralelo ao aviso */ banco?: SinalLido }
@@ -22,7 +23,7 @@ export async function arquivoNoChrome(siteId: string): Promise<ArquivoNoChrome> 
 export async function bancoNoChrome(siteId: string): Promise<SinalLido> {
   try {
     // uma falha NÃO entra no cache de 1 h: o corpo lança e quem chama devolve a causa (a leitura boa é a única guardada)
-    return await unstable_cache(async () => { const r = await lerSinalDoBanco(getSupabaseServiceClient(), Date.now()); if ('porque' in r) throw new FalhaDoSinal(r); return r }, ['arquivo-sinal-banco', siteId], { revalidate: 3600, tags: [arquivoBancoTag(siteId)] })()
+    return await unstable_cache(comChaveFixa(ENTRADAS.sinalBanco, async () => { const r = await lerSinalDoBanco(getSupabaseServiceClient(), Date.now()); if ('porque' in r) throw new FalhaDoSinal(r); return r }), [ENTRADAS.sinalBanco, 'v1', siteId], { revalidate: 3600, tags: [arquivoBancoTag(siteId)] })()
   } catch (e) {
     if (e instanceof FalhaDoSinal) return e.lido
     Sentry.captureException(e, { tags: { step: 'aviso-banco-sinal' } })

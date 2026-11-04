@@ -2,7 +2,7 @@ import 'server-only'
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
-import { observatoryTag } from '../cache-tag'
+import { ENTRADAS, comChaveFixa, tagsDoCanal } from '../cache-tag'
 import { contarFrio } from '../medicao-abertura'
 import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
@@ -20,7 +20,7 @@ import type { IMotorDeMultiplos } from '../medidas-multiplos'
  * e nunca é guardado). Nunca derruba a tela: canal que falha vira `{ naoCarregou: causa }`.
  */
 
-export const MEDIDAS_TELAS_V = 2
+export const MEDIDAS_TELAS_V = 3
 export const CANAIS_AO_MESMO_TEMPO = 6
 export const PRAZO_DAS_MEDIDAS_MS = 12_000
 const VALIDADE_S = 900
@@ -50,15 +50,7 @@ export class LeituraParcial extends Error {
     this.name = 'LeituraParcial'
   }
 }
-class ExtrasNaoLidos extends Error {
-  constructor(public readonly causa: CausaNaoLida) {
-    super('extras não lidos')
-    this.name = 'ExtrasNaoLidos'
-  }
-}
-
 interface EntradaDoCanal { lidoEm: number; planos: InsumosPlanos }
-interface EntradaDosExtras { lidoEm: number; pares: Array<[string, ExtrasDoCanal]> }
 
 const naoLida = <T>(causa: CausaNaoLida): Parte<T> => ({ lido: false, causa })
 
@@ -152,23 +144,14 @@ export interface PedidoDasMedidas {
   seriesDe?: ReadonlyMap<string, readonly string[]>
 }
 
+/** Os extras do site (aviso "saiu do YouTube", pausa) são lidos ao vivo em toda abertura, sem cache (33-68 ms medidos): assim o aviso nunca fica velho e nenhuma etiqueta precisa derrubá-los. */
 async function lerExtras(sb: SupabaseClient, siteId: string, agoraMs: number): Promise<Parte<Map<string, ExtrasDoCanal>>> {
-  const direto = async (): Promise<EntradaDosExtras> => {
-    const r = await lerExtrasDosCanais(sb, { siteId })
-    if (!r.lido) throw new ExtrasNaoLidos(r.causa)
-    return { lidoEm: agoraMs, pares: [...r.dados] }
-  }
+  void agoraMs
   try {
-    let e: EntradaDosExtras
-    if (!observatoryCacheEnabled()) e = await direto()
-    else {
-      const guardada = await unstable_cache(direto, ['medidas-telas-extras', String(MEDIDAS_TELAS_V), siteId], { tags: [observatoryTag(siteId)], revalidate: VALIDADE_S })()
-      // entrada velha não é falha: lê de novo, direto
-      e = agoraMs - guardada.lidoEm > VALIDADE_MS ? await direto() : guardada
-    }
-    return { lido: true, dados: new Map(e.pares) }
-  } catch (err) {
-    if (err instanceof ExtrasNaoLidos) return naoLida(err.causa)
+    const r = await lerExtrasDosCanais(sb, { siteId })
+    if (!r.lido) return naoLida(r.causa)
+    return { lido: true, dados: new Map(r.dados) }
+  } catch {
     return naoLida('erro_do_banco')
   }
 }
@@ -182,7 +165,7 @@ export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; 
     let entrada: EntradaDoCanal
     if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
     else {
-      const guardada = await unstable_cache(() => lerParaOCache(sb, o, avisos), ['medidas-telas', String(MEDIDAS_TELAS_V), o.siteId, o.channelId, String(last)], { tags: [observatoryTag(o.siteId)], revalidate: VALIDADE_S })()
+      const guardada = await unstable_cache(comChaveFixa(ENTRADAS.medidas, () => lerParaOCache(sb, o, avisos)), [ENTRADAS.medidas, String(MEDIDAS_TELAS_V), o.siteId, o.channelId, String(last)], { tags: tagsDoCanal(o.siteId, o.channelId), revalidate: VALIDADE_S })()
       entrada = o.agoraMs - guardada.lidoEm > VALIDADE_MS ? await lerParaOCache(sb, o, avisos) : guardada
     }
     return entrada.planos

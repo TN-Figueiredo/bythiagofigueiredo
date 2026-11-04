@@ -102,7 +102,9 @@ describe('loadPageRows — cache por canal', () => {
     for (const [key, e] of cache.entries) {
       const site = key.includes('["a","a-') ? 'a' : key.includes('["b","b-') ? 'b' : null
       expect(site).not.toBeNull()
-      expect(e.tags).toEqual(['observatorio:' + site])
+      // key: ...[siteId, channelId,...]: the channel of the entry is the second argument
+      const canal = /\["[ab]","([^"]+)"/.exec(key)![1]
+      expect(e.tags).toEqual(['observatorio:' + site, 'observatorio:' + site + ':' + canal])
     }
     const { observatoryTag } = await import('@/lib/youtube/observatorio/cache-tag')
     cache.module.revalidateTag(observatoryTag('a'))
@@ -139,6 +141,44 @@ describe('loadPageRows — cache por canal', () => {
     const v = (await loadPageDataset('a', NOW)).videos.find(x => x.id === id)!
     expect(v.pinned).toBe(true)
     expect(v.series.map(p => p.views)).toEqual([77])
+  })
+  it('fixar um vídeo fora do limite: derrubar só a etiqueta do canal basta, e o outro canal segue guardado (F3-cache T1)', async () => {
+    const tables = buildTables({ siteId: 'a', now: NOW })
+    const { loadPageRows, loadPageDataset, cache, db } = await setup(tables)
+    await loadPageRows('a', NOW)
+    const id = ids.video('a', 0, 3)
+    tables.competitor_videos!.find(r => r.id === id)!.pinned_at = new Date(NOW - 60_000).toISOString()
+    tables.competitor_video_daily!.push({ video_id: id, snap_date: new Date(NOW - 3 * 36e5).toISOString().slice(0, 10), views: 77, likes: 0, comments: 0, taken_at: new Date(NOW).toISOString() })
+    expect((await loadPageDataset('a', NOW)).videos.find(v => v.id === id)!.pinned).toBe(false)
+    const { invalidateObservatory } = await import('@/lib/youtube/observatorio/cache-tag')
+    const antes = cache.entries.size
+    invalidateObservatory('a', [ids.channel('a', 0)])
+    expect(cache.invalidated).toEqual(['observatorio:a:' + ids.channel('a', 0)])
+    expect(cache.entries.size).toBe(antes - 1)
+    const lidoAntes = heavy(db)
+    const v = (await loadPageDataset('a', NOW)).videos.find(x => x.id === id)!
+    expect(v.pinned).toBe(true)
+    expect(v.series.map(p => p.views)).toEqual([77])
+    // só o canal 0 voltou às tabelas pesadas
+    expect(heavy(db)).toBeGreaterThan(lidoAntes)
+    expect(cache.misses.length).toBe(antes + 1)
+  })
+  it('a fase semanal grava só a série diária (não carimba last_ok_synced_at): os pontos aparecem na abertura seguinte à invalidação do canal', async () => {
+    const tables = buildTables({ siteId: 'a', now: NOW })
+    const { loadPageDataset } = await setup(tables)
+    await loadPageDataset('a', NOW)
+    const id = ids.video('a', 0, 0)
+    const antes = (await loadPageDataset('a', NOW)).videos.find(x => x.id === id)!.series.length
+    // um dia que a série do vídeo ainda não tem
+    const usados = new Set(tables.competitor_video_daily!.filter(d => d.video_id === id).map(d => d.snap_date))
+    const dia = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => new Date(NOW - n * DAY).toISOString().slice(0, 10)).find(d => !usados.has(d))!
+    tables.competitor_video_daily!.push({ video_id: id, snap_date: dia, views: 4242, likes: 0, comments: 0, taken_at: new Date(NOW - DAY).toISOString() })
+    expect((await loadPageDataset('a', NOW)).videos.find(x => x.id === id)!.series).toHaveLength(antes)
+    const { invalidateObservatory } = await import('@/lib/youtube/observatorio/cache-tag')
+    invalidateObservatory('a', [ids.channel('a', 0)])
+    const depois = (await loadPageDataset('a', NOW)).videos.find(x => x.id === id)!.series
+    expect(depois.length).toBe(antes + 1)
+    expect(depois.some(p => p.views === 4242)).toBe(true)
   })
   it('canal sem a primeira sincronização concluída nunca é guardado: a busca anda a cada abertura, sem esperar invalidação', async () => {
     const tables = buildTables({ siteId: 'a', now: NOW, channels: 1, videosPerChannel: 0 })

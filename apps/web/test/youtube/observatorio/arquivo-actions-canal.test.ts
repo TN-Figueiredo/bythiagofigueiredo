@@ -36,7 +36,7 @@ function carregar() {
   vi.doMock('next/cache', () => ({ revalidatePath: revalidate, revalidateTag }))
   vi.doMock('next/server', () => ({ after: vi.fn() }))
   vi.doMock('@sentry/nextjs', () => ({ captureException, captureMessage }))
-  vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
+  vi.doMock('@/lib/youtube/observatorio/cache-tag', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/observatorio/cache-tag')>()), invalidateObservatory: invalidate }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { clienteCriado(); return { rpc } } }))
   vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/canais-removidos', () => ({ lerCanaisRemovidos: async (_sb: unknown, siteId: string) => lerLista(siteId) ?? lista }))
   return import('@/app/cms/(authed)/youtube/competitors/_arquivo/actions-canal')

@@ -63,8 +63,8 @@ const UNPIN_FAILED = { ok: false, kind: 'failed', error: 'Não foi possível des
 const FULL = { ok: false, kind: 'cap', error: `Sem vagas: ${RULES.pinLimit} de ${RULES.pinLimit} vídeos fixados em Canal Um. Desafixe um para fixar outro.` }
 const PINNED = { id: VID, competitor_channel_id: CH, pinned_at: new Date(Date.now() - 864e5).toISOString() }
 
-/** The site's cached heavy rows dropped, waiting for the new read. */
-const TAG = [['observatorio:s1', { expire: 0 }]]
+/** The channel's cached heavy rows dropped (tag of the channel, not of the site), waiting for the new read. */
+const TAG = [['observatorio:s1:' + CH, { expire: 0 }]]
 const rpcOf = (data: unknown) => ({ rpc: { data, error: null } })
 const CAP = { status: 'cap', name: 'Canal Um', pinned: RULES.pinLimit }
 
@@ -89,8 +89,9 @@ describe('pinVideo', () => {
     const a = await load()
     expect(await a.pinVideo(VID)).toEqual({ ok: true })
     expect(a.rpcCalls).toEqual([['pin_competitor_video', { p_site_id: 's1', p_video_id: VID, p_user_id: 'u1', p_limit: RULES.pinLimit, p_pode_descongelar: false }]])
-    // the count and the write live inside the function (one transaction): the action does neither
-    expect(a.calls).toEqual([])
+    // the count and the write live inside the function (one transaction): the action does neither; it only reads the video's channel afterwards, for the tag
+    expect(a.updates()).toEqual([])
+    expect(a.calls.map(c => c.table)).toEqual(['competitor_videos', 'competitor_channels'])
     expect(a.revalidatePath).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
     // pinned_at lives in the cached rows of the channel: without this the screen reloads with the video unpinned
     expect(a.revalidateTag.mock.calls).toEqual(TAG)

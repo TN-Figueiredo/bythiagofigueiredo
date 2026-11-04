@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { avisarFuncaoAusente } from './funcao-ausente'
+import { ENTRADAS, comChaveFixa } from '../cache-tag'
 
 const ts = z.string().nullable()
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -53,7 +54,7 @@ class FalhaDoAviso extends Error { constructor(readonly lido: { ok: false; porqu
  *  daqui sem ser guardada (Yannis M-A), para que um erro passageiro ou a função ainda ausente não apague a pastilha por 5 min. */
 export async function lerAvisoLeve(siteId: string): Promise<LeituraAvisoLeve> {
   try {
-    return await unstable_cache(async () => { const r = await buscar(siteId); if (!r.ok) throw new FalhaDoAviso(r); return r }, ['arquivo-aviso-leve', siteId], { revalidate: 300, tags: [arquivoTag(siteId)] })()
+    return await unstable_cache(comChaveFixa(ENTRADAS.avisoArquivo, async () => { const r = await buscar(siteId); if (!r.ok) throw new FalhaDoAviso(r); return r }), [ENTRADAS.avisoArquivo, 'v1', siteId], { revalidate: 300, tags: [arquivoTag(siteId)] })()
   } catch (e) {
     if (e instanceof FalhaDoAviso) return e.lido
     Sentry.captureException(e, { tags: { component: 'observatorio', step: 'aviso-leve' } })

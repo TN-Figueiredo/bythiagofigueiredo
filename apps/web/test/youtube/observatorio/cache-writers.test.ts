@@ -14,14 +14,15 @@ const rel = (p: string) => path.relative(SRC, p).split(path.sep).join('/')
 const ALL = files(SRC).map(p => ({ file: rel(p), text: readFileSync(p, 'utf8') }))
 
 const ACTIONS = 'app/cms/(authed)/youtube/competitors/actions.ts'
-const CACHED = 'competitor_videos|competitor_video_versions|competitor_video_daily|competitor_channel_snapshots'
+const CACHED = 'competitor_videos|competitor_video_versions|competitor_video_daily|competitor_channel_snapshots|competitor_video_marks|competitor_video_mark_misses'
 /** A write to a cached table, one of the two functions that write to them, or the delete of a channel (cascades to all four). */
-const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video|competitor_video_purge|competitor_channel_purge|competitor_missing_keep)'|from\\('competitor_channels'\\)\\s*\\.delete\\(`)
+const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video|competitor_video_purge|competitor_channel_purge|competitor_missing_keep|competitor_marks_apply)'|ida\\(o\\.sb, 'competitor_marks_apply'|from\\('competitor_channels'\\)\\s*\\.(?:delete|update)\\(`)
 /**
  * The sync itself (its callers invalidate), the prune of snapshots older than 365 d (outside the 90 d read; `lib/youtube/competitor-snapshot-prune.ts`, called by the watchdog),
- * and the actions (pin, unpin, pedir/desfazer/apagar canal), which invalidate themselves.
+ * the actions (pin, unpin, pedir/desfazer/apagar canal), which invalidate themselves, and the writer of the age marks
+ * (fechar-marcas.ts: the agenda task `marcas_de_idade` returns the channels in `extra` and executar.ts invalidates them).
  */
-const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', 'lib/youtube/observatorio/saiu/responder.ts', ACTIONS]
+const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', 'lib/youtube/observatorio/saiu/responder.ts', 'lib/youtube/observatorio/medidas/fechar-marcas.ts', ACTIONS]
 const RUNS_SYNC = /from '@\/lib\/youtube\/competitor-sync(?:-batch)?'/
 
 describe('quem escreve no que o Observatório guarda em cache', () => {
@@ -48,7 +49,7 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
     const text = ALL.find(f => f.file === ACTIONS)!.text
     const count = (re: RegExp) => (text.match(re) ?? []).length
     expect(count(/await syncCompetitorChannel\(/g)).toBe(4)
-    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(4) // the four syncs; `soltarCache` (pedir, desfazer e apagar sem guardar, num finally) vive em _canais/solta-cache.ts desde a M9b T2
+    expect(count(/invalidateObservatory\(siteId, \[/g)).toBe(4) // the first sync, syncCompetitorNow, syncFullHistory (channel tags) and updateVideoLimit; `soltarCache` (pedir, desfazer e apagar sem guardar, num finally) vive em _canais/solta-cache.ts desde a M9b T2
     expect(count(/soltarCache\(g\.siteId\)/g)).toBe(3)
     const solta = readFileSync(path.join(SRC, 'app/cms/(authed)/youtube/competitors/_canais/solta-cache.ts'), 'utf8')
     expect(solta).toContain('invalidateObservatory(siteId)')
@@ -56,6 +57,23 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
     // pin (one write, also when already pinned) and unpin (the write, and the already-unpinned answer)
     expect(count(/rpc\('pin_competitor_video'/g)).toBe(1)
     expect(count(/from\('competitor_videos'\)\.update\(/g)).toBe(1)
-    expect(count(/invalidateObservatory\(who\.siteId\)/g)).toBe(3)
+    expect(count(/invalidateObservatory\(who\.siteId, /g)).toBe(3)
+    // the many-channel sync keeps the whole site (the list of `attempted` would add nothing)
+    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(1)
+    // video_limit is read by the cached measures of the channel
+    expect(count(/from\('competitor_channels'\)\s*\.update\(\{ video_limit/g)).toBe(1)
+  })
+  it('a rota e a agenda derrubam canal a canal, e a tarefa das marcas devolve os canais no extra', () => {
+    const rota = ALL.find(f => f.file === 'app/api/cron/sync-youtube/route.ts')!.text
+    expect(rota).toMatch(/invalidateObservatory\(siteId, \(channelIdsBySite \?\? \{\}\)\[siteId\]\)/)
+    expect(rota).toContain('const visited = new Set<string>()')
+    const agenda = ALL.find(f => f.file === 'lib/youtube/agenda/executar.ts')!.text
+    expect(agenda).toContain("extraDe('serie_semanal')")
+    expect(agenda).toContain("extraDe('marcas_de_idade')")
+    const marcas = ALL.find(f => f.file === 'lib/youtube/agenda/tarefas/marcas-de-idade.ts')!.text
+    expect(marcas).toContain('channelIdsBySite')
+    // todo `runWeeklyPhase(` alimenta a lista (devolve channelIdsBySite) ou entrega o resultado inteiro a quem a lê
+    const batch = ALL.find(f => f.file === 'lib/youtube/competitor-sync-batch.ts')!.text
+    expect(batch).toContain('out.channelIdsBySite[siteId] = [...set]')
   })
 })

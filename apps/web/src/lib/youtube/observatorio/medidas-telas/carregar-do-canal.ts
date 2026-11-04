@@ -1,7 +1,7 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { observatoryTag } from '../cache-tag'
+import { comChaveFixa, tagsDoCanal, ENTRADAS, type Entrada } from '../cache-tag'
 import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '../medidas/do-canal'
@@ -82,12 +82,12 @@ interface EntradaHoras {
   foraDoCanal: number
 }
 
-/** Guarda por canal com a etiqueta do site; entrada velha (ou canal sem sincronização boa) lê direto, e o que lança não é guardado. */
+/** Guarda por canal com as etiquetas do site e do canal; entrada velha (ou canal sem sincronização boa) lê direto, e o que lança não é guardado. */
 async function viaCache<E extends { lidoEm: number }>(o: {
-  chave: string[]; siteId: string; agoraMs: number; validadeS: number; usarCache: boolean; ler: () => Promise<E>
+  nome: Entrada; chave: string[]; siteId: string; channelId: string; agoraMs: number; validadeS: number; usarCache: boolean; ler: () => Promise<E>
 }): Promise<E> {
   if (!o.usarCache) return o.ler()
-  const guardada = await unstable_cache(o.ler, o.chave, { tags: [observatoryTag(o.siteId)], revalidate: o.validadeS })()
+  const guardada = await unstable_cache(comChaveFixa(o.nome, o.ler), o.chave, { tags: tagsDoCanal(o.siteId, o.channelId), revalidate: o.validadeS })()
   return o.agoraMs - guardada.lidoEm > o.validadeS * 1000 ? o.ler() : guardada
 }
 
@@ -208,7 +208,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     if (semVideos !== null) return semVideos
     if (idsDaSerie.length === 0) return { lido: true, dados: new Map() }
     const l = await lerEntrada<EntradaSerie>(() => viaCache({
-      chave: ['medidas-telas-serie', String(MEDIDAS_TELAS_V), siteId, channelId, String(last)], siteId, agoraMs, validadeS: VALIDADE_SERIE_S, usarCache,
+      nome: ENTRADAS.serie, chave: [ENTRADAS.serie, String(MEDIDAS_TELAS_V), siteId, channelId, String(last)], siteId, channelId, agoraMs, validadeS: VALIDADE_SERIE_S, usarCache,
       ler: async () => {
         const r = await lerSeriesDoCanal(sb, { ...esc, videoIds: idsDaSerie, desde: desdeDaSerie })
         if (!r.lido) throw new ParteNaoLida(r.causa)
@@ -228,7 +228,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     if (semVideos !== null) return semVideos
     if (idsDaSerie.length === 0) return { lido: true, dados: new Map() }
     const l = await lerEntrada<EntradaMudancas>(() => viaCache({
-      chave: ['medidas-telas-mudancas', String(MEDIDAS_TELAS_V), siteId, channelId, String(last)], siteId, agoraMs, validadeS: VALIDADE_SERIE_S, usarCache,
+      nome: ENTRADAS.mudancas, chave: [ENTRADAS.mudancas, String(MEDIDAS_TELAS_V), siteId, channelId, String(last)], siteId, channelId, agoraMs, validadeS: VALIDADE_SERIE_S, usarCache,
       ler: async () => {
         const r = await lerMudancasDoCanal(sb, { ...esc, videoIds: idsDaSerie, desde: desdeDaSerie })
         if (!r.lido) throw new ParteNaoLida(r.causa)
@@ -247,7 +247,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     if (semVideos !== null) return semVideos
     const dosNoventa = publicados(R72.VIDEOS_DOS_ULTIMOS_DIAS, true)
     const l = await lerEntrada<EntradaHoras>(() => viaCache({
-      chave: ['medidas-telas-horas', String(MEDIDAS_TELAS_V), siteId, channelId], siteId, agoraMs, validadeS: VALIDADE_HORAS_S, usarCache: observatoryCacheEnabled(),
+      nome: ENTRADAS.horas, chave: [ENTRADAS.horas, String(MEDIDAS_TELAS_V), siteId, channelId], siteId, channelId, agoraMs, validadeS: VALIDADE_HORAS_S, usarCache: observatoryCacheEnabled(),
       ler: async () => {
         const r = await lerHorasDoCanal(sb, { ...esc, videos: dosNoventa, agoraMs })
         if (!r.lido) throw new ParteNaoLida(r.causa)

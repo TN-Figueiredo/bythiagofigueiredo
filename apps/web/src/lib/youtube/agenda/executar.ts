@@ -9,6 +9,7 @@ import { fecharApagamentos, type ResultadoDoFecho } from '@/lib/youtube/competit
 import { lerPendenciasDoArquivo, type PendenciasDoArquivo } from '@/lib/youtube/observatorio/arquivo/ler-pendencias'
 import { lerSinalDoBanco, type SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
+import { juntarAlvos } from './alvos-do-cache'
 import { avisarDono, type ContagemAviso } from './aviso'
 import { CATALOGO, notaDoInterruptorDaAgenda, tarefasDesligadas } from './catalogo'
 import { despachar, type EstadoFinalTarefa, type OpsAgenda } from './despachante'
@@ -203,9 +204,9 @@ export async function rodarAntesDoLoteAntigo(o: {
 
 // ───────────────────────── o disparo da agenda ─────────────────────────
 
-/** O resumo do lote que vai à resposta: o mesmo de antes, sem as duas listas de sites. */
-function resumoDoLote(r: BatchResult): Omit<BatchResult, 'siteIds' | 'healthSiteIds'> {
-  const { siteIds: _siteIds, healthSiteIds: _healthSiteIds, ...resto } = r
+/** O resumo do lote que vai à resposta: o mesmo de antes, sem as listas de sites e de canais (crescem com o surto). */
+function resumoDoLote(r: BatchResult): Omit<BatchResult, 'siteIds' | 'healthSiteIds' | 'channelIdsBySite'> {
+  const { siteIds: _siteIds, healthSiteIds: _healthSiteIds, channelIdsBySite: _channelIdsBySite, ...resto } = r
   return resto
 }
 
@@ -330,7 +331,9 @@ export async function executarAgenda(o: {
 
     // 9. O cache do que o lote escreveu (um canal com erro também gravou parte do dado).
     if (f.lote && f.lote.synced > 0) revalidatePath('/cms/youtube/competitors', 'layout')
-    for (const siteId of f.lote?.siteIds ?? []) invalidateObservatory(siteId)
+    // canal a canal: o lote, a fase semanal (grava a série diária e carimba só weekly_pass_date) e as marcas de idade (grava marcas que não mexem em last_ok_synced_at)
+    const extraDe = (nome: string): unknown => resumo.tarefas.find(t => t.tarefa === nome)?.extra
+    for (const a of juntarAlvos({ lote: f.lote, semanal: extraDe('serie_semanal'), marcas: extraDe('marcas_de_idade') })) { if (a.channelIds) invalidateObservatory(a.siteId, a.channelIds); else invalidateObservatory(a.siteId) }
 
     // 10. Depois de `cron_health` gravado: o aviso ao dono. Falha ou falta de tempo nunca mudam a resposta.
     let avisosEnviados: ContagemAviso | null = null

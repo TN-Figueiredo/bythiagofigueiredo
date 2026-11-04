@@ -38,7 +38,7 @@ function carregar() {
   vi.doMock('next/cache', () => ({ revalidatePath: revalidate, revalidateTag }))
   vi.doMock('next/server', () => ({ after: vi.fn() }))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage }))
-  vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
+  vi.doMock('@/lib/youtube/observatorio/cache-tag', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/youtube/observatorio/cache-tag')>()), invalidateObservatory: invalidate }))
   vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ pedirRemocao: f1.pedir, cancelarRemocao: f1.cancelar, apagarCanalSemGuardar: f1.apagar }))
   vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/saida', () => ({ lerEmTransito: lerTransito }))
   vi.doMock('@/lib/supabase/service', () => ({
