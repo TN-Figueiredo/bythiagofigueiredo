@@ -66,7 +66,7 @@ describe('invalidateObservatory: lista de canais, ou o site inteiro', () => {
     invalidateObservatory('a', ['a-0', 'a-1', 'a-0'])
     expect(revalidateTag.mock.calls).toEqual([['observatorio:a:a-0', { expire: 0 }], ['observatorio:a:a-1', { expire: 0 }]])
   })
-  it.each([[undefined], [null], [[]], ['a-0'], [{ 0: 'a-0' }], [[1, null, '']]])('sem lista, vazia ou fora da forma (%j): o site inteiro, nunca nada', async (lista) => {
+  it.each([[undefined], [null], [[]], ['a-0'], [{ 0: 'a-0' }], [[1, null, '']], [['a-0', '']], [['a-0', 7]]])('sem lista, vazia ou fora da forma (%j): o site inteiro, nunca nada', async (lista) => {
     const { revalidateTag, invalidateObservatory } = await com()
     invalidateObservatory('a', lista as never)
     expect(revalidateTag.mock.calls).toEqual([['observatorio:a', { expire: 0 }]])

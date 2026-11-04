@@ -159,7 +159,9 @@ async function hoje(): Promise<Record<string, { versao: number; forma: string; d
   const outras: Record<string, { forma: unknown; colunas: string[] }> = { 'observatorio-pack': await rodarPacote(), ...m, 'arquivo-aviso-leve': await rodarAviso(), 'arquivo-sinal-banco': await rodarSinal() }
   const { PACK_VERSION } = await import('@/lib/youtube/observatorio/pack')
   const { MEDIDAS_TELAS_V } = await import('@/lib/youtube/observatorio/medidas-telas/carregar-do-site')
-  const versaoDe = (nome: string): number => (nome === 'observatorio-pack' ? PACK_VERSION : nome.startsWith('medidas-telas') ? MEDIDAS_TELAS_V : 1)
+  const { AVISO_LEVE_V } = await import('@/lib/youtube/observatorio/arquivo-mensal/aviso-leve')
+  const { SINAL_BANCO_V } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome')
+  const versaoDe = (nome: string): number => (nome === 'observatorio-pack' ? PACK_VERSION : nome.startsWith('medidas-telas') ? MEDIDAS_TELAS_V : nome === 'arquivo-aviso-leve' ? AVISO_LEVE_V : SINAL_BANCO_V)
   return Object.fromEntries(Object.entries(outras).map(([nome, v]) => [nome, { versao: versaoDe(nome), forma: sha(v), detalhe: v }]))
 }
 

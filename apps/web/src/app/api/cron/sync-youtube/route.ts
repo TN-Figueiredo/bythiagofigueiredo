@@ -9,6 +9,7 @@ import { runCompetitorBatch, batchHealth, currentSlotStart, BATCH_BUDGET_MS, COM
 import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { CATALOGO, agendaLigada } from '@/lib/youtube/agenda/catalogo'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDoLote, type CaminhoSemAgenda } from '@/lib/youtube/agenda/executar'
+import { semListaDeCanais } from '@/lib/youtube/agenda/alvos-do-cache'
 import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
 import { comPrazo } from '@/lib/youtube/agenda/relogio'
 import { fecharApagamentos, provaDosAusentes, type ResultadoDoFecho } from '@/lib/youtube/competitor-missing-proof'
@@ -258,7 +259,7 @@ export async function GET(req: NextRequest) {
           }
         } catch { /* a conclusão nunca muda a resposta */ }
       }
-      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, apagamentos, ...alemDoLote(), health_written: true }
+      return { status: 'ok' as const, mode: 'competitors', ...summary, ...(summary.weekly ? { weekly: semListaDeCanais(summary.weekly) } : {}), prova, apagamentos, ...alemDoLote(), health_written: true }
     }
 
     let query = supabase

@@ -9,7 +9,7 @@ import { fecharApagamentos, type ResultadoDoFecho } from '@/lib/youtube/competit
 import { lerPendenciasDoArquivo, type PendenciasDoArquivo } from '@/lib/youtube/observatorio/arquivo/ler-pendencias'
 import { lerSinalDoBanco, type SinalLido } from '@/lib/youtube/observatorio/arquivo/ler-sinal'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
-import { juntarAlvos } from './alvos-do-cache'
+import { juntarAlvos, semListaDeCanais, sitesSemLista } from './alvos-do-cache'
 import { avisarDono, type ContagemAviso } from './aviso'
 import { CATALOGO, notaDoInterruptorDaAgenda, tarefasDesligadas } from './catalogo'
 import { despachar, type EstadoFinalTarefa, type OpsAgenda } from './despachante'
@@ -224,6 +224,8 @@ export async function executarAgenda(o: {
   const saude = o.deps?.gravarSaude ?? { sucesso: recordCronSuccess, falha: recordCronFailure }
   const holder = crypto.randomUUID()
   const notas: string[] = []
+  // os sites que o lote e a fase semanal começaram a gravar (as tarefas preenchem): o catch geral e o prazo estourado derrubam o cache deles
+  const visitados = new Set<string>()
 
   const arrendamento = await seguro(() => tomarArrendamento(sb, holder))
   if ('valor' in arrendamento && arrendamento.valor === false) {
@@ -303,7 +305,7 @@ export async function executarAgenda(o: {
       tomar: t => tomar(sb, t), fechar: t => fechar(sb, t), adiar: t => adiar(sb, t), esgotar: t => esgotar(sb, t),
       relatar: relatarAgenda,
     }
-    const resumo = await despachar({ catalogo, desligadas, t0, agora, estado, contexto: { t0, agora, apiKey, sb, linhas }, ops })
+    const resumo = await despachar({ catalogo, desligadas, t0, agora, estado, contexto: { t0, agora, apiKey, sb, linhas, visitados }, ops })
     notas.push(...resumo.notas)
 
     // 7 e 8. A prova por site, a mensagem e o registro no `cron_health`.
@@ -333,7 +335,8 @@ export async function executarAgenda(o: {
     if (f.lote && f.lote.synced > 0) revalidatePath('/cms/youtube/competitors', 'layout')
     // canal a canal: o lote, a fase semanal (grava a série diária e carimba só weekly_pass_date) e as marcas de idade (grava marcas que não mexem em last_ok_synced_at)
     const extraDe = (nome: string): unknown => resumo.tarefas.find(t => t.tarefa === nome)?.extra
-    for (const a of juntarAlvos({ lote: f.lote, semanal: extraDe('serie_semanal'), marcas: extraDe('marcas_de_idade') })) { if (a.channelIds) invalidateObservatory(a.siteId, a.channelIds); else invalidateObservatory(a.siteId) }
+    const inteiros = sitesSemLista({ tarefas: resumo.tarefas, visitados, sitesDasLinhas: (linhas ?? []).map(r => r.site_id) })
+    for (const a of juntarAlvos({ lote: f.lote, semanal: extraDe('serie_semanal'), marcas: extraDe('marcas_de_idade'), inteiros })) { if (a.channelIds) invalidateObservatory(a.siteId, a.channelIds); else invalidateObservatory(a.siteId) }
 
     // 10. Depois de `cron_health` gravado: o aviso ao dono. Falha ou falta de tempo nunca mudam a resposta.
     let avisosEnviados: ContagemAviso | null = null
@@ -361,13 +364,15 @@ export async function executarAgenda(o: {
       mode: 'competitors', agenda: true,
       tarefas: resumo.tarefas.map(({ extra: _extra, ...resto }) => resto),
       ...(f.lote ? resumoDoLote(f.lote) : {}),
-      ...(typeof semanal === 'object' && semanal !== null ? { weekly: semanal } : {}),
+      ...(typeof semanal === 'object' && semanal !== null ? { weekly: semListaDeCanais(semanal) } : {}),
       prova: f.prova, prova_horaria: f.provaHoraria, prova_ausentes: f.provaAusentes, apagamentos, acao_do_dono: [...f.acaoDoDono, ...extras.acao, ...acaoDasTarefas(resumo.tarefas)], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
     }
     logCron({ job: JOB, run_id: runId, status: 'ok', duration_ms: Math.max(0, agora() - t0), ...corpo })
     return { resposta: Response.json({ status: 'ok', ...corpo }) }
   } catch (err) {
     relatarAgenda('agenda', { codigo: 'excecao', tecnico: resumoTecnico(err) })
+    // o lote pode ter gravado antes da exceção: o site de cada canal visitado cai do cache; nunca impede o registro da falha
+    try { for (const siteId of visitados) invalidateObservatory(siteId) } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'agenda-late-invalidate' } }) }
     try { logCron({ job: JOB, run_id: runId, status: 'error', duration_ms: Math.max(0, agora() - t0), err_code: 'unhandled' }) } catch { /* segue */ }
     try { await saude.falha(JOB, 'o disparo da agenda falhou com erro inesperado (ver Sentry)') } catch { /* segue */ }
     return { resposta: Response.json({ error: 'cron_failed' }, { status: 500 }) }

@@ -617,6 +617,63 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
     })
   })
 
+  describe('a tarefa pesada estoura o prazo ou lança: o site inteiro de cada site visitado (Phil B1, Yannis I2)', () => {
+    const pendura = (nome: string) => async (c: Contexto): Promise<ResultadoTarefa> => { c.visitados?.add('A'); c.visitados?.add('B'); return new Promise(() => undefined) }
+    const lanca = async (c: Contexto): Promise<ResultadoTarefa> => { c.visitados?.add('A'); throw new Error('boom') }
+    const comTempo = async (nome: string, rodar: Tarefa['rodar']) => {
+      const p = rodarAgenda({ catalogo: [tarefa(nome, { ordem: 1, peso: 'pesada', fimAteMs: 5_000, rodar })] })
+      await vi.advanceTimersByTimeAsync(10_000)
+      return await p
+    }
+    it.each(['sincronizar_canais', 'serie_semanal'])('%s que nunca volta: invalida o site de cada visitado', async (nome) => {
+      await comTempo(nome, pendura(nome))
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A'], ['B']])
+    })
+    it.each(['sincronizar_canais', 'serie_semanal'])('%s que lança: idem', async (nome) => {
+      await comTempo(nome, lanca)
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A']])
+    })
+    it('controle: tarefa que não rodou (nao_devida) não invalida nada, mesmo com visitados', async () => {
+      banco.estados.set('sincronizar_canais', { status: 'ok' })
+      const rodar = vi.fn(async (c: Contexto): Promise<ResultadoTarefa> => { c.visitados?.add('A'); return { estado: 'ok', feitas: 0, deixadas: 0 } })
+      const r = await corpo(await rodarAgenda({ catalogo: [tarefa('sincronizar_canais', { ordem: 1, peso: 'pesada', rodar })] }))
+      expect(rodar).not.toHaveBeenCalled()
+      expect((r.tarefas as Array<{ estado: string }>)[0]!.estado).toBe('nao_devida')
+      expect(vi.mocked(invalidateObservatory)).not.toHaveBeenCalled()
+    })
+    it('controle: sem visitados nada é invalidado', async () => {
+      await comTempo('sincronizar_canais', () => new Promise(() => undefined))
+      expect(vi.mocked(invalidateObservatory)).not.toHaveBeenCalled()
+    })
+    it('marcas_de_idade que estoura o prazo: o site de cada linha cai inteiro; marcas ok sem extra não derruba nada', async () => {
+      await comTempo('marcas_de_idade', () => new Promise(() => undefined))
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['s1'], ['s2']])
+      vi.mocked(invalidateObservatory).mockClear()
+      await rodarAgenda({ catalogo: [tarefa('marcas_de_idade', { ordem: 1, rodar: okPadrao })] })
+      expect(vi.mocked(invalidateObservatory)).not.toHaveBeenCalled()
+    })
+    it('a invalidação lançando não impede o cron_health nem a resposta', async () => {
+      vi.mocked(invalidateObservatory).mockImplementation(() => { throw new Error('fora de um request') })
+      const r = await comTempo('sincronizar_canais', pendura('sincronizar_canais'))
+      expect(r.resposta).not.toBeNull()
+      expect(vi.mocked(recordCronFailure).mock.calls.length + vi.mocked(recordCronSuccess).mock.calls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('a lista de canais da fase semanal não vai na resposta nem no log (Phil I2, Yannis I1)', () => {
+    it('weekly sem channelIdsBySite no corpo e em todo o log (recursivo), e a invalidação por canal continua', async () => {
+      const semanal = { ran: true, visited: 1, channelIdsBySite: { A: ['a-canal-unico-9'] } }
+      await rodarAgenda({ catalogo: [tarefa('serie_semanal', { ordem: 1, peso: 'pesada', rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: semanal }) })] }).then(async r => {
+        const c = await corpo(r)
+        expect(JSON.stringify(c)).not.toContain('channelIdsBySite')
+        expect(JSON.stringify(c)).not.toContain('a-canal-unico-9')
+        expect((c.weekly as Record<string, unknown>).visited).toBe(1)
+      })
+      expect(JSON.stringify(vi.mocked(logCron).mock.calls)).not.toContain('a-canal-unico-9')
+      expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a-canal-unico-9']]])
+    })
+  })
+
   describe('o aviso ao dono sai depois de cron_health e não muda a resposta', () => {
     const esgotada = (): void => { banco.estados.set('leitura_horaria', { status: 'esgotada', attempts: 3 }) }
     it('a ordem das chamadas e a resposta igual quando o aviso lança', async () => {

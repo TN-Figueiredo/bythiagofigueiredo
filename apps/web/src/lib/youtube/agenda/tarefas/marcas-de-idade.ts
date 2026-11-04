@@ -14,8 +14,10 @@ async function canaisDasMarcas(sb: SupabaseClient, escritos: ReadonlyArray<{ vid
   const porSite = new Map<string, Set<string>>()
   const inteiros = new Set<string>()
   const canalDoVideo = new Map<string, string>()
-  for (let i = 0; i < escritos.length; i += FATIA) {
-    const fatia = escritos.slice(i, i + FATIA)
+  const fatias: Array<ReadonlyArray<{ videoId: string; siteId: string }>> = []
+  for (let i = 0; i < escritos.length; i += FATIA) fatias.push(escritos.slice(i, i + FATIA))
+  // em paralelo: o pior caso é um BANCO_MS só, não um por fatia (a tarefa tem 85 s e a gravação já foi feita)
+  await Promise.all(fatias.map(async fatia => {
     try {
       const r = await sb.from('competitor_videos').select('id, competitor_channel_id').in('id', fatia.map(e => e.videoId)).abortSignal(AbortSignal.timeout(BANCO_MS))
       if (r.error === null && Array.isArray(r.data)) {
@@ -24,7 +26,7 @@ async function canaisDasMarcas(sb: SupabaseClient, escritos: ReadonlyArray<{ vid
         }
       }
     } catch { /* o vídeo sem canal resolvido derruba o site inteiro, abaixo */ }
-  }
+  }))
   for (const e of escritos) {
     const canal = canalDoVideo.get(e.videoId)
     if (canal === undefined) { inteiros.add(e.siteId); continue }

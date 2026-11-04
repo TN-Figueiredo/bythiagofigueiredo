@@ -66,6 +66,13 @@ describe('cron de competidores invalida o cache do Observatório', () => {
     expect('siteIds' in body).toBe(false)
     expect('channelIdsBySite' in body).toBe(false)
   })
+  it('a fase semanal na resposta não traz a lista de canais (recursivo); o resto da fase fica', async () => {
+    batch.mockResolvedValue({ ...result({ synced: 1, errors: 0, siteIds: ['s1'], channelIdsBySite: { s1: ['canal-unico-7'] } }), weekly: { ran: true, visited: 2, channelIdsBySite: { s1: ['canal-unico-7'] } } } as never)
+    const body = await (await GET(req())).json()
+    expect(body.weekly.visited).toBe(2)
+    expect(JSON.stringify(body)).not.toContain('channelIdsBySite')
+    expect(JSON.stringify(body)).not.toContain('canal-unico-7')
+  })
   it('o lote lançou: erro registrado, nenhuma tag', async () => {
     batch.mockRejectedValue(new Error('competitor batch: timeout'))
     expect((await GET(req())).status).toBe(500)

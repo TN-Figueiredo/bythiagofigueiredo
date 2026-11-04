@@ -46,7 +46,8 @@ export function comChaveFixa<A extends unknown[], R>(nome: Entrada, cb: (...a: A
  * invalidate.
  */
 export function invalidateObservatory(siteId: string, channelIds?: readonly string[] | null): void {
-  const ids = Array.isArray(channelIds) ? [...new Set(channelIds.filter((x): x is string => typeof x === 'string' && x !== ''))] : []
+  // a list with any item out of shape is a list out of shape: the whole site, never a partial list
+  const ids = Array.isArray(channelIds) && channelIds.every(x => typeof x === 'string' && x !== '') ? [...new Set(channelIds)] : []
   // the tag in a variable: test/lib/cache/revalidate-tag-parity.test.ts reads a nested call as a one-argument revalidateTag
   if (ids.length === 0) {
     const tag = observatoryTag(siteId)
