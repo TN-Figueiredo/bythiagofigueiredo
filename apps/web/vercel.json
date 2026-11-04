@@ -3,6 +3,7 @@
   "regions": ["gru1"],
   "installCommand": "cd ../.. && npm ci --legacy-peer-deps",
   "buildCommand": "cd ../.. && npm run build -w apps/web",
+  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]",
   "crons": [
     { "path": "/api/cron/publish-scheduled", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/lgpd-cleanup-sweep", "schedule": "0 7 * * *" },

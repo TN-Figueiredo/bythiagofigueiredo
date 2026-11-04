@@ -13,7 +13,7 @@ Decisão (2026-06-06): o pre-commit **NÃO** roda `next build` nem os suites de 
 |------|--------|-----------|-------|
 | **pre-commit** | todo commit | `build:packages` + typecheck web + typecheck api (+ auto-seed) | ~40-60s |
 | **pre-push** | todo push | ecosystem validation + pinning + typecheck web/api | ~60s |
-| **Vercel** | todo deploy | `next build` (paridade real de build) | nuvem |
+| **Vercel** | deploy de `main` (staging não builda desde 04/11: custo) | `next build` (paridade real de build) | nuvem |
 | **CI** (`ci.yml`) | push staging | typecheck + testes + audit | nuvem |
 
 - Mexeu em `packages/*/src/`: `npm run build:packages` IMEDIATAMENTE (recompila o `dist/` que `apps/web`/`apps/api` consomem). Não commitar sem isso.
