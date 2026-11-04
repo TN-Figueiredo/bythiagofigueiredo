@@ -244,6 +244,14 @@ describe('F3-cache T3: o vigia do aquecimento (pedido × feito, sem grade)', () 
   it('1b. pedido há 6 min sem aquecimento posterior: vermelho', () => {
     expect(item([pedido(6), feito(24 * 60)]).status).toBe('late')
   })
+  it('Phil M1: aquecimento 10 s ANTES do pedido, now = pedido + 6 min: vermelho', () => {
+    const pedidoEm = AGORA.getTime() - 6 * 60_000
+    const rows = [
+      linha({ cron_name: 'observatorio-aquecer-pedido', last_success_at: new Date(pedidoEm).toISOString() }),
+      linha({ cron_name: 'observatorio-aquecer', last_success_at: new Date(pedidoEm - 10_000).toISOString() }),
+    ]
+    expect(item(rows).status).toBe('late')
+  })
   it('1c. aquecimento posterior ao pedido: verde', () => {
     expect(item([pedido(30), feito(29.5)]).status).toBe('ok')
   })

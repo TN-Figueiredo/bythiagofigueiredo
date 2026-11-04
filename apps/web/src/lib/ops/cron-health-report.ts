@@ -386,7 +386,7 @@ export function evaluateAquecer(pedido: ICronHealthRow | undefined, feito: ICron
   }
   const pedidoMs = pedido?.last_success_at ? Date.parse(pedido.last_success_at) : Number.NaN
   const feitoMs = feito?.last_success_at ? Date.parse(feito.last_success_at) : Number.NEGATIVE_INFINITY
-  const perdido = Number.isFinite(pedidoMs) && pedidoMs > feitoMs + PRAZO_DO_AQUECIMENTO_MS && now.getTime() - pedidoMs > PRAZO_DO_AQUECIMENTO_MS
+  const perdido = Number.isFinite(pedidoMs) && pedidoMs > feitoMs && now.getTime() - pedidoMs > PRAZO_DO_AQUECIMENTO_MS
   const falhou = (feito?.consecutive_failures ?? 0) >= 1
   return {
     name,
