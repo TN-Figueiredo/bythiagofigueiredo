@@ -45,8 +45,10 @@ function req(secret?: string) {
 }
 
 function mockCronHealthRows(rows: Record<string, unknown>[]) {
+  // F3-cache T3: a dupla do aquecimento (job sem grade) entra sempre verde, para não mexer nas contagens de unknown deste arquivo
+  const aquecimento = ['observatorio-aquecer-pedido', 'observatorio-aquecer'].map(cron_name => ({ cron_name, severity: 'info', last_success_at: '2026-01-02T00:00:00.000Z', last_failure_at: null, last_error: null, consecutive_failures: 0 }));
   const chain = {
-    select: vi.fn().mockResolvedValue({ data: rows, error: null }),
+    select: vi.fn().mockResolvedValue({ data: [...rows, ...aquecimento], error: null }),
   };
   // Vigia de partições (M2 T6-T7): a RPC devolve 12 meses à frente nas 3 tabelas, para o item sair verde.
   const meses12 = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']
@@ -233,8 +235,8 @@ describe('GET /api/health', () => {
     const body = await res.json();
     expect(body.status).toBe('ok');
     expect(res.status).toBe(200);
-    // 4 crons do vercel.json + o item de partições à frente (M2 T6-T7), verde pela RPC mockada.
-    expect(body.crons).toHaveLength(7);
+    // 4 crons do vercel.json + o aquecimento (sem grade, T3) + o item de partições à frente (M2 T6-T7), verde pela RPC mockada.
+    expect(body.crons).toHaveLength(8);
   });
 
   it('flags a cron whose most recent recorded run failed, even inside the grace window', async () => {

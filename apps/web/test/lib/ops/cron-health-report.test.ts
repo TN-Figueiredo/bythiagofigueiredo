@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parsePassos } from '@/lib/youtube/coleta/passos-parciais'
-import { resolveCronName, evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
+import { JOBS_SEM_GRADE, computeExpectedRuns, resolveCronName, evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
 import vercelConfig from '../../../vercel.json'
 import type { ItemAgenda } from '@/lib/youtube/agenda/saude'
 
@@ -123,7 +123,8 @@ describe('agenda como segunda fonte do relatório', () => {
     nome, status, ultimoOk: null, toleranciaH: 2, ...(motivo ? { motivo } : {}),
   })
   // Todos os crons do vercel.json em dia: o retrato base de "tudo verde".
-  const TODOS_EM_DIA = Array.from(groupCronSchedules(vercelConfig.crons).keys()).map(n => linha({ cron_name: n }))
+  // (mais a dupla do aquecimento, que não tem grade: sem as duas linhas o job é unknown)
+  const TODOS_EM_DIA = [...Array.from(groupCronSchedules(vercelConfig.crons).keys()), 'observatorio-aquecer', 'observatorio-aquecer-pedido'].map(n => linha({ cron_name: n }))
 
   it('sem o parâmetro da agenda o relatório é o de hoje', () => {
     const antigo = buildCronHealthReport(TODOS_EM_DIA, AGORA)
@@ -131,7 +132,7 @@ describe('agenda como segunda fonte do relatório', () => {
     const indefinido = buildCronHealthReport(TODOS_EM_DIA, AGORA, undefined)
     expect(vazio).toEqual(antigo)
     expect(indefinido).toEqual(antigo)
-    expect(antigo.crons).toHaveLength(groupCronSchedules(vercelConfig.crons).size)
+    expect(antigo.crons).toHaveLength(groupCronSchedules(vercelConfig.crons).size + JOBS_SEM_GRADE.length)
     expect(antigo.crons.some(c => c.name.startsWith('agenda:'))).toBe(false)
     expect(antigo.status).toBe('ok')
     expect(antigo.lateNames).toEqual([])
@@ -223,5 +224,56 @@ describe('F0-c: entrada parcial da coleta', () => {
     expect(groupCronSchedules(sem).has('sync-analytics-metrics')).toBe(true)
     const rel = buildCronHealthReport([], AGORA)
     expect(rel.crons.some(c => c.name === 'sync-analytics-metrics-parcial')).toBe(true)
+  })
+})
+
+describe('F3-cache T3: o vigia do aquecimento (pedido × feito, sem grade)', () => {
+  const min = (n: number): string => new Date(AGORA.getTime() - n * 60_000).toISOString()
+  const pedido = (ha: number) => linha({ cron_name: 'observatorio-aquecer-pedido', last_success_at: min(ha) })
+  const feito = (ha: number, o: Partial<ICronHealthRow> = {}) => linha({ cron_name: 'observatorio-aquecer', last_success_at: min(ha), ...o })
+  const item = (rows: ICronHealthRow[]) => buildCronHealthReport(rows, AGORA).crons.find(c => c.name === 'observatorio-aquecer')!
+
+  it('1. pedido há mais de 5 min sem aquecimento posterior (+5 min): vermelho', () => {
+    const i = item([pedido(30), feito(24 * 60)])
+    expect(i.status).toBe('late')
+    expect(buildCronHealthReport([pedido(30), feito(24 * 60)], AGORA).lateNames).toContain('observatorio-aquecer')
+  })
+  it('1a. pedido há 20 s com aquecimento de ontem: verde (o aquecimento ainda está correndo)', () => {
+    expect(item([linha({ cron_name: 'observatorio-aquecer-pedido', last_success_at: new Date(AGORA.getTime() - 20_000).toISOString() }), feito(24 * 60)]).status).toBe('ok')
+  })
+  it('1b. pedido há 6 min sem aquecimento posterior: vermelho', () => {
+    expect(item([pedido(6), feito(24 * 60)]).status).toBe('late')
+  })
+  it('1c. aquecimento posterior ao pedido: verde', () => {
+    expect(item([pedido(30), feito(29.5)]).status).toBe('ok')
+  })
+  it('1d. a 1a execução da vida (pedido há 20 s, sem linha de aquecer) não dá vermelho falso', () => {
+    expect(item([linha({ cron_name: 'observatorio-aquecer-pedido', last_success_at: new Date(AGORA.getTime() - 20_000).toISOString() })]).status).toBe('ok')
+  })
+  it('2. aquecimento mais novo que o pedido: verde', () => {
+    expect(item([pedido(60), feito(10)]).status).toBe('ok')
+  })
+  it('3. consecutive_failures = 1 em observatorio-aquecer: vermelho', () => {
+    expect(item([pedido(60), feito(59, { consecutive_failures: 1, last_error: 'aqueceu 3 de 5' })]).status).toBe('late')
+  })
+  it('4. 12 h sem pedido e sem linha de aquecimento nova: verde (sem coleta com lista não há dívida)', () => {
+    expect(item([pedido(12 * 60), feito(12 * 60 - 1)]).status).toBe('ok')
+    expect(item([feito(12 * 60)]).status).toBe('ok')
+  })
+  it('5. o job continua fora de computeExpectedRuns e do vercel.json', () => {
+    expect(groupCronSchedules(vercelConfig.crons).has('observatorio-aquecer')).toBe(false)
+    expect(groupCronSchedules(vercelConfig.crons).has('observatorio-aquecer-pedido')).toBe(false)
+    expect(computeExpectedRuns([], AGORA)).toEqual({ lastRun: null, previousRun: null })
+    expect(item([pedido(30), feito(24 * 60)]).schedules).toEqual([])
+    expect(item([pedido(30), feito(24 * 60)]).expectedLastRun).toBeNull()
+  })
+  it('6. sem nenhuma das duas linhas: unknown, fora do agregado', () => {
+    const r = buildCronHealthReport([], AGORA)
+    expect(r.crons.find(c => c.name === 'observatorio-aquecer')!.status).toBe('unknown')
+    expect(r.unknownNames).toContain('observatorio-aquecer')
+  })
+  it('severidade info: vermelho vira degraded, nunca down', () => {
+    const r = buildCronHealthReport([...Array.from(groupCronSchedules(vercelConfig.crons).keys()).map(n => linha({ cron_name: n })), pedido(30), feito(24 * 60)], AGORA)
+    expect(r.status).toBe('degraded')
   })
 })

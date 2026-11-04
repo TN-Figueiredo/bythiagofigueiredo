@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
@@ -12,6 +12,7 @@ import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDo
 import { semListaDeCanais } from '@/lib/youtube/agenda/alvos-do-cache'
 import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
 import { comPrazo } from '@/lib/youtube/agenda/relogio'
+import { criarPedidoDeAquecimento } from '@/lib/youtube/agenda/pedir-aquecimento'
 import { fecharApagamentos, provaDosAusentes, type ResultadoDoFecho } from '@/lib/youtube/competitor-missing-proof'
 import { lerArquivoSemAgenda, type ArquivoSemAgenda } from '@/lib/youtube/agenda/arquivo-sem-agenda'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
@@ -88,6 +89,8 @@ export async function GET(req: NextRequest) {
   // Os concorrentes (A5 E16): o relógio do disparo nasce AQUI, antes de tudo, e a agenda (ou a lista que roda antes do lote antigo) conta dele.
   // `agendaLigada()` decide antes de `executarAgenda`: com `OBS_AGENDA=off` a agenda NÃO é chamada e o lote antigo roda inteiro, como era.
   const t0 = Date.now()
+  // F3-cache T3: UM pedido por request; agenda e lote somam o que invalidaram e o `after()` do primeiro `.somar` pede o aquecimento
+  const pedido = criarPedidoDeAquecimento({ after, fetch, agora: Date.now, t0 })
   let semAgenda: string | undefined
   let antes: AntesDoLote = { tarefas: [], problemas: [], notas: [] }
   let caminho: CaminhoSemAgenda | undefined
@@ -95,7 +98,7 @@ export async function GET(req: NextRequest) {
   let arquivo: ArquivoSemAgenda | null = null
   if (mode === 'competitors') {
     if (agendaLigada()) {
-      const r = await executarAgenda({ supabase, apiKey, runId, t0 })
+      const r = await executarAgenda({ supabase, apiKey, runId, t0, pedido })
       if (r.resposta) return r.resposta
       semAgenda = r.semAgenda // a guarda da MG10 falhou: o lote antigo coleta no lugar e o cron fica vermelho com esta frase
       caminho = 'guarda_mg10'
@@ -247,7 +250,12 @@ export async function GET(req: NextRequest) {
       // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
       // a lista de canais não vai no corpo da resposta (cresce com o surto), como `siteIds`
       const { siteIds, healthSiteIds: _healthSiteIds, channelIdsBySite, ...summary } = result
-      for (const siteId of siteIds) invalidateObservatory(siteId, (channelIdsBySite ?? {})[siteId])
+      for (const siteId of siteIds) {
+        invalidateObservatory(siteId, (channelIdsBySite ?? {})[siteId])
+        // o pedido de aquecimento leva a mesma lista; fora da forma = o site inteiro, como a invalidação
+        const canais = (channelIdsBySite ?? {})[siteId]
+        pedido.somar(siteId, Array.isArray(canais) && canais.length > 0 && canais.every(x => typeof x === 'string' && x !== '') ? canais : null)
+      }
       // (A5 E9) termina o que ficou no Blob, só com tempo sobrando; nunca muda a resposta nem o cron_health (já gravado)
       let apagamentos: ResultadoDoFecho | null = null
       if (FUNCTION_LIMIT_MS - 3000 - (Date.now() - t0) >= 8000) {
@@ -255,7 +263,7 @@ export async function GET(req: NextRequest) {
           const c = await comPrazo(fecharApagamentos(supabase, { prazoMs: 5000 }), 6000)
           if ('valor' in c) {
             apagamentos = c.valor
-            for (const siteId of c.valor.sites) invalidateObservatory(siteId)
+            for (const siteId of c.valor.sites) { invalidateObservatory(siteId); pedido.somar(siteId, null) }
           }
         } catch { /* a conclusão nunca muda a resposta */ }
       }
