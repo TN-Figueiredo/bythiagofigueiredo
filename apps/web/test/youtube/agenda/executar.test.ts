@@ -612,6 +612,14 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
       ] } })
       expect(somar.mock.calls).toEqual([['A', ['a1', 'a3']], ['C', null]])
     })
+    it('Phil M4: lança DEPOIS de somar no pedido: o site visitado fica null (site inteiro)', async () => {
+      const somar = vi.fn()
+      let n = 0
+      vi.mocked(invalidateObservatory).mockImplementation(() => { if (++n === 2) throw new Error(SENTINELA) })
+      const rodar = async (c: Contexto): Promise<ResultadoTarefa> => { c.visitados?.add('A'); c.visitados?.add('B'); return { estado: 'ok', feitas: 2, deixadas: 0, extra: lote({ synced: 2, siteIds: ['A', 'B'], channelIdsBySite: { A: ['a1'], B: ['b1'] } }) } }
+      await executarAgenda({ supabase: banco.sb, apiKey: 'chave', runId: 'run-1', t0: T0, pedido: { somar }, deps: { catalogo: [tarefa('sincronizar_canais', { ordem: 1, peso: 'pesada', nuncaDesliga: true, rodar })] } })
+      expect(somar.mock.calls).toEqual([['A', ['a1']], ['A', null], ['B', null]])
+    })
     it('a fase semanal (grava a série diária e carimba só weekly_pass_date) entra na lista do disparo', async () => {
       await rodarAgenda({ catalogo: [
         tarefa('serie_semanal', { ordem: 1, peso: 'pesada', rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: { channelIdsBySite: { A: ['a2'], B: ['b1'] } } }) }),

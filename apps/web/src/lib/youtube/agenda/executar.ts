@@ -378,7 +378,7 @@ export async function executarAgenda(o: {
   } catch (err) {
     relatarAgenda('agenda', { codigo: 'excecao', tecnico: resumoTecnico(err) })
     // o lote pode ter gravado antes da exceção: o site de cada canal visitado cai do cache; nunca impede o registro da falha
-    try { for (const siteId of visitados) invalidateObservatory(siteId) } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'agenda-late-invalidate' } }) }
+    try { for (const siteId of visitados) { invalidateObservatory(siteId); o.pedido?.somar(siteId, null) } } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'agenda-late-invalidate' } }) }
     try { logCron({ job: JOB, run_id: runId, status: 'error', duration_ms: Math.max(0, agora() - t0), err_code: 'unhandled' }) } catch { /* segue */ }
     try { await saude.falha(JOB, 'o disparo da agenda falhou com erro inesperado (ver Sentry)') } catch { /* segue */ }
     return { resposta: Response.json({ error: 'cron_failed' }, { status: 500 }) }
