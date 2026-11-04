@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { ENTRADAS, comChaveFixa, tagsDoCanal } from '../cache-tag'
-import { contarFrio } from '../medicao-abertura'
+import { contarFrio, registrarIdadeServida } from '../medicao-abertura'
 import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '../medidas/do-canal'
@@ -199,6 +199,7 @@ export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; 
       const guardada = await unstable_cache(comChaveFixa(ENTRADAS.medidas, () => lerParaOCache(sb, o, avisos)), [ENTRADAS.medidas, String(MEDIDAS_TELAS_V), o.siteId, o.channelId, String(last)], { tags: tagsDoCanal(o.siteId, o.channelId), revalidate: VALIDADE_S })()
       // serve a guardada até o teto (6 h) e deixa o Next recalcular por trás; acima do teto relê bloqueando
       entrada = o.agoraMs - guardada.lidoEm > TETO_SERVIR_VELHO_MS ? await lerParaOCache(sb, o, avisos) : guardada
+      registrarIdadeServida(Math.max(0, o.agoraMs - entrada.lidoEm))
     }
     return entrada.planos
   } catch (err) {

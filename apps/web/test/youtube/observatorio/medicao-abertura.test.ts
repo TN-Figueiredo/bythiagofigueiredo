@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { comMedicao, contarFrio, gravarAoFim, linhaDaMedicao, medirEtapa, novaMedicao } from '@/lib/youtube/observatorio/medicao-abertura'
+import { comMedicao, contarFrio, gravarAoFim, linhaDaMedicao, medirEtapa, novaMedicao, registrarIdadeServida } from '@/lib/youtube/observatorio/medicao-abertura'
 
 const espera = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -14,10 +14,16 @@ describe('medição de uma abertura', () => {
     })
     expect(r).toBe(7)
     const l = JSON.parse(linhaDaMedicao(m))
-    expect(Object.keys(l).sort()).toEqual(['etapas', 'evento', 'frios', 'tela', 'total_ms'])
+    expect(Object.keys(l).sort()).toEqual(['etapas', 'evento', 'frios', 'idade_max_s', 'tela', 'total_ms'])
     expect([l.evento, l.tela, l.frios.pacotes]).toEqual(['obs-abertura', 'canais', 2])
     expect(l.etapas.pacotes).toBeGreaterThanOrEqual(3)
     expect(Number.isInteger(l.etapas.medidas)).toBe(true)
+  })
+  it('idade_max_s guarda a maior idade servida (s) e vale 0 sem entrada velha', async () => {
+    const m = novaMedicao('canal')
+    expect(JSON.parse(linhaDaMedicao(m)).idade_max_s).toBe(0)
+    await comMedicao(m, async () => { registrarIdadeServida(7_200_000); registrarIdadeServida(60_000) })
+    expect(JSON.parse(linhaDaMedicao(m)).idade_max_s).toBe(7200)
   })
   it('fora de uma medição nada é contado nem lança', async () => {
     const m = novaMedicao('canais')

@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from 'react'
 import { link } from '@/lib/youtube/observatorio/links'
+import { comMedicao, gravarAoFim, medirEtapa, novaMedicao } from '@/lib/youtube/observatorio/medicao-abertura'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -52,10 +53,14 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const m = await montarCanal(id, flat, {
+  // F3-cache T2b: a página do canal também grava a linha `obs-abertura` (tela 'canal'); o pacote já conta em `load-page`, as medidas são medidas aqui.
+  // A promessa das medidas nasce dentro de `comMedicao` e segue contando depois do primeiro HTML.
+  const medicao = novaMedicao('canal')
+  gravarAoFim(medicao)
+  const m = await comMedicao(medicao, () => montarCanal(id, flat, {
     // a leitura das medidas nasce depois de `view` existir e antes de `canAdminSiteUsers` (dentro de `montarCanal`): corre em paralelo com ele e com a leitura do nicho
-    iniciarMedidas: lerMedidasDoCanal,
-  })
+    iniciarMedidas: c => medirEtapa('medidas', () => lerMedidasDoCanal(c)),
+  }))
   const { owns } = m.pagina
   if (m.tipo === 'proprio_sem_videos') {
     return (

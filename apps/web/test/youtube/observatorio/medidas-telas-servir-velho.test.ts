@@ -109,4 +109,12 @@ describe('T2a: servir velho com teto de 6 h', () => {
     expect(rec()).toHaveLength(3)
     expect((rec()[2]![1] as { fingerprint: string[] }).fingerprint).toEqual(['medidas-telas', 'recalculo', 'schema_ausente'])
   })
+  it('(6) a abertura registra idade_max_s da entrada servida (2 h = 7.200)', async () => {
+    const { abrir, med } = await montar(tabelas())
+    await abrir(T0 - 2 * H)
+    const m = med.novaMedicao('canais')
+    await med.comMedicao(m, () => abrir(T0))
+    expect(JSON.parse(med.linhaDaMedicao(m)).idade_max_s).toBe(7200)
+    expect(m.frios.medidas ?? 0).toBe(0)
+  })
 })
