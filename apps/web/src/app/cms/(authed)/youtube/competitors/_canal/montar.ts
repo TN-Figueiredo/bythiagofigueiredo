@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { medirEtapa } from '@/lib/youtube/observatorio/medicao-abertura'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
 import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
@@ -103,7 +104,7 @@ export interface OpcoesDoMontarCanal {
 }
 
 export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCanal = {}): Promise<MontarCanal> {
-  const pagina = await openChannelPage(id)
+  const pagina = await medirEtapa('pagina', () => openChannelPage(id))
   const { obs, siteId, now, leitura: leituraPrivada, ownYtIds, canEdit, owns } = pagina
   if (!obs) return { tipo: 'nao_encontrado', pagina, recente: null }
   // o carregador casa o id sem distinguir maiúsculas; o canal é achado do mesmo jeito, e a partir daqui só vale o id RESOLVIDO dele
@@ -142,11 +143,11 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
   const view = buildCanalView(obs, id, sp)
   if (!view) return { tipo: 'nao_encontrado', pagina, recente: null }
   const medidas = opcoes.iniciarMedidas ? opcoes.iniciarMedidas({ pagina, obs, view }) : null
-  const canAdmin = await canAdminSiteUsers(siteId)
+  const canAdmin = await medirEtapa('admin', () => canAdminSiteUsers(siteId))
   // Só a aba Leitura lê o conjunto do site (o do canal não tem o que agrega entre canais, como forja.niches); as outras abas não pagam por isso.
   let leituraMv: ReturnType<typeof buildMudancasView> | null = null
   if (view.state.tab === 'leitura' && view.header.niche && view.header.nicheLabel) {
-    const site = await openObservatoryPage()
+    const site = await medirEtapa('leitura', () => openObservatoryPage())
     leituraMv = buildMudancasView(site.obs, { niche: view.header.niche }, new Set())
   }
   return { tipo: 'concorrente', pagina, obs, view, canAdmin, leituraMv, recente: recenteDe(obs), estado: sp, medidas }
