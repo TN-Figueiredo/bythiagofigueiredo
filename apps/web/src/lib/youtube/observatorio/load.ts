@@ -640,7 +640,7 @@ async function readOwnSnapshots(sb: SupabaseClient, own: readonly Pick<OwnChanne
   }
 }
 
-const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? spDayStart(ssAt) : null)
+export const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? spDayStart(ssAt) : null)
 
 /**
  * The site-wide facts a one-channel dataset cannot derive from its own rows (see SiteScope): two columns of every

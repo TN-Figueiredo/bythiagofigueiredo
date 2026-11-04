@@ -366,6 +366,42 @@ export interface ICronHealthReport {
   disabledNames: string[]
 }
 
+/**
+ * Jobs que ninguém agenda: quem os chama é outro cron (F3-cache T3). Ficam fora de `computeExpectedRuns` e do `vercel.json`;
+ * o vigia lê a dupla "pedido" (o cron grava logo antes de chamar) e "feito" (a rota grava no fim do aquecimento).
+ */
+export const JOBS_SEM_GRADE = ['observatorio-aquecer'] as const
+const AQUECER_PEDIDO = 'observatorio-aquecer-pedido'
+/** O aquecimento leva ~20 s no pior surto medido; passados 5 min do pedido sem um "feito" depois dele, algo se perdeu. */
+const PRAZO_DO_AQUECIMENTO_MS = 5 * 60_000
+
+/**
+ * Vermelho (`late`) se a última tentativa de aquecer falhou, ou se houve pedido há mais de 5 min e nenhum aquecimento bem-sucedido veio
+ * depois dele (pedido perdido, rota morta depois do 202, estouro de tempo). Sem pedido, sem dívida: dias sem coleta com lista ficam verdes.
+ */
+export function evaluateAquecer(pedido: ICronHealthRow | undefined, feito: ICronHealthRow | undefined, now: Date): ICronHealthItem {
+  const name = JOBS_SEM_GRADE[0]
+  if (!pedido && !feito) {
+    return { name, status: 'unknown', schedules: [], severity: null, lastSuccessAt: null, lastFailureAt: null, lastError: null, consecutiveFailures: null, expectedLastRun: null, graceMinutes: null }
+  }
+  const pedidoMs = pedido?.last_success_at ? Date.parse(pedido.last_success_at) : Number.NaN
+  const feitoMs = feito?.last_success_at ? Date.parse(feito.last_success_at) : Number.NEGATIVE_INFINITY
+  const perdido = Number.isFinite(pedidoMs) && pedidoMs > feitoMs + PRAZO_DO_AQUECIMENTO_MS && now.getTime() - pedidoMs > PRAZO_DO_AQUECIMENTO_MS
+  const falhou = (feito?.consecutive_failures ?? 0) >= 1
+  return {
+    name,
+    status: perdido || falhou ? 'late' : 'ok',
+    schedules: [],
+    severity: 'info',
+    lastSuccessAt: feito?.last_success_at ?? null,
+    lastFailureAt: feito?.last_failure_at ?? null,
+    lastError: feito?.last_error ?? null,
+    consecutiveFailures: feito?.consecutive_failures ?? null,
+    expectedLastRun: null,
+    graceMinutes: PRAZO_DO_AQUECIMENTO_MS / 60_000,
+  }
+}
+
 /** Um item da agenda como linha do relatório: `agenda:<nome>` não colide com nome de rota (OP-5: nenhuma chave de cron_health por tarefa). */
 function itemDaAgenda(a: ItemAgenda): ICronHealthItem {
   return {
@@ -391,6 +427,7 @@ export function buildCronHealthReport(rows: ICronHealthRow[], now: Date, agenda?
   const crons = Array.from(groups.entries())
     .map(([name, schedules]) => evaluateCron(name, schedules, rowsByName.get(name), now))
     .sort((a, b) => a.name.localeCompare(b.name))
+    .concat([evaluateAquecer(rowsByName.get(AQUECER_PEDIDO), rowsByName.get(JOBS_SEM_GRADE[0]), now)])
     .concat((agenda ?? []).map(itemDaAgenda))
 
   const unknownCrons = crons.filter((c) => c.status === 'unknown')

@@ -13,6 +13,7 @@ import { juntarAlvos, semListaDeCanais, sitesSemLista } from './alvos-do-cache'
 import { avisarDono, type ContagemAviso } from './aviso'
 import { CATALOGO, notaDoInterruptorDaAgenda, tarefasDesligadas } from './catalogo'
 import { despachar, type EstadoFinalTarefa, type OpsAgenda } from './despachante'
+import type { PedidoDeAquecimento } from './pedir-aquecimento'
 import { adiar, esgotar, fechar, lerEstado, soltarArrendamento, tomar, tomarArrendamento } from './estado'
 import { extrasDoDisparo, juntarVermelho } from './extras-arquivo'
 import { CRON_MESSAGE_MAX, PROOF_MIN_MS, fecharDisparo, relatarAgenda } from './fecho'
@@ -216,6 +217,8 @@ function resumoDoLote(r: BatchResult): Omit<BatchResult, 'siteIds' | 'healthSite
  */
 export async function executarAgenda(o: {
   supabase: SupabaseClient; apiKey: string; runId: string; t0: number; deps?: DepsAgenda
+  /** F3-cache T3: onde a agenda soma o que invalidou, para o cron pedir o aquecimento depois (ausente = não pede). */
+  pedido?: PedidoDeAquecimento
 }): Promise<{ resposta: Response; semAgenda?: undefined } | { resposta: null; semAgenda: string }> {
   const { supabase: sb, apiKey, runId, t0 } = o
   const agora = o.deps?.agora ?? Date.now
@@ -336,7 +339,10 @@ export async function executarAgenda(o: {
     // canal a canal: o lote, a fase semanal (grava a série diária e carimba só weekly_pass_date) e as marcas de idade (grava marcas que não mexem em last_ok_synced_at)
     const extraDe = (nome: string): unknown => resumo.tarefas.find(t => t.tarefa === nome)?.extra
     const inteiros = sitesSemLista({ tarefas: resumo.tarefas, visitados, sitesDasLinhas: (linhas ?? []).map(r => r.site_id) })
-    for (const a of juntarAlvos({ lote: f.lote, semanal: extraDe('serie_semanal'), marcas: extraDe('marcas_de_idade'), inteiros })) { if (a.channelIds) invalidateObservatory(a.siteId, a.channelIds); else invalidateObservatory(a.siteId) }
+    for (const a of juntarAlvos({ lote: f.lote, semanal: extraDe('serie_semanal'), marcas: extraDe('marcas_de_idade'), inteiros })) {
+      if (a.channelIds) invalidateObservatory(a.siteId, a.channelIds); else invalidateObservatory(a.siteId)
+      o.pedido?.somar(a.siteId, a.channelIds)
+    }
 
     // 10. Depois de `cron_health` gravado: o aviso ao dono. Falha ou falta de tempo nunca mudam a resposta.
     let avisosEnviados: ContagemAviso | null = null
@@ -353,7 +359,7 @@ export async function executarAgenda(o: {
         const c = await comPrazo(fecharApagamentos(sb, { prazoMs: 5000 }), 6000)
         if ('valor' in c) {
           apagamentos = c.valor
-          for (const siteId of c.valor.sites) invalidateObservatory(siteId)
+          for (const siteId of c.valor.sites) { invalidateObservatory(siteId); o.pedido?.somar(siteId, null) }
         }
       } catch { /* a conclusão nunca muda a resposta */ }
     }

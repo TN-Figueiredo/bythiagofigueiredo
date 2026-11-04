@@ -604,6 +604,14 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
       ] })
       expect(vi.mocked(invalidateObservatory).mock.calls).toEqual([['A', ['a1', 'a3']], ['C']])
     })
+    it('F3-cache T3: lote ∪ marcas somam no pedido de aquecimento (site inteiro como null); sem pedido nada muda', async () => {
+      const somar = vi.fn()
+      await executarAgenda({ supabase: banco.sb, apiKey: 'chave', runId: 'run-1', t0: T0, pedido: { somar }, deps: { catalogo: [
+        tarefa('sincronizar_canais', { ordem: 1, peso: 'pesada', nuncaDesliga: true, rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: lote({ synced: 1, siteIds: ['A'], channelIdsBySite: { A: ['a1'] } }) }) }),
+        tarefa('marcas_de_idade', { ordem: 2, rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: { channelIdsBySite: { A: ['a3'] }, sitesInteiros: ['C'] } }) }),
+      ] } })
+      expect(somar.mock.calls).toEqual([['A', ['a1', 'a3']], ['C', null]])
+    })
     it('a fase semanal (grava a série diária e carimba só weekly_pass_date) entra na lista do disparo', async () => {
       await rodarAgenda({ catalogo: [
         tarefa('serie_semanal', { ordem: 1, peso: 'pesada', rodar: async () => ({ estado: 'ok', feitas: 1, deixadas: 0, extra: { channelIdsBySite: { A: ['a2'], B: ['b1'] } } }) }),

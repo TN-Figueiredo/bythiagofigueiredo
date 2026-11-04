@@ -64,7 +64,7 @@ async function buildPack(siteId: string, channelId: string, videoLimit: number, 
 const cachedPack = (siteId: string, channelId: string) => unstable_cache(comChaveFixa(ENTRADAS.pacote, buildPack), [ENTRADAS.pacote, String(PACK_VERSION)], { tags: tagsDoCanal(siteId, channelId), revalidate: PACK_TTL_SECONDS })
 
 /** One channel's heavy rows: the stored pack when it can be trusted, the database otherwise. */
-async function readChannel(sb: SupabaseClient, siteId: string, c: ChannelRow, seriesStartAt: number | null, now: number): Promise<ChannelRows> {
+export async function readChannel(sb: SupabaseClient, siteId: string, c: Pick<ChannelRow, 'id' | 'video_limit' | 'last_ok_synced_at'>, seriesStartAt: number | null, now: number): Promise<ChannelRows> {
   const direct = () => loadChannelRows(sb, { channelId: c.id, videoLimit: c.video_limit, seriesStart: seriesStartAt, now })
   // A channel that never finished a sync is filling up right now (the first sync runs in after() and writes for up to
   // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
