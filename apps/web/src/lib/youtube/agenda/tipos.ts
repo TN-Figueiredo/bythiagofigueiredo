@@ -41,7 +41,10 @@ export interface ResultadoTarefa {
   detalhe?: Record<string, number>
   extra?: unknown
 }
-export interface ContextoTarefa { t0: number; agora: () => number; apiKey: string; sb: SupabaseClient; linhas: BatchRow[] | null }
+export interface ContextoTarefa { t0: number; agora: () => number; apiKey: string; sb: SupabaseClient; linhas: BatchRow[] | null
+  /** Os sites que o lote ou a fase semanal começaram a gravar (preenchido por quem grava): a agenda derruba o cache deles se a tarefa estourar o prazo ou lançar. */
+  visitados?: Set<string>
+}
 
 export interface Tarefa {
   /** A chave em `competitor_agenda_runs.task`. */

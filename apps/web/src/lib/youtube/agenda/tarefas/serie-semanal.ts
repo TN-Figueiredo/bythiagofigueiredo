@@ -13,7 +13,7 @@ export const serieSemanal: Pick<Tarefa, 'rodar' | 'devidaPeloDado'> = {
     const guarda = await schemaTablesReady(c.sb, schemaGroups('e1e2'), { signal: AbortSignal.timeout(BANCO_MS) })
     if (guarda) return { estado: 'erro', feitas: 0, deixadas: null, motivo: guarda.tipo === 'ausente' ? 'schema_ausente' : 'schema_nao_conferido' }
     if (!c.linhas) return { estado: 'erro', feitas: 0, deixadas: null, motivo: 'canais_nao_lidos' }
-    const w = await runWeeklyPhase(c.linhas, { apiKey: c.apiKey, started: c.t0, now: c.agora })
+    const w = await runWeeklyPhase(c.linhas, { apiKey: c.apiKey, started: c.t0, now: c.agora, visited: c.visitados })
     // o número de erros da fase fica na linha da cota do dia do site, que é durável; a resposta do cron ninguém guarda
     for (const [siteId, n] of Object.entries(w.errorsBySite)) {
       await recordQuota(c.sb, { siteId, nowMs: c.agora(), units: 0, mode: 'competitors_semanal', extra: { erros_semanal: n } }).catch(() => undefined)

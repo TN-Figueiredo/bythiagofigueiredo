@@ -1,5 +1,5 @@
 // Observatório — the loader of the CMS pages. Live tables are read on every render; the heavy rows of each channel
-// come from Next's data cache (one packed entry per channel, tag observatorio:<siteId>).
+// come from Next's data cache (one packed entry per channel, tags observatorio:<siteId> and observatorio:<siteId>:<channelId>).
 //
 // SECURITY: everything here reads with the service client (no RLS) and what it reads is stored. The cached function
 // takes no session, cookie or header; `siteId` is part of the key and of the tag. The CALLER decides who may see a
@@ -14,7 +14,7 @@ import type { Dataset } from './types'
 import { loadLiveRows, loadChannelLiveRows, mapLimit, rowsToDataset, observedVideoIds, type ChannelRow, type ObservatoryRows } from './load'
 import { loadChannelRows, assembleRows } from './load-channel'
 import { packWithinBudget, unpackChannel, PACK_VERSION, PACK_BUDGET, type ChannelRows } from './pack'
-import { observatoryTag } from './cache-tag'
+import { ENTRADAS, comChaveFixa, tagsDoCanal } from './cache-tag'
 import { observatoryNow } from './now'
 import { contarFrio, medirEtapa } from './medicao-abertura'
 
@@ -22,7 +22,7 @@ import { contarFrio, medirEtapa } from './medicao-abertura'
  * Safety net for a write that did not invalidate (a sync killed before its end, a writer added without the call):
  * after this many seconds the entry is served once more and recomputed in the background.
  */
-export const PACK_TTL_SECONDS = 900
+export const PACK_TTL_SECONDS = 3600
 /** Channels read at the same time (each one runs up to three reads in parallel). */
 const CHANNEL_CONCURRENCY = 6
 
@@ -61,7 +61,7 @@ async function buildPack(siteId: string, channelId: string, videoLimit: number, 
   if (packed.length > PACK_BUDGET) warn('observatório: o pacote do canal ' + channelId + ' passou do orçamento do cache (' + packed.length + ' de ' + PACK_BUDGET + ' caracteres)', { siteId, channelId, size: packed.length })
   return packed
 }
-const cachedPack = (siteId: string) => unstable_cache(buildPack, ['observatorio-pack', String(PACK_VERSION)], { tags: [observatoryTag(siteId)], revalidate: PACK_TTL_SECONDS })
+const cachedPack = (siteId: string, channelId: string) => unstable_cache(comChaveFixa(ENTRADAS.pacote, buildPack), [ENTRADAS.pacote, String(PACK_VERSION)], { tags: tagsDoCanal(siteId, channelId), revalidate: PACK_TTL_SECONDS })
 
 /** One channel's heavy rows: the stored pack when it can be trusted, the database otherwise. */
 async function readChannel(sb: SupabaseClient, siteId: string, c: ChannelRow, seriesStartAt: number | null, now: number): Promise<ChannelRows> {
@@ -70,7 +70,7 @@ async function readChannel(sb: SupabaseClient, siteId: string, c: ChannelRow, se
   // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
   // first render. It has few rows, so it is read on every render until its first good sync.
   if (!observatoryCacheEnabled() || c.last_ok_synced_at == null) return direct()
-  const rows = unpackChannel(await cachedPack(siteId)(siteId, c.id, c.video_limit, seriesStartAt, c.last_ok_synced_at))
+  const rows = unpackChannel(await cachedPack(siteId, c.id)(siteId, c.id, c.video_limit, seriesStartAt, c.last_ok_synced_at))
   if (rows) return rows
   // an entry of another PACK_VERSION or a damaged one: this render reads the database, never an empty channel
   warn('observatório: a entrada de cache do canal ' + c.id + ' não pôde ser lida; a tela leu o banco', { siteId, channelId: c.id })

@@ -310,3 +310,31 @@ describe('runFecharMarcas: prova e precedência', () => {
     expect(MOTIVOS_DAS_MARCAS).toHaveLength(10)
   })
 })
+
+describe('runFecharMarcas: a lista do que foi enviado nasce antes da gravação (F3-cache)', () => {
+  const dois = () => pendingOk([item({ id: 'v1' }), item({ id: 'v2' })])
+  it('gravação boa: escritos traz os dois vídeos com o site (mutante `escritos: []` falha aqui)', async () => {
+    const { r } = await rodar(dois(), applyOk({ marcas: 2 }))
+    expect(r.escritos).toEqual([{ videoId: 'v1', siteId: 's1' }, { videoId: 'v2', siteId: 's1' }])
+  })
+  it('prazo do cliente na gravação (a transação pode ter terminado): banco_nao_respondeu COM a lista', async () => {
+    const { r } = await rodar(dois(), () => Promise.reject(Object.assign(new Error('x'), { name: 'TimeoutError' })))
+    expect(r.motivo).toBe('banco_nao_respondeu')
+    expect(r.escritos).toEqual([{ videoId: 'v1', siteId: 's1' }, { videoId: 'v2', siteId: 's1' }])
+  })
+  it('resposta torta depois da gravação: resposta_invalida COM a lista', async () => {
+    const { r } = await rodar(dois(), { data: { oi: 1 }, error: null })
+    expect(r.motivo).toBe('resposta_invalida')
+    expect(r.escritos).toHaveLength(2)
+  })
+  it('erro de gravação com código: gravacao_falhou COM a lista', async () => {
+    const { r } = await rodar(dois(), { data: null, error: { code: '23505', message: SENTINELA } })
+    expect(r.motivo).toBe('gravacao_falhou')
+    expect(r.escritos).toHaveLength(2)
+  })
+  it('função ausente na gravação: nada foi gravado, sem lista', async () => {
+    const { r } = await rodar(dois(), { data: null, error: { code: '42883', message: 'x' } })
+    expect(r.motivo).toBe('schema_ausente')
+    expect(r.escritos).toBeUndefined()
+  })
+})

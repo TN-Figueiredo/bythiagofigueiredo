@@ -6,7 +6,7 @@ import 'server-only'
 // Nunca rejeita. Vídeo dentro da janela: nenhuma consulta.
 import { unstable_cache } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { observatoryTag } from '../cache-tag'
+import { comChaveFixa, tagsDoCanal, ENTRADAS } from '../cache-tag'
 import { observatoryCacheEnabled } from '../load-page'
 import { DAY } from '../time'
 import { subidasDoVideoLido } from '../medidas/do-canal'
@@ -41,7 +41,7 @@ async function lerGuardado<T>(p: PedidoDoVideo, parte: string, ler: () => Promis
   try {
     const f = comPrazo(
       observatoryCacheEnabled() && p.okSyncedAt !== null
-        ? unstable_cache(ler, ['medidas-telas-video', parte, String(MEDIDAS_TELAS_V), p.siteId, p.video.id, String(p.okSyncedAt)], { tags: [observatoryTag(p.siteId)], revalidate: VALIDADE_S })()
+        ? unstable_cache(comChaveFixa(ENTRADAS.video, ler), [ENTRADAS.video, parte, String(MEDIDAS_TELAS_V), p.siteId, p.video.id, String(p.okSyncedAt)], { tags: tagsDoCanal(p.siteId, p.channelId), revalidate: VALIDADE_S })()
         : ler(),
       PRAZO_DAS_MEDIDAS_MS,
     )

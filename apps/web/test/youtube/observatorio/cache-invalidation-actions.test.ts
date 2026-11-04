@@ -42,12 +42,12 @@ describe('ações que sincronizam invalidam o cache do Observatório', () => {
     const { syncCompetitorNow, syncFn } = await load()
     expect((await syncCompetitorNow('c1')).ok).toBe(true)
     expect(syncFn).toHaveBeenCalledTimes(1)
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:c1', { expire: 0 }]])
   })
   it('syncCompetitorNow: a sincronização lançou no meio (dado parcial): invalida mesmo assim', async () => {
     const { syncCompetitorNow } = await load({ sync: async () => { throw new Error('YouTube API 500') } })
     await expect(syncCompetitorNow('c1')).rejects.toThrow('YouTube API 500')
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:c1', { expire: 0 }]])
   })
   it('syncCompetitorNow: sem permissão ou canal de outro site: não sincroniza nem invalida', async () => {
     expect((await (await load({ allowed: false })).syncCompetitorNow('c1')).ok).toBe(false)
@@ -64,13 +64,22 @@ describe('ações que sincronizam invalidam o cache do Observatório', () => {
   })
   it('syncFullHistory: invalida no sucesso e na falha', async () => {
     expect((await (await load()).syncFullHistory('c1')).ok).toBe(true)
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:c1', { expire: 0 }]])
     const failing = await load({ sync: async () => { throw new Error('quota') } })
     expect(await failing.syncFullHistory('c1')).toEqual({ ok: false, error: 'quota' })
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:c1', { expire: 0 }]])
   })
   it('syncFullHistory: sem permissão: nada', async () => {
     expect((await (await load({ allowed: false })).syncFullHistory('c1')).ok).toBe(false)
+    expect(revalidateTag).not.toHaveBeenCalled()
+  })
+
+  it('updateVideoLimit: o canal cai (video_limit é lido pelas medidas e é argumento do pacote); sem acesso, nada cai', async () => {
+    const { updateVideoLimit } = await load()
+    expect((await updateVideoLimit('c1', 200)).ok).toBe(true)
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1:c1', { expire: 0 }]])
+    revalidateTag.mockClear()
+    expect((await (await load({ allowed: false })).updateVideoLimit('c1', 50)).ok).toBe(false)
     expect(revalidateTag).not.toHaveBeenCalled()
   })
 })

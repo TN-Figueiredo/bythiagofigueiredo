@@ -102,7 +102,7 @@ describe('M10a: carregadores e taxa semanal (Tarefa 9)', () => {
     expect(r.text).not.toMatch(/parou/)
     expect(obs.weeklyRate('a1', sp(D(17) + 'T12:00:00'), sp(D(24) + 'T12:00:00')).vpd).not.toBeNull()
   })
-  it('6. PACK_VERSION é 3', () => { expect(PACK_VERSION).toBe(3) })
+  it('6. PACK_VERSION é 4', () => { expect(PACK_VERSION).toBe(4) })
   it('7. archive_frozen_at ilegível lança ObservatoryLoadError (nunca vídeo ativo calado)', () => {
     const r = rows({ channels: [channel()], videos: [video('frz', 50, { archive_frozen_at: 'lixo' })] })
     expect(() => rowsToDataset(r, NOW)).toThrow(ObservatoryLoadError)

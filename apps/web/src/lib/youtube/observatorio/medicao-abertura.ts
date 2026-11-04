@@ -11,6 +11,8 @@ export interface MedicaoDaAbertura {
   etapas: Record<string, number>
   /** Quantas leituras do banco o cache não evitou, por tipo. Inclui recálculo por trás de entrada velha, que ninguém espera. */
   frios: Record<string, number>
+  /** Maior idade (s) de uma medida servida do cache nesta abertura (`agoraMs − lidoEm`); 0 se nada velho foi servido. */
+  idadeMaxS?: number
 }
 
 const atual = new AsyncLocalStorage<MedicaoDaAbertura>()
@@ -40,10 +42,18 @@ export function contarFrio(nome: string): void {
   if (m) m.frios[nome] = (m.frios[nome] ?? 0) + 1
 }
 
+/** Registra a idade (ms) de uma entrada servida do cache; guarda o maior valor da abertura. */
+export function registrarIdadeServida(idadeMs: number): void {
+  const m = atual.getStore()
+  if (!m) return
+  const s = Math.max(0, Math.round(idadeMs / 1000))
+  if (s > (m.idadeMaxS ?? 0)) m.idadeMaxS = s
+}
+
 /** A linha do log. Procurar por `obs-abertura`. */
 export function linhaDaMedicao(m: MedicaoDaAbertura): string {
   const etapas = Object.fromEntries(Object.entries(m.etapas).map(([k, v]) => [k, Math.round(v)]))
-  return JSON.stringify({ evento: 'obs-abertura', tela: m.tela, total_ms: Math.round(performance.now() - m.inicio), etapas, frios: m.frios })
+  return JSON.stringify({ evento: 'obs-abertura', tela: m.tela, total_ms: Math.round(performance.now() - m.inicio), etapas, frios: m.frios, idade_max_s: m.idadeMaxS ?? 0 })
 }
 
 /** Grava a linha quando a resposta terminar. `after` lança fora de uma requisição: medir nunca derruba a tela. */

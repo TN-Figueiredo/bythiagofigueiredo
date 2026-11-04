@@ -117,8 +117,13 @@ export interface WeeklyPhaseResult {
   firstError?: string
   /** Erros da fase por site: o número de cada site vai para a linha da cota do dia dele. */
   errorsBySite: Record<string, number>
+  /**
+   * Os canais (competitor_channels.id, a linha) que a fase visitou sem `skipped`, por site: gravam a série diária e
+   * carimbam só weekly_pass_date, então o cache do canal tem de cair. Inclui o que falhou com erro genérico (pode ter inserido pontos antes).
+   */
+  channelIdsBySite: Record<string, string[]>
 }
-const emptyWeekly = (): WeeklyPhaseResult => ({ ran: false, visited: 0, complete: 0, pending: 0, recorded: 0, deferred: 0, promoted: 0, errors: 0, unitsUsed: 0, longWindowChanges: 0, thumbFailed: 0, thumbSkipped: 0, versionFailed: 0, errorsBySite: {} })
+const emptyWeekly = (): WeeklyPhaseResult => ({ ran: false, visited: 0, complete: 0, pending: 0, recorded: 0, deferred: 0, promoted: 0, errors: 0, unitsUsed: 0, longWindowChanges: 0, thumbFailed: 0, thumbSkipped: 0, versionFailed: 0, errorsBySite: {}, channelIdsBySite: {} })
 
 export interface BatchResult {
   synced: number
@@ -136,7 +141,12 @@ export interface BatchResult {
   remainingDue: number
   stoppedForTime: boolean
   shorts_probe?: ShortProbeStats
-  /** Sites with at least one channel synced or errored in this run (an errored sync may have written part of its data). */
+  /**
+   * Os canais (competitor_channels.id, a linha, nunca o channel_id do YouTube) que este disparo pode ter gravado, por site: o sincronizado,
+   * o que terminou em erro (grava parcial) e os da fase semanal. É daqui que o cache cai canal a canal.
+   */
+  channelIdsBySite: Record<string, string[]>
+  /** Sites com ao menos um canal em `channelIdsBySite` (derivado das chaves dele: nunca há site sem canal). */
   siteIds: string[]
   /** Todo site com canal concorrente, sincronizado ou não neste disparo: a prova é lida para todos. */
   healthSiteIds: string[]
@@ -187,8 +197,10 @@ const nameOf = (r: BatchRow): string => r.channel_name ?? r.channel_id
  * continua devido pelo dado e é o primeiro do disparo seguinte.
  * Um só disjuntor de miniatura serve a todos os canais do disparo (a queda do host de imagens é de todos).
  */
-export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; started: number; now: () => number; thumbs?: boolean }): Promise<WeeklyPhaseResult> {
+export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; started: number; now: () => number; thumbs?: boolean; visited?: Set<string> }): Promise<WeeklyPhaseResult> {
   const out = emptyWeekly()
+  const touched = new Map<string, Set<string>>()
+  const touch = (row: BatchRow): void => { const set = touched.get(row.site_id) ?? new Set<string>(); set.add(row.id); touched.set(row.site_id, set) }
   const today = spDate(o.now())
   const eligible = rows.filter(r => r.missing_since == null && r.collection_paused_at == null)
   const doneToday = new Set(eligible.filter(r => r.weekly_pass_date === today).map(r => r.id))
@@ -216,11 +228,13 @@ export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; star
     for (const row of queue) {
       if (overall()) { again.push(row); continue }
       const visitStart = o.now()
+      o.visited?.add(row.site_id)
       try {
         const r = await syncCompetitorWeekly(row, o.apiKey, { thumbs: o.thumbs, thumbBreaker: breaker, deadline: () => overall() || o.now() - visitStart >= WEEKLY_CHANNEL_BUDGET_MS })
         out.visited++
         count(r)
         if (r.skipped) continue // sendo sincronizado agora: fica para o disparo seguinte
+        touch(row)
         if (r.complete) { doneToday.add(row.id); out.complete++; lastDeferred.delete(row.id); continue }
         if (r.deferred === 0) continue // nada devido e nada adiado, mas sem passada completa (vídeo ainda sem faixa): voltar a ele neste disparo não muda nada
         lastDeferred.set(row.id, r.deferred)
@@ -230,12 +244,15 @@ export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; star
         if (err instanceof WeeklyVersionError) {
           // a leitura TERMINOU (os pontos estão gravados e o canal foi carimbado, porque o recibo é o ponto): os contadores vêm do resultado
           out.visited++
+          touch(row)
           count(err.result)
           if (err.result.complete) { doneToday.add(row.id); out.complete++; lastDeferred.delete(row.id) }
           fail(row, err)
           continue
         }
         // erro da fase semanal NÃO põe o canal em erro (a sincronização dele deu certo) e não volta à fila neste disparo
+        // o erro genérico pode vir depois de pontos já inseridos: o canal entra na lista (custa um aquecimento a mais, não perde dado)
+        touch(row)
         fail(row, err)
       }
     }
@@ -244,6 +261,7 @@ export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; star
   }
   out.deferred = [...lastDeferred.values()].reduce((a, b) => a + b, 0)
   out.pending = eligible.length - doneToday.size
+  for (const [siteId, set] of touched) out.channelIdsBySite[siteId] = [...set]
   return out
 }
 
@@ -393,6 +411,11 @@ export async function runCompetitorBatch(opts: {
   thumbs?: boolean
   /** O instante em que o disparo começou (padrão: agora). Os limites de tempo do lote contam dele, não da chamada. */
   started?: number
+  /**
+   * Preenchido POR REFERÊNCIA conforme o lote começa a gravar cada canal (sincronização e fase semanal): quem chama enxerga os sites
+   * mesmo quando a corrida rejeita (`late` da rota) e não existe `result`. Aí o site inteiro cai do cache.
+   */
+  visited?: Set<string>
 }): Promise<BatchResult> {
   const now = opts.now ?? Date.now
   // `started` (A5 E16): o relógio do disparo inteiro, quando a agenda já gastou tempo antes do lote; todos os limites contam dele.
@@ -415,7 +438,7 @@ export async function runCompetitorBatch(opts: {
   const long = longErrors(rows, started)
   const longIds = new Set(long.map(e => e.row.id))
   const res: BatchResult = {
-    synced: 0, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [],
+    synced: 0, errors: 0, errorsKnown: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [], channelIdsBySite: {},
     totals: zeroTotals(), healthSiteIds: [...new Set(rows.map(r => r.site_id))], weekly: emptyWeekly(),
     acao_do_dono: [...ownerActions(rows, started), ...pausa.acao],
     ...(pausa.nota ? { nota_pausa: pausa.nota } : {}),
@@ -436,7 +459,8 @@ export async function runCompetitorBatch(opts: {
   }
   let taken = 0
   const syncedIds: string[] = []
-  const touchedSites = new Set<string>()
+  const touched = new Map<string, Set<string>>()
+  const touch = (row: BatchRow): void => { const set = touched.get(row.site_id) ?? new Set<string>(); set.add(row.id); touched.set(row.site_id, set) }
   for (const row of due) {
     if (taken >= opts.batchSize) break
     if (now() - started > opts.budgetMs) {
@@ -444,14 +468,15 @@ export async function runCompetitorBatch(opts: {
       break
     }
     taken++
+    opts.visited?.add(row.site_id)
     try {
       const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true })
       if (r.skipped) res.skipped++
-      else { res.synced++; syncedIds.push(row.id); touchedSites.add(row.site_id); add(r); lose(row.site_id, r) }
+      else { res.synced++; syncedIds.push(row.id); touch(row); add(r); lose(row.site_id, r) }
     } catch (err) {
       res.errors++
       if (longIds.has(row.id)) res.errorsKnown = (res.errorsKnown ?? 0) + 1
-      touchedSites.add(row.site_id)
+      touch(row)
       // os contadores acompanham o erro: o canal que terminou em erro também leu, limpou e perdeu cota
       const stats = syncStatsOf(err)
       if (stats) { add(stats); lose(row.site_id, stats) }
@@ -468,8 +493,9 @@ export async function runCompetitorBatch(opts: {
   // ── A5 (E2): a fase semanal. Depois dos canais devidos (a série diária vem sempre antes), antes do backfill de Shorts. ──
   // I-5: só começa se NENHUM canal devido sobrou (por tempo ou por batchSize): a série diária vem sempre antes, sem exceção.
   if (opts.weekly === true && due.length - taken === 0) {
-    res.weekly = await runWeeklyPhase(rows, { apiKey: opts.apiKey, started, now, thumbs: opts.thumbs })
+    res.weekly = await runWeeklyPhase(rows, { apiKey: opts.apiKey, started, now, thumbs: opts.thumbs, visited: opts.visited })
     const w = res.weekly
+    for (const [siteId, ids] of Object.entries(w.channelIdsBySite)) { const set = touched.get(siteId) ?? new Set<string>(); for (const id of ids) set.add(id); touched.set(siteId, set) }
     t.weeklyRecorded += w.recorded; t.weeklyDeferred += w.deferred; t.promoted += w.promoted; t.unitsUsed += w.unitsUsed
     t.longWindowChanges += w.longWindowChanges; t.thumbFailed += w.thumbFailed; t.thumbSkipped += w.thumbSkipped; t.versionFailed += w.versionFailed
     // o número de erros da fase fica na linha da cota do dia do site, que é durável; a resposta do cron ninguém guarda
@@ -495,6 +521,7 @@ export async function runCompetitorBatch(opts: {
   res.shorts_probe = { ...st }
   warnIfProbeBlocked(st)
   res.remainingDue = due.length - taken
-  res.siteIds = [...touchedSites]
+  res.channelIdsBySite = Object.fromEntries([...touched].map(([siteId, set]) => [siteId, [...set]]))
+  res.siteIds = Object.keys(res.channelIdsBySite)
   return res
 }

@@ -26,6 +26,8 @@ export interface ResultadoFecharMarcas {
   ficaram: number | null
   motivo?: MotivoDasMarcas
   numeros: Record<string, number>
+  /** Os vídeos (e o site) cuja marca ou motivo foi enviado à gravação: o cache do canal deles cai (F3-cache). Montada antes do envio e devolvida também quando a gravação pode ter acontecido (prazo do cliente, resposta torta). */
+  escritos?: ReadonlyArray<{ videoId: string; siteId: string }>
 }
 
 const SCHEMA_AUSENTE = new Set(['PGRST202', '42883', '42P01'])
@@ -131,8 +133,8 @@ const NOMES_FALTA: Record<FaltaDeMarca, string> = {
 const CHAVES_DA_PROVA = ['atrasadas', 'em_duas_tabelas', 'site_divergente', 'base_divergente'] as const
 
 export async function runFecharMarcas(o: { sb: SupabaseClient; now: () => number }): Promise<ResultadoFecharMarcas> {
-  const erro = (motivo: MotivoDasMarcas, feitos = 0, numeros: Record<string, number> = {}, ficaram: number | null = null): ResultadoFecharMarcas =>
-    ({ status: 'erro', feitos, ficaram, motivo, numeros })
+  const erro = (motivo: MotivoDasMarcas, feitos = 0, numeros: Record<string, number> = {}, ficaram: number | null = null, escritos?: ResultadoFecharMarcas['escritos']): ResultadoFecharMarcas =>
+    ({ status: 'erro', feitos, ficaram, motivo, numeros, ...(escritos && escritos.length > 0 ? { escritos } : {}) })
   try {
     const agoraMs = o.now()
     const pNow = new Date(agoraMs).toISOString()
@@ -191,17 +193,24 @@ export async function runFecharMarcas(o: { sb: SupabaseClient; now: () => number
     }
     const perdidas = n.perdidas_1 + n.perdidas_7 + n.perdidas_30
 
-    // 4. Grava (mesmo p_now) e lê a prova.
+    // 4. Grava (mesmo p_now) e lê a prova. A lista do que foi enviado nasce ANTES do envio: se a gravação pode ter acontecido (prazo do cliente
+    // que não desfaz a transação, resposta torta), o cache do canal cai do mesmo jeito.
+    const siteDoVideo = new Map(lidos.map(({ pendente: p }) => [p.videoId, p.siteId]))
+    const escritos = [...new Set([...marcas.map(m => m.video_id), ...faltas.map(f => f.video_id)])].flatMap(videoId => {
+      const siteId = siteDoVideo.get(videoId)
+      return siteId === undefined ? [] : [{ videoId, siteId }]
+    })
     const g = await ida(o.sb, 'competitor_marks_apply', { p_marks: marcas, p_misses: faltas, p_now: pNow, ...comum })
     if (!g.ok) {
       if (g.falha === 'schema_ausente') return erro('schema_ausente')
       if (g.falha !== 'banco_nao_respondeu') relatar('gravacao', g.codigo)
-      return erro(g.falha === 'banco_nao_respondeu' ? 'banco_nao_respondeu' : 'gravacao_falhou')
+      return erro(g.falha === 'banco_nao_respondeu' ? 'banco_nao_respondeu' : 'gravacao_falhou', 0, {}, null, escritos)
     }
     const a = g.data
-    if (!ehObj(a) || !ehObj(a.saude)) return erro('resposta_invalida')
-    for (const k of ['marcas', 'marcas_recusadas', 'faltas', 'faltas_recusadas', 'refeitas_por_base']) if (!ehNum(a[k])) return erro('resposta_invalida')
-    for (const k of CHAVES_DA_PROVA) if (!ehNum(a.saude[k])) return erro('resposta_invalida')
+    const torta = (): ResultadoFecharMarcas => erro('resposta_invalida', 0, {}, null, escritos)
+    if (!ehObj(a) || !ehObj(a.saude)) return torta()
+    for (const k of ['marcas', 'marcas_recusadas', 'faltas', 'faltas_recusadas', 'refeitas_por_base']) if (!ehNum(a[k])) return torta()
+    for (const k of CHAVES_DA_PROVA) if (!ehNum(a.saude[k])) return torta()
     const saude = a.saude as Record<(typeof CHAVES_DA_PROVA)[number], number>
     const gravadas = a.marcas as number
     const gravadasFaltas = a.faltas as number
@@ -222,13 +231,13 @@ export async function runFecharMarcas(o: { sb: SupabaseClient; now: () => number
     }
 
     // 5. O veredito, na precedência de 6.1.
-    const fim = (motivo: MotivoDasMarcas, status: 'erro' | 'parcial'): ResultadoFecharMarcas => ({ status, feitos, ficaram, motivo, numeros })
+    const fim = (motivo: MotivoDasMarcas, status: 'erro' | 'parcial'): ResultadoFecharMarcas => ({ status, feitos, ficaram, motivo, numeros, escritos })
     if ((a.marcas_recusadas as number) > 0 || (a.faltas_recusadas as number) > 0) return fim('marca_recusada', 'erro')
     if (saude.em_duas_tabelas > 0 || saude.site_divergente > 0 || saude.base_divergente > 0) return fim('prova_inconsistente', 'erro')
     if (alarmam > 0) return fim('marcas_perdidas', 'erro')
     if (saude.atrasadas > 0 && ficaram === 0) return fim('marcas_atrasadas', 'erro')
     if (ficaram > 0) return fim('sobrou', 'parcial')
-    return { status: 'ok', feitos, ficaram, numeros }
+    return { status: 'ok', feitos, ficaram, numeros, escritos }
   } catch {
     return erro('leitura_falhou')
   }

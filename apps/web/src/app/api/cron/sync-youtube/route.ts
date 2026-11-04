@@ -9,6 +9,7 @@ import { runCompetitorBatch, batchHealth, currentSlotStart, BATCH_BUDGET_MS, COM
 import { schemaReady, readSiteHealth } from '@/lib/youtube/competitor-health'
 import { CATALOGO, agendaLigada } from '@/lib/youtube/agenda/catalogo'
 import { antesDoLoteAntigo, executarAgenda, rodarAntesDoLoteAntigo, type AntesDoLote, type CaminhoSemAgenda } from '@/lib/youtube/agenda/executar'
+import { semListaDeCanais } from '@/lib/youtube/agenda/alvos-do-cache'
 import { PROOF_MIN_MS, failureMessage, plural, readProofWithin } from '@/lib/youtube/agenda/fecho'
 import { comPrazo } from '@/lib/youtube/agenda/relogio'
 import { fecharApagamentos, provaDosAusentes, type ResultadoDoFecho } from '@/lib/youtube/competitor-missing-proof'
@@ -186,6 +187,8 @@ export async function GET(req: NextRequest) {
         return { status: 'error' as const, mode: 'competitors', error: notReady, ...alemDoLote(), health_written: true }
       }
       let result: BatchResult
+      // preenchido pelo lote POR REFERÊNCIA conforme ele começa a gravar cada canal: no `late` não existe `result`
+      const visited = new Set<string>()
       // `t0` (o relógio da FUNÇÃO) nasce acima, antes da agenda: a prova e a gravação do resumo descontam o que o disparo já gastou
       let batchTimer: ReturnType<typeof setTimeout> | undefined
       try {
@@ -194,10 +197,13 @@ export async function GET(req: NextRequest) {
         const late = new Promise<never>((_, reject) => { batchTimer = setTimeout(() => reject(new Error('o disparo passou do tempo: o lote não terminou em ' + Math.round((FUNCTION_LIMIT_MS - RECORD_RESERVE_MS) / 1000) + ' s')), Math.max(0, FUNCTION_LIMIT_MS - RECORD_RESERVE_MS - (Date.now() - t0))) })
         late.catch(() => undefined) // a corrida abaixo é quem trata; sem isto a rejeição tardia (lote que terminou antes) viraria erro solto
         // `weekly: WEEKLY_PHASE` liga a fase semanal do disparo; a volta é UMA linha (a constante acima), que também avisa a prova
-        result = await Promise.race([runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: WEEKLY_PHASE, started: t0 }), late])
+        result = await Promise.race([runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: WEEKLY_PHASE, started: t0, visited }), late])
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors' } })
+        // o lote segue gravando por trás: o site inteiro de cada canal que ele começou a gravar cai do cache. Nunca impede o `cron_health` vermelho.
+        // Janela aceita: o que o lote gravar depois desta chamada fica velho até o prazo da entrada (3.600 s).
+        try { for (const siteId of visited) invalidateObservatory(siteId) } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-late-invalidate' } }) }
         await recordCronFailure('sync-youtube-competitors', failureMessage({ semAgenda, tarefas: problemasAntes, lote: message, prova: [], cota: null }))
         return { status: 'error' as const, mode: 'competitors', error: message, ...alemDoLote(), health_written: true }
       } finally {
@@ -239,8 +245,9 @@ export async function GET(req: NextRequest) {
       }
       if (result.synced > 0) revalidatePath('/cms/youtube/competitors', 'layout')
       // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
-      const { siteIds, healthSiteIds: _healthSiteIds, ...summary } = result
-      for (const siteId of siteIds) invalidateObservatory(siteId)
+      // a lista de canais não vai no corpo da resposta (cresce com o surto), como `siteIds`
+      const { siteIds, healthSiteIds: _healthSiteIds, channelIdsBySite, ...summary } = result
+      for (const siteId of siteIds) invalidateObservatory(siteId, (channelIdsBySite ?? {})[siteId])
       // (A5 E9) termina o que ficou no Blob, só com tempo sobrando; nunca muda a resposta nem o cron_health (já gravado)
       let apagamentos: ResultadoDoFecho | null = null
       if (FUNCTION_LIMIT_MS - 3000 - (Date.now() - t0) >= 8000) {
@@ -252,7 +259,7 @@ export async function GET(req: NextRequest) {
           }
         } catch { /* a conclusão nunca muda a resposta */ }
       }
-      return { status: 'ok' as const, mode: 'competitors', ...summary, prova, apagamentos, ...alemDoLote(), health_written: true }
+      return { status: 'ok' as const, mode: 'competitors', ...summary, ...(summary.weekly ? { weekly: semListaDeCanais(summary.weekly) } : {}), prova, apagamentos, ...alemDoLote(), health_written: true }
     }
 
     let query = supabase

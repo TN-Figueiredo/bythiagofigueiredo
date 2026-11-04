@@ -15,7 +15,7 @@ export const sincronizarCanais: Pick<Tarefa, 'rodar' | 'devidaPeloDado'> = {
   rodar: async (c): Promise<ResultadoTarefa> => {
     const guarda = await schemaTablesReady(c.sb, schemaGroups('e1e2'), { signal: AbortSignal.timeout(BANCO_MS) })
     if (guarda) return { estado: 'erro', feitas: 0, deixadas: null, motivo: guarda.tipo === 'ausente' ? 'schema_ausente' : 'schema_nao_conferido' }
-    const r = await runCompetitorBatch({ apiKey: c.apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: false, started: c.t0 })
+    const r = await runCompetitorBatch({ apiKey: c.apiKey, batchSize: BATCH_SIZE, budgetMs: BATCH_BUDGET_MS, weekly: false, started: c.t0, visited: c.visitados })
     const detalhe = { sincronizados: r.synced, erros: r.errors, pulados: r.skipped, devidos_sobrando: r.remainingDue }
     if (!batchHealth(r).ok) return { estado: 'erro', feitas: r.synced, deixadas: null, motivo: 'lote_em_erro', detalhe, extra: r }
     if (r.remainingDue > 0 || r.stoppedForTime || r.skipped > 0) {

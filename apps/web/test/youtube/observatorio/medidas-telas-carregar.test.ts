@@ -156,33 +156,35 @@ describe('E5a T2: erro, cache e prazo', () => {
     const consultados = new Set(f.consultas.flatMap((c) => c.filtros.map((x) => x.valor)).filter((v) => typeof v === 'string' && /^c\d+$/.test(v)))
     expect(consultados.size).toBeLessThan(75)
   })
-  it('entrada de 45 minutos com o banco saudável: lê de novo, sai medido e nenhum evento vai ao Sentry', async () => {
+  it('entrada de 7 horas (acima do teto de 6 h) com o banco saudável: lê de novo, sai medido e nenhum evento vai ao Sentry', async () => {
     const f = falsoPostgrest(tabelas(['a']))
     const p = { siteId: 's1', obs: obsDe(['a']), canais: ['a'] }
     await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 })
     const n = doCanal(f, 'competitor_videos')
-    const r = await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 45 * MIN })
+    const r = await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 7 * 60 * MIN })
     expect(doCanal(f, 'competitor_videos')).toBe(n + 1)
     expect(r.porCanal.get('a') && 'naoCarregou' in r.porCanal.get('a')!).toBe(false)
     expect(sentry.captureMessage).not.toHaveBeenCalled()
   })
-  it('entrada de 45 minutos com o banco falhando: não carregou com a causa do banco, nunca cache_vencido', async () => {
+  it('entrada de 7 horas (acima do teto de 6 h) com o banco falhando: não carregou com a causa do banco, nunca cache_vencido', async () => {
     const t = tabelas(['a'])
     const f = falsoPostgrest(t)
     const p = { siteId: 's1', obs: obsDe(['a']), canais: ['a'] }
     await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 })
     const g = falsoPostgrest(t, { erros: { competitor_channels: { code: 'XX000', message: 'x' } } })
-    const r = await carregarMedidasDoSite(g.sb, { ...p, agoraMs: T0 + 45 * MIN })
+    const r = await carregarMedidasDoSite(g.sb, { ...p, agoraMs: T0 + 7 * 60 * MIN })
     expect(r.porCanal.get('a')).toEqual({ naoCarregou: 'erro_do_banco' })
   })
-  it('entrada de 16 minutos é lida de novo; de 10 minutos é usada sem consulta', async () => {
+  it('entrada de 7 horas é lida de novo; de 10 minutos e de 5 horas é servida sem consulta', async () => {
     const f = falsoPostgrest(tabelas(['a']))
     const p = { siteId: 's1', obs: obsDe(['a']), canais: ['a'] }
     await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 })
     const n = doCanal(f, 'competitor_videos')
     await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 10 * MIN })
     expect(doCanal(f, 'competitor_videos')).toBe(n)
-    await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 16 * MIN })
+    await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 5 * 60 * MIN })
+    expect(doCanal(f, 'competitor_videos')).toBe(n)
+    await carregarMedidasDoSite(f.sb, { ...p, agoraMs: T0 + 7 * 60 * MIN })
     expect(doCanal(f, 'competitor_videos')).toBe(n + 1)
   })
   it('extras com 45 minutos e o banco saudável: lidos de novo, e o valor novo vale', async () => {
