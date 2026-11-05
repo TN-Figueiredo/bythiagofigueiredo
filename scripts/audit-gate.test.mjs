@@ -43,9 +43,14 @@ test('falha quando o id da baseline sumiu (exceção morta)', () => {
 })
 
 test('falha com a exceção vencida', () => {
-  const r = run(baseline, '2027-02-01')
+  const r = run(baseline, '2027-05-01')
   assert.equal(r.code, 1)
   assert.match(r.out, /venceu/)
+})
+
+test('renovada (dono 04/11/2026): ainda vale em 2027-02-01 e no último dia', () => {
+  assert.equal(run(baseline, '2027-02-01').code, 0)
+  assert.equal(run(baseline, '2027-04-30').code, 0)
 })
 
 test('falha sem vulnerabilities no JSON (fecha em falha)', () => {
