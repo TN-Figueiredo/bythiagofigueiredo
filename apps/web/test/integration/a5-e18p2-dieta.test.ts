@@ -570,6 +570,30 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
     })
   })
 
+  describe('12c. a entrada parcial (?passos=, resumo com a chave passos) não limpa nem suja o dia (emenda do dono, 31/10)', () => {
+    const parcial: Json = { passos: ['coleta'] }
+    it('14 dias limpos com uma parcial às 00:07 UTC em cada um: apaga', async () => {
+      await tx(async () => {
+        const c = await semear(S1)
+        for (let k = 0; k < 14; k++) await run(mais(AGORA.slice(0, 10), -k) + 'T00:07:00Z', parcial)
+        const r = await dieta(S1) as { estado: string; apagadas: number }
+        expect(r.estado).toBe('apagado')
+        expect(r.apagadas).toBe(79)
+      })
+    })
+    it('um dia só com a parcial (a execução cheia sumiu): recusa e lista o dia', async () => {
+      await tx(async () => {
+        const c = await semear(S1)
+        const dia = mais(AGORA.slice(0, 10), -5)
+        await pg.query(`delete from public.yt_own_collection_runs where ran_at = $1::timestamptz`, [`${dia}T12:30:00Z`])
+        await run(`${dia}T00:07:00Z`, parcial)
+        const antes = await linhasDe(c)
+        expect(await dieta$(S1)).toMatch(/14 dias/)
+        expect(await linhasDe(c)).toBe(antes)
+      })
+    })
+  })
+
   describe('12. execução não limpa: cada teste troca UMA das 14', () => {
     const DIA_SUJO = '2026-03-05' // k = 5
     const mutar = (nome: string, f: (r: Json, canal: string) => void, falhas?: string[]): void => {
