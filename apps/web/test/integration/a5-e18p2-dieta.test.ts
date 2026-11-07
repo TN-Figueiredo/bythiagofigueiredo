@@ -556,6 +556,20 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
     })
   })
 
+  it('12b. 14 cópias da execução real de produção são reconhecidas como limpas (Tarefa 15, passo 2; fixture de 07/11/2026)', async () => {
+    const fx = JSON.parse(readFileSync(new URL('../youtube/coleta/fixtures/e18p2-execucao-real.json', import.meta.url), 'utf8')) as { falhas: string[]; resumo: Json }
+    await tx(async () => {
+      const c = await semear(S1)
+      const outro = randomUUID()
+      const real = (): Json => JSON.parse(JSON.stringify(fx.resumo).replace(/"canal_sem_videos"/g, `"${outro}"`).replace(/"canal"/g, `"${c.canal}"`).replace(/"site"/g, `"${S1}"`)) as Json
+      await pg.query(`delete from public.yt_own_collection_runs where ran_at > $1::timestamptz - interval '20 days' and ran_at <= $1::timestamptz`, [AGORA])
+      for (let k = 0; k < 14; k++) await run(mais(AGORA.slice(0, 10), -k) + 'T12:05:54Z', real(), fx.falhas)
+      const r = await dieta(S1) as { estado: string; apagadas: number }
+      expect(r.estado).toBe('apagado')
+      expect(r.apagadas).toBe(79)
+    })
+  })
+
   describe('12. execução não limpa: cada teste troca UMA das 14', () => {
     const DIA_SUJO = '2026-03-05' // k = 5
     const mutar = (nome: string, f: (r: Json, canal: string) => void, falhas?: string[]): void => {
