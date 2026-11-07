@@ -192,9 +192,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T8: a derivação inteira é igua
   const md5 = (x: unknown): string => createHash('md5').update(JSON.stringify(x)).digest('hex')
 
   /** Deriva a tabela inteira, emagrece pela função e deriva de novo (estado e versões do canal do teste apagados). */
-  async function ida(c: Cena, ontem: string, agora: string): Promise<{ inteira: Linha[]; depois: Linha[]; apagadas: number; r2: VersoesResumo; falhas2: string[] }> {
+  /** `buracos`: dias sem nenhuma linha que o dado real já traz (R2: a falha de metadados de 21 e 22/10/2026). Só a nota "sem nenhuma linha diária" desses dias é aceita, e tem de sair IGUAL nas duas derivações. */
+  async function ida(c: Cena, ontem: string, agora: string, buracos: string[] = []): Promise<{ inteira: Linha[]; depois: Linha[]; apagadas: number; r2: VersoesResumo; falhas2: string[] }> {
     const a = await passo(c, ontem)
-    expect(a.falhas, 'derivação inteira sem nota').toEqual([])
+    const doBuraco = (f: string): boolean => /sem nenhuma linha diária em \d{4}-\d{2}-\d{2}$/.test(f) && buracos.includes(f.slice(-10))
+    expect(a.falhas.filter(f => !doBuraco(f)), 'derivação inteira sem nota (fora dos buracos do dado)').toEqual([])
+    expect(a.falhas.filter(doBuraco).map(f => f.slice(-10)).sort(), 'cada buraco declarado aparece').toEqual([...buracos].sort())
     const inteira = await versoes(c)
     const antes = await linhasDe(c)
     await execucoes(c.canal, agora)
@@ -203,6 +206,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T8: a derivação inteira é igua
     const apagadas = antes - (await linhasDe(c))
     await apagarDerivacao(c)
     const b = await passo(c, ontem)
+    if (buracos.length > 0) expect([...b.falhas].sort(), 'depois da dieta, as mesmas notas dos buracos e nenhuma outra').toEqual([...a.falhas].sort())
     return { inteira, depois: await versoes(c), apagadas, r2: b.r, falhas2: b.falhas }
   }
 
@@ -275,10 +279,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T8: a derivação inteira é igua
         await pg.query(`insert into public.yt_own_video_meta_daily select (jsonb_populate_record(null::public.yt_own_video_meta_daily,
           to_jsonb(e) || jsonb_build_object('site_id', $1::uuid, 'channel_id', $2::uuid, 'video_id', null))).* from public.e18p2_ensaio_csv e`, [c.site, c.canal])
         await pg.query(`insert into public.youtube_videos (site_id, channel_id, youtube_video_id, title, published_at)
-          select distinct $1::uuid, $2::uuid, youtube_video_id, 'Teste', '2020-01-01T12:00:00Z' from public.yt_own_video_meta_daily where channel_id = $2::uuid`, [c.site, c.canal])
+          select distinct $1::uuid, $2::uuid, youtube_video_id, 'Teste', timestamptz '2020-01-01T12:00:00Z' from public.yt_own_video_meta_daily where channel_id = $2::uuid`, [c.site, c.canal])
         await cobrir(c, ontem)
         const agora = mais(ontem, 1) + 'T15:00:00Z'
-        const { inteira, depois, apagadas } = await ida(c, ontem, agora)
+        // dias sem nenhuma linha dentro do intervalo do CSV (em 07/11/2026: 21 e 22/10, a falha de metadados conhecida)
+        const buracos = (await q(`select to_char(d, 'YYYY-MM-DD') as d from generate_series((select min(day_pt) from public.e18p2_ensaio_csv), $1::date, interval '1 day') d
+          where not exists (select 1 from public.e18p2_ensaio_csv e where e.day_pt = d::date) order by 1`, [ontem])).map(r => String(r.d))
+        console.log(`R2: dias sem linha no CSV = ${buracos.join(', ') || 'nenhum'}`)
+        const { inteira, depois, apagadas } = await ida(c, ontem, agora, buracos)
         console.log(`R2: versões=${inteira.length} linhas_apagadas=${apagadas} md5_inteira=${md5(inteira)} md5_depois=${md5(depois)}`)
         expect(depois).toEqual(inteira)
       })
