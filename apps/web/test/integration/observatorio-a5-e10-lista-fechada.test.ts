@@ -35,6 +35,24 @@ function sqlDaMg17a(): string {
   return readFileSync(`${dir}${arq}`, 'utf8')
 }
 
+/**
+ * A MG17 (E18 parte 2, dieta de metadados) também só entra aqui dentro da transação desfeita: a função do critério e o corpo novo de
+ * `yt_own_meta_cover` (que enxuga `yt_own_video_meta_daily`), extraídos por marcas do arquivo. O bloco `do` com as guardas e o `delete` não roda.
+ */
+function sqlDaMg17(): string {
+  const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
+  const arq = readdirSync(dir).find(f => f.endsWith('observatorio_a5_e18p2_dieta_de_metadados.sql'))
+  if (!arq) throw new Error('migration da MG17 ausente em supabase/migrations')
+  const sql = readFileSync(`${dir}${arq}`, 'utf8')
+  const bloco = (nome: string): string => {
+    const de = sql.indexOf(`-- >>> MG17 ${nome} (início)`)
+    const fim = sql.indexOf(`-- <<< MG17 ${nome} (fim)`)
+    if (de < 0 || fim < de) throw new Error(`marca MG17 ${nome} não achada`)
+    return sql.slice(de, fim)
+  }
+  return bloco('yt_own_meta_linhas_do_meio') + '\n' + bloco('yt_own_meta_cover') + ';'
+}
+
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 interface Par {
@@ -93,6 +111,8 @@ const LISTA: Par[] = [
   { funcao: 'yt_own_traffic_detail_apply', tabela: 'yt_own_video_traffic_detail_daily', linha: '14', disparo: 'coleta' },
   // canal próprio: cobertura de metadados (MG17a): refaz o recorte do MESMO vídeo e conjunto, nunca por idade (a MG17 troca o corpo de yt_own_meta_cover e acrescenta o par dela)
   { funcao: 'yt_own_meta_cover_set', tabela: 'yt_own_video_coverage', linha: '202 (MG17a: funde dias na cobertura)', disparo: 'coleta' },
+  // MG17 (`*_observatorio_a5_e18p2_dieta_de_metadados.sql`): o corpo novo enxuga as linhas "do meio" do dia (regra das duas pontas, nunca por idade)
+  { funcao: 'yt_own_meta_cover', tabela: 'yt_own_video_meta_daily', linha: '202 (MG17: enxuga o dia pelo critério yt_own_meta_linhas_do_meio)', disparo: 'coleta' },
   // fase de manutenção, M1 (pedido 8; disparo: cron; classe: estado de execução): `20261014000001_manutencao_m1_podas_execucao.sql`, aplicada no `bythiago_int` fora de transação.
   { funcao: 'yt_own_collection_attempts_purge', tabela: 'yt_own_collection_attempts', linha: 'manutenção, pedido 8 (estado de execução)', disparo: 'cron' },
   // S4 (T&C-coleta): `20261018000005_observatorio_a5_s4_leitura_watch.sql`; tarefa poda_leituras_watch (alvo saído há 31 d, salvo reter_ate; miniatura órfã)
@@ -142,6 +162,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
   it('toda função com delete tem par e todo par tem função', async () => {
     await emTransacao(pg, async () => {
       await pg.query(sqlDaMg17a())
+      await pg.query(sqlDaMg17())
       for (const sql of sqlsDaT13()) await pg.query(sql)
       const achadas = (await pg.query(DELETES_SQL)).rows as { funcao: string; tabela: string }[]
       const chaves = new Set(achadas.map(a => `${a.funcao}::${a.tabela}`))

@@ -127,7 +127,7 @@ export const E18P2_COBERTURA_DEPLOY: string | null = '2026-10-16'
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG16 (soltar o backup do diário). `null` = ainda não aplicada. */
 export const E6_P4_APLICADA: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG17 (a dieta de yt_own_video_meta_daily). `null` = ainda não aplicada. */
-export const E18P2_APLICADA: string | null = null
+export const E18P2_APLICADA: string | null = '2026-11-07'
 
 const PLANO_P4 = 'docs/superpowers/plans/2026-10-13-a5-e6-p4-e-e18-parte-2-dieta-final-plan.md'
 
@@ -622,6 +622,8 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
  * Fica fora dos geradores `conferenciasE*` (que seguem puros e sem `feitaEm`); só vale para o que o gerador devolve com `feitaEm` nulo.
  */
 const FEITAS: Readonly<Record<string, string>> = {
+  'e18p2-cob-d14': '2026-11-07',
+  'e18p2-d0': '2026-11-07',
   'e20-segundo-cron': '2026-10-14',
   'e1e2-d1': '2026-10-14',
   'e6-p2-primeira-execucao': '2026-10-14',

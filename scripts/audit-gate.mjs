@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 
 const ALLOWLIST = {
   'GHSA-mrhx-c7xc-m3w5': {
-    expires: '2027-01-31',
+    expires: '2027-04-30',
     reason:
       'zod <4.6.6: DoS por acúmulo de issues em z.array. cms@0.2.0 prende zod 3.23.8; mitigado em código (boundedArray, auth antes do parse).',
   },

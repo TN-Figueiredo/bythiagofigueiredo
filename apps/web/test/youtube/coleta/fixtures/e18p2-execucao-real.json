@@ -1,0 +1,95 @@
+{
+  "origem": "produção, yt_own_collection_runs de 2026-11-07 12:05:54 UTC (uma das 14 da CP14); uuids de canal trocados por 'canal' e 'canal_sem_videos', o do site por 'site'",
+  "ran_at": "2026-11-07T12:05:54.819194Z",
+  "falhas": [
+    "conferências vencidas há mais de 7 dias: 1 (e18p2-cob-d14, devida em 2026-10-30): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, \"Conferências com data\")"
+  ],
+  "resumo": {
+    "metadados": {
+      "cobertura": {
+        "canais": 1,
+        "compactacao": {
+          "indisponivel": 1
+        },
+        "compactadas": 0,
+        "descobertas": 0,
+        "falhas": 0,
+        "ok": 1,
+        "pedida": true,
+        "sem_explicacao": 0,
+        "sem_tempo": false,
+        "texto": 36,
+        "thumb": 36
+      },
+      "day_pt": "2026-11-06",
+      "dias_sem_meta": {
+        "canal_sem_videos": 0,
+        "canal": 0
+      },
+      "estado_gravado": 0,
+      "estado_sem_parte": 0,
+      "gravados": 36,
+      "ms_fases": {
+        "captura": 801,
+        "laco": 4505,
+        "leituras": 878
+      },
+      "pendentes": 0,
+      "publicos_gravados": 36,
+      "publicos_sem_contador": 0,
+      "sem_is_short": 0,
+      "sem_privacidade": 0,
+      "tentativas": {
+        "ok": 73,
+        "sem_videos": 1
+      }
+    },
+    "versoes": {
+      "abertas": {
+        "ab_lab": 1,
+        "fora_do_sistema": 0,
+        "linha_de_base": 0,
+        "nao_se_sabe": 0
+      },
+      "atraso_desconhecido": [],
+      "atraso_dias": {
+        "canal": 0
+      },
+      "canais": 2,
+      "cobertos_sem_linha": 0,
+      "cobertura_meta": "lida",
+      "confirmadas": 107,
+      "desc_sem_texto": 0,
+      "dia_ate": "2026-11-06",
+      "dia_sem_resposta": [],
+      "dias_derivados": 1,
+      "dias_sem_linha": 0,
+      "ja_derivado": 0,
+      "origem_ab_incerta": 0,
+      "origem_ab_sem_registro": 0,
+      "origem_sem_video": 0,
+      "prova": {
+        "site": {
+          "canais_com_linha_sem_estado": 0,
+          "derivado_ate": "2026-11-06",
+          "origem_cms": 0,
+          "publicos": 35,
+          "sem_explicacao": 0,
+          "sem_thumb": 0,
+          "sem_titulo": 0
+        }
+      },
+      "pulados": {
+        "privado": 0,
+        "sem_captura": 0,
+        "sem_dhash": 0
+      },
+      "recuperando": {},
+      "retoques": 0,
+      "sem_tempo": false,
+      "sem_videos": [
+        "canal_sem_videos"
+      ]
+    }
+  }
+}

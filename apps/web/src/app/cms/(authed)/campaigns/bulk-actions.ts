@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { boundedArray } from '../../../../../lib/validation/bounded-array'
 import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -8,7 +9,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 type ActionResult = { ok: true; affected: number } | { ok: false; error: string }
 
-const idsSchema = z.array(z.string().uuid()).min(1)
+// GHSA-mrhx-c7xc-m3w5: teto antes do zod (a página mostra 50; 500 sobra).
+const idsSchema = boundedArray(z.string().uuid(), 500).refine((a) => a.length >= 1, { message: 'Array must contain at least 1 element(s)' })
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()

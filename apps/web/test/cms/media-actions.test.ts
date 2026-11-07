@@ -93,6 +93,14 @@ describe('media server actions', () => {
   })
 
   describe('listMediaAssetsAction', () => {
+
+    it('GHSA-mrhx-c7xc-m3w5: 1 milhão de tags recusa rápido, sem chegar à consulta', async () => {
+      const t = performance.now()
+      const result = await listMediaAssetsAction({ tags: new Array<string>(1_000_000).fill('x'.repeat(60)) })
+      expect(performance.now() - t).toBeLessThan(500)
+      expect(result.ok).toBe(false)
+      expect(mockListMediaAssets).not.toHaveBeenCalled()
+    })
     it('returns paginated results from query module', async () => {
       mockListMediaAssets.mockResolvedValue({
         assets: [
