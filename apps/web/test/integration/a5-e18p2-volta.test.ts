@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSites } from '../helpers/limpa-cena'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -85,7 +86,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
   })
   afterAll(async () => {
     try {
-      if (pg && sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (pg && sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       if (pg) await pg.end()
     }
@@ -378,6 +379,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
     try {
       await pg.query("set local lock_timeout = '5s'")
       await pg.query(SQL17A)
+      // num banco com todas as migrations (CI) a MG17 já está aplicada: tira a função do critério dentro da transação desfeita
+      await pg.query('drop function if exists public.yt_own_meta_linhas_do_meio(uuid, uuid, date)')
       const msg = await recusa(RELIGAR())
       expect(msg).toMatch(/religar recusado/)
       const corpo = await q(`select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover'`)
@@ -393,6 +396,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, T7: os roteiros da MG17 (bythiago
       await pg.query("set local lock_timeout = '5s'")
       await pg.query(SQL17A)
       await pg.query(LINHAS_DO_MEIO) // só o bloco 1 da MG17, sem o do que grava a marca
+      await pg.query('comment on function public.yt_own_meta_linhas_do_meio(uuid, uuid, date) is null') // create or replace guarda a marca de um banco com a MG17 aplicada (CI)
       const msg = await recusa(RELIGAR())
       expect(msg).toMatch(/religar recusado/)
       const corpo = await q(`select p.prosrc like '%yt_own_meta_linhas_do_meio%' as enxuga from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'yt_own_meta_cover'`)

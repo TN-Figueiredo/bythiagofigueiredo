@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSites } from '../helpers/limpa-cena'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -80,7 +81,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17: a dieta dos metadados diár
   })
   afterAll(async () => {
     try {
-      if (pg && sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (pg && sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       if (pg) await pg.end()
     }
