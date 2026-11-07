@@ -408,7 +408,9 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
      dias)` só para v2 **e só enquanto `result_metadata.v2.p1` ainda é nulo, mais a server action do aviso**: `p1` é congelado uma vez e a janela ampla não se repete a cada rodada, Phil R3) e devolve `{p1, dias, impressoes, p1_dias_sem_meta}` por `estadoDoAlcance` + `diaComAlcanceValido` aplicados ao alcance
      bruto. **Dia que pertenceu a outro teste A/B do mesmo vídeo fica fora**: a informação é `yt_own_video_meta_daily.ab_test_id` não nulo no
      dia (e, para auditoria, `ab_tests` + `ab_test_cycles` do vídeo no intervalo). Dia sem linha de `meta_daily` conta como não excluído e
-     entra em `p1_dias_sem_meta` (gravado). Como `p1` é congelado com `p1`, `p1_dias`, `p1_impressoes`, a auditoria lê o congelado, não
+     entra em `p1_dias_sem_meta` (gravado). Desde a MG17 (07/11/2026, dieta de metadados) esse contador lê "sem linha no dia", o que inclui o dia
+     compactado (captura existiu, linha apagada por ser igual às vizinhas); `p1`, `p1_dias` e `p1_impressoes` não mudam, porque a MG17 só apaga
+     linha com `ab_test_id` nulo (Phil, parecer D11 da A5 E18 P2, M2). Como `p1` é congelado com `p1`, `p1_dias`, `p1_impressoes`, a auditoria lê o congelado, não
      recalcula. O aviso do item 7 chama a mesma função com `ate = hoje` pela server action (14 linhas de `reach_daily` + relatórios do canal).
      Teste: vídeo com 14 dias de alcance antes do teste e nenhuma linha em `ab_test_dias` produz `p1` medido e `base_estimada = false`; dia com
      `ab_test_id` de outro teste fica fora.
