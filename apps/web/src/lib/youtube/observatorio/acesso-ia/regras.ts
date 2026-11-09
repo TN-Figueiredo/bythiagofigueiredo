@@ -32,9 +32,9 @@ export const ACESSO_IA_RULES = {
   fatiaDaPodaDoRegistroDias: 30,
   fatiaDaPodaDoContadorDias: 30,
   /** AAAA-MM-DD; o controlador preenche no dia de abrir (Tarefa 20), depois da conferência da E19 estar no ledger dela. */
-  e19RecusaConferidaEm: null as string | null,
+  e19RecusaConferidaEm: '2026-10-25' as string | null,   // e19-t0-48h ok (ACOMPANHAMENTO, 25/10); recusa em main desde 23/10
   /** AAAA-MM-DD do "sim" do dono à pergunta 47; idem. */
-  excecaoDaPergunta47Em: null as string | null,
+  excecaoDaPergunta47Em: '2026-11-09' as string | null,   // "sim" do dono, ledger a5-e17-d2 de 09/11
 } as const
 
 /**
