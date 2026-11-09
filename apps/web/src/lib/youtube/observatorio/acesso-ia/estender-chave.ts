@@ -95,7 +95,13 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
   } catch { return falha('nao_conferido', { code: 'excecao' }) }
   try {
     const u = await sb.auth.admin.getUserById(userId)
-    if (u.error || !u.data?.user) return falha('sem_vinculo')
+    if (u.error) {
+      const e = u.error as { status?: number; code?: string }
+      // só "não existe" é definitivo; timeout/500 do Auth é "não conferido, rode de novo"
+      if (e.status === 404 || e.code === 'user_not_found') return falha('sem_vinculo')
+      return falha('nao_conferido', { code: codigoDe(e) })
+    }
+    if (!u.data?.user) return falha('sem_vinculo')
     const banido = (u.data.user as { banned_until?: string | null }).banned_until
     if (typeof banido === 'string' && banido !== '' && (!instanteValido(banido) || Date.parse(banido) > t)) return falha('pessoa_banida')
   } catch { return falha('nao_conferido', { code: 'excecao' }) }

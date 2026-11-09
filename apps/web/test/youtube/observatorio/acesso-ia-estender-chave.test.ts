@@ -17,14 +17,15 @@ const PERFIL = 'observatorio_leitura'
 interface Linha { name: string; site_id: string; user_id: string | null; expires_at: string; permissions: string[]; revoked_at: string | null }
 const linha = (o: Partial<Linha> = {}): Linha => ({ name: NOME, site_id: SITE, user_id: ANA, expires_at: new Date(AGORA + 10 * DIA).toISOString(), permissions: [PERFIL], revoked_at: null, ...o })
 
-function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; usuario?: boolean; casPerde?: boolean; updateErro?: boolean } = {}) {
-  const cen = { linhas: [linha()], ve: true, banidoAte: null as string | null, usuario: true, casPerde: false, updateErro: false, ...o }
+function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; usuario?: boolean; casPerde?: boolean; updateErro?: boolean; userErro?: { status?: number; code?: string }; rpc?: 'erro' | 'forma'; lancaNoUpdate?: boolean } = {}) {
+  const cen = { linhas: [linha()], ve: true, banidoAte: null as string | null, usuario: true, casPerde: false, updateErro: false, userErro: undefined as { status?: number; code?: string } | undefined, rpc: undefined as 'erro' | 'forma' | undefined, lancaNoUpdate: false, ...o }
+  const selects: string[] = []
   const updates: Array<{ set: Record<string, unknown>; filtros: Array<[string, unknown]> }> = []
   const sb = {
-    rpc: async () => ({ data: cen.ve, error: null }),
-    auth: { admin: { getUserById: async () => ({ data: { user: cen.usuario ? { id: ANA, banned_until: cen.banidoAte } : null }, error: null }) } },
+    rpc: async () => (cen.rpc === 'erro' ? { data: null, error: { code: 'XX000' } } : cen.rpc === 'forma' ? { data: 'sim', error: null } : { data: cen.ve, error: null }),
+    auth: { admin: { getUserById: async () => (cen.userErro ? { data: { user: null }, error: cen.userErro } : { data: { user: cen.usuario ? { id: ANA, banned_until: cen.banidoAte } : null }, error: null }) } },
     from: () => ({
-      select: () => ({ eq: async (_c: string, nome: string) => ({ data: cen.linhas.filter((l) => l.name === nome), error: null }) }),
+      select: (colunas?: string) => { selects.push(String(colunas)); return { eq: async (_c: string, nome: string) => ({ data: cen.linhas.filter((l) => l.name === nome), error: null }) } },
       update: (set: Record<string, unknown>) => {
         const filtros: Array<[string, unknown]> = []
         const q = {
@@ -32,6 +33,7 @@ function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; u
           is: (c: string, v: unknown) => { filtros.push([c, v]); return q },
           select: async () => {
             updates.push({ set, filtros })
+            if (cen.lancaNoUpdate) throw new Error('rede')
             if (cen.updateErro) return { data: null, error: { code: 'XX000' } }
             return { data: cen.casPerde ? [] : [{ name: NOME }], error: null }
           },
@@ -41,7 +43,7 @@ function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; u
     }),
   }
   const deps: DepsDeEstender = { sb: sb as never, agora: () => AGORA, e19: () => ({ ok: true }), excecaoEm: ymd(AGORA - 9 * DIA) }
-  return { deps, updates }
+  return { deps, updates, selects }
 }
 const pedido = { chave: NOME }
 
@@ -101,6 +103,14 @@ describe('estenderChaveDoPerfil', () => {
   it('CAS perdido (0 linhas): nada_mudou; erro do banco: nao_conferido', async () => {
     expect(await estenderChaveDoPerfil(fazer({ casPerde: true }).deps, pedido)).toMatchObject({ ok: false, recusa: 'nada_mudou' })
     expect(await estenderChaveDoPerfil(fazer({ updateErro: true }).deps, pedido)).toMatchObject({ ok: false, recusa: 'nao_conferido', code: 'XX000' })
+  })
+})
+
+describe('erros do Auth e do banco', () => {
+  it('I-3: erro passageiro do getUserById vira nao_conferido; 404 / user_not_found vira sem_vinculo', async () => {
+    expect(await estenderChaveDoPerfil(fazer({ userErro: { status: 500, code: 'unexpected_failure' } }).deps, pedido)).toMatchObject({ ok: false, recusa: 'nao_conferido', code: 'unexpected_failure' })
+    expect(await estenderChaveDoPerfil(fazer({ userErro: { status: 404, code: 'user_not_found' } }).deps, pedido)).toMatchObject({ ok: false, recusa: 'sem_vinculo' })
+    expect(await estenderChaveDoPerfil(fazer({ userErro: { code: 'user_not_found' } }).deps, pedido)).toMatchObject({ ok: false, recusa: 'sem_vinculo' })
   })
 })
 
