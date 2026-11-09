@@ -701,3 +701,17 @@ describe('relação ausente com os dois lados medidos: só onde a regra manda, n
     }
   })
 })
+
+describe('A1c: a base de views por dia diz o método de cada lado quando um é seu e o outro concorrente', () => {
+  it('seu × concorrente: a base traz as duas, na ordem dos lados; concorrente × concorrente não muda', () => {
+    const misto = buildPar(pacoteDe([mk('aa', { own: true, n: { vpd: 2, vpdPorMil: 3 } }), mk('bb', { n: { vpd: 1, vpdPorMil: 2 } })]), 'aa', 'bb')
+    for (const id of ['vpd', 'vpdPorMil'] as const) {
+      const b = linha(misto, id).base
+      expect(b).toContain('seu canal, média diária por vídeo nos 28 dias')
+      expect(b).toContain('concorrente, variação das views acumuladas desde')
+      expect(b.indexOf('seu canal')).toBeLessThan(b.indexOf('concorrente'))
+    }
+    const igual = buildPar(pacoteDe([mk('aa', { n: { vpd: 2 } }), mk('bb', { n: { vpd: 1 } })]), 'aa', 'bb')
+    expect(linha(igual, 'vpd').base).toBe('mediana das views por dia dos longos acompanhados')
+  })
+})

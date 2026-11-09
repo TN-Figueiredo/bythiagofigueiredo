@@ -516,7 +516,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
 
   // as duas janelas do "Views por dia nos longos" diferem quando só um dos lados é seu (a tela escreve o aviso)
   if (modelo.a.own !== modelo.b.own && modelo.linhas.some((l) => l.id === 'vpd')) {
-    avisos.push(`As duas janelas de tempo são diferentes: 28 dias de um lado, desde ${modelo.serieDesde} do outro.`)
+    avisos.push(`As duas janelas de tempo e os dois métodos são diferentes: 28 dias de um lado (média diária por vídeo), desde ${modelo.serieDesde} do outro (variação das views acumuladas).`)
   }
 
   const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_CONCORRENTE]

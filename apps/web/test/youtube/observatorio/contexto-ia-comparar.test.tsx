@@ -338,7 +338,7 @@ describe('Comparar: as definições são as cadeias do ⓘ, por identidade', () 
       'impressões, taxa de clique e % assistido de um concorrente: o YouTube só os entrega ao dono do canal',
       'views por dia do seu canal, impressões, cliques estimados, taxa de clique e % assistido',
       'impressões, cliques estimados, taxa de clique e % assistido',
-      'As duas janelas de tempo são diferentes: 28 dias de um lado, desde ',
+      'As duas janelas de tempo e os dois métodos são diferentes: 28 dias de um lado (média diária por vídeo), desde ',
       'últimos 90 dias · posições entre ',
     ]
     // só o código: sem comentário, sem as linhas que escrevem título de tabela ou nome de corte (rótulos do site, não definição)
