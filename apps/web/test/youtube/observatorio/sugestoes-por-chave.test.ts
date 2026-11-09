@@ -112,7 +112,7 @@ describe('sugestões pela chave (M-2)', () => {
 
   it('I-1: pela chave NÃO carrega o conjunto do Observatório, só lê as sugestões do site da prova', async () => {
     h.lista = lista([item(null)])
-    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', '2099-01-01T00:00:00Z')
+    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', new Date(Date.now() + 30 * 86_400_000).toISOString())
     const r = await responder({ acao: 'sugestoes' }, abridorDaChave(prova, COM), Date.now())
     expect(r.desfecho).toBe('ok')
     expect(h.carregou).not.toHaveBeenCalled()
@@ -123,7 +123,7 @@ describe('sugestões pela chave (M-2)', () => {
 
   it('M-A: a leitura das sugestões falhar dá falhou (nunca verde nem nao_encontrado)', async () => {
     h.falha = new Error('x')
-    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', '2099-01-01T00:00:00Z')
+    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', new Date(Date.now() + 30 * 86_400_000).toISOString())
     const r = await responder({ acao: 'sugestoes' }, abridorDaChave(prova, COM), Date.now())
     expect(r.desfecho).toBe('falhou')
     expect(r.desfecho).not.toBe('nao_encontrado')
