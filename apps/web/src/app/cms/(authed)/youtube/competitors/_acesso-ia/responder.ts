@@ -13,7 +13,7 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
-import { EMPACOTAR } from '../_contexto-ia'
+import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -230,11 +230,11 @@ const resp = (desfecho: Resposta['desfecho'], texto: string, params: Params = {}
 const NAO_ENCONTRADO = (params: Params): Resposta => resp('nao_encontrado', FRASES_DA_FERRAMENTA.nao_encontrado, params)
 
 /** Com a tela como veio (`canal`), ou resolvendo `canal?`/`video?` entre a versão de concorrente e a própria. */
-async function empacotar(t: Pedido['telas'][number], abrir: Abridor) {
+async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: FaltouNoPar) {
   const chamar = async (tela: TelaId) => {
     const f = EMPACOTAR[tela]
     if (!f) throw new Error('sem empacotador')
-    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp }, abrir)
+    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(faltou ? { faltou } : {}) }, abrir)
   }
   if (t.tela === 'canal?') return (await chamar('canal')) ?? (await chamar('canal-proprio'))
   if (t.tela === 'video?') return (await chamar('video')) ?? (await chamar('video-proprio'))
@@ -295,10 +295,17 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const pares = pedido.telas.length
       const reserva = topo.length + 1 + 2 * (pares - 1)
       const doPar = Math.floor((pedido.teto - reserva) / pares)
-      const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>> }> = []
-      for (const tela of pedido.telas) achados.push({ a: tela.sp.a ?? '', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir) })
-      // A1c: nenhum par saiu: a frase fechada MAIS os ids pedidos (já validados pelo esquema), para a IA saber qual id errou
-      if (achados.every((x) => x.montado === null)) return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${achados.map((x) => x.b).join(', ')}`, { ...params, pares })
+      const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>>; faltou: FaltouNoPar }> = []
+      for (const tela of pedido.telas) {
+        const faltou: FaltouNoPar = {}
+        achados.push({ a: tela.sp.a ?? '', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir, faltou), faltou })
+      }
+      // A1c: nenhum par saiu: a frase fechada MAIS o id que errou (o lado A, quando foi ele; senão os `b`), já validados pelo esquema
+      if (achados.every((x) => x.montado === null)) {
+        const doA = achados[0]!.faltou.lado
+        const quem = doA === 'proprio' ? 'não há canal próprio com vídeo neste site' : doA === 'a' ? achados[0]!.a : achados.map((x) => x.b).join(', ')
+        return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, pares })
+      }
       let privado = false
       let comentarios = false
       const blocos = achados.map((x, i) => {

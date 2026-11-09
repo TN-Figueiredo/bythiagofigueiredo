@@ -514,6 +514,29 @@ describe('responder: A1c, comparar registra os cortes e não repete o lado A', (
   })
 })
 
+describe('responder: A1c, revisão do Yannis', () => {
+  const tab = (id: string, titulo = `T ${id}`): Tabela => ({
+    id, titulo, tipo: 'fixa', nomeNoCorte: `tabela ${id}`, privada: false, colunas: ['Item', 'Valor'],
+    linhas: [[rotulo('Item', `p.${id}.n`), base(`valor ${id} 0`, `p.${id}.v`)]],
+  })
+  const cmp = m.empacotar
+  it('I-2: o 1º id inválido (lado a): a frase nomeia o a, não os b', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async (p: { faltou?: { lado?: string } }) => { if (p.faltou) p.faltou.lado = 'a'; return null })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain(C1)
+    expect(r.texto).not.toContain(C2)
+    expect(r.texto).not.toContain(C3)
+  })
+  it('I-2: proprio sem canal próprio com vídeo: frase específica', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async (p: { faltou?: { lado?: string } }) => { if (p.faltou) p.faltou.lado = 'proprio'; return null })
+    const r = await responder({ acao: 'comparar', canal_ids: ['proprio', C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain('não há canal próprio com vídeo neste site')
+    expect(r.texto).not.toContain(C2)
+  })
+})
+
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
 function grande(alvo: number): PacoteModelo {
   const linhas = Math.ceil(alvo / 100)
