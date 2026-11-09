@@ -24,6 +24,8 @@ export interface EntradaDaParidade {
   colunas: Record<string, Record<string, string | readonly string[]>>
   /** Folhas de número cru e o formatador de cada uma (`SEM_PROVA_POR_IGUALDADE_DIRETA` do teste da tela). */
   cruas?: readonly FolhaCrua[]
+  /** Ids das tabelas cuja célula `base` de origem `….id` (o uuid do canal) é de propósito só do pacote: dispensada da regra (c), e só nelas. */
+  soNoPacote?: readonly string[]
 }
 
 /** O fim do caminho, com fronteira: 'base' casa com 'x.base' e com 'x', '.base' casa com 'x.base'; 'ase' e 'mediana' contra 'submediana' não. */
@@ -139,7 +141,7 @@ export function provarParidade(e: EntradaDaParidade): void {
       for (const c of linha) {
         if (c.papel === 'rotulo' || c.papel === 'terceiros') continue
         // A1c: o id do canal (uuid) é de propósito só do pacote: a tela não o mostra, a IA o usa para encadear `comparar`/`canal`
-        if (c.papel === 'base' && /\.id$/.test(c.origem)) continue
+        if (c.papel === 'base' && /\.id$/.test(c.origem) && e.soNoPacote?.includes(t.id)) continue
         const texto = normalizar(textoDaCelula(c))
         if (texto !== '' && !tela.includes(texto)) problemas.push(`(c) o pacote tem "${texto}" (${c.origem}) e a tela não`)
       }

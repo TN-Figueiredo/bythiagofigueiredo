@@ -133,7 +133,7 @@ const COLUNAS = {
   'canais-inscritos-notas': { Canal: '.nome', Nota: ['.sub', '.nota', '.situacao'] },
 }
 const paridade = (m: Montado) => provarParidade({
-  modelo: m.modelo, inventario: INVENTARIO_CANAIS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [],
+  modelo: m.modelo, inventario: INVENTARIO_CANAIS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [], soNoPacote: ['canais', 'privado-canais'],
 })
 
 // ───────────────────────── a matriz de estados
