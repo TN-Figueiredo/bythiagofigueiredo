@@ -7,6 +7,9 @@ const captureMessage = vi.fn()
 const rpc = vi.fn()
 const sinais: AbortSignal[] = []
 const criarCliente = vi.fn()
+const exigirLeitura = vi.fn()
+// A guarda de leitura NOVA, mocada aqui (precede o atalho global de test/setup.ts): o teste afirma o contrato dela, não o modo do pacote.
+vi.mock('@/lib/youtube/observatorio/guarda-leitura', () => ({ exigirLeituraDoObservatorio: (...a: unknown[]) => exigirLeitura(...a) }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: unknown[]) => requireSiteScope(...a) }))
 vi.mock('@sentry/nextjs', () => ({
   captureException: (...a: unknown[]) => captureException(...a),
@@ -29,7 +32,9 @@ const soLe = (user = USUARIA) =>
 const modosPedidos = () => requireSiteScope.mock.calls.map(c => (c[0] as { mode: string }).mode)
 
 beforeEach(() => {
-  for (const m of [requireSiteScope, captureException, captureMessage, rpc, criarCliente]) m.mockReset()
+  for (const m of [requireSiteScope, captureException, captureMessage, rpc, criarCliente, exigirLeitura]) m.mockReset()
+  // padrão dos casos antigos: a guarda de leitura responde pelo mesmo roteiro (`mode: 'view'` do roteiro), sem afirmar nada sobre o pacote
+  exigirLeitura.mockImplementation((siteId: string) => requireSiteScope({ area: 'cms', siteId, mode: 'view' }))
   sinais.length = 0
 })
 
@@ -145,6 +150,17 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(captureException.mock.calls[0]![1]).toMatchObject({ tags: { step: 'provar-edicao' } })
   })
+  it('a guarda de leitura não conseguiu conferir (RPC fora): nao_foi_possivel_conferir, sem token, sem chamar o banco', async () => {
+    soLe(); exigirLeitura.mockResolvedValue({ ok: false, reason: 'nao_foi_possivel_conferir' })
+    expect(await provarAcessoPrivado(SITE)).toEqual({ leitura: null, edita: false, negativa: 'nao_foi_possivel_conferir' })
+    expect(rpc).not.toHaveBeenCalled()
+    expect(criarCliente).not.toHaveBeenCalled()
+  })
+  it('a guarda de leitura nega (insufficient_access): sem_direito, não "não foi possível conferir"', async () => {
+    soLe(); exigirLeitura.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    expect(await provarAcessoPrivado(SITE)).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })
+    expect(rpc).not.toHaveBeenCalled()
+  })
   it('siteId que não é uuid: sem token, sem chamar a guarda de leitura nem o banco', async () => {
     soLe()
     expect(await provarAcessoPrivado('site-1')).toEqual({ leitura: null, edita: false, negativa: 'sem_direito' })
@@ -157,7 +173,7 @@ describe('provarAcessoPrivado: o token de leitura do desempenho privado', () => 
     await provarAcessoPrivado(SITE)
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(rpc).toHaveBeenCalledWith('can_view_private_site_as', { p_user: 'id-da-guarda', p_site: SITE })
-    expect(requireSiteScope).toHaveBeenCalledWith({ area: 'cms', siteId: SITE, mode: 'view' })
+    expect(exigirLeitura).toHaveBeenCalledWith(SITE)
   })
   it('o token carrega o site pedido e é congelado; JSON.stringify não mostra o site; structuredClone não passa em leituraValida', async () => {
     requireSiteScope.mockResolvedValue({ ok: true, user: { id: USUARIA } })
