@@ -90,6 +90,17 @@ describe('abridorDaChave', () => {
     expect(p.savedNiche).toBe('todos')
     expect(p.meuCanalLembrado).toBeNull()
   })
+  it('M-3: observatorio() sem extra lê o conjunto UMA vez por abridor; com extra relê; outro abridor lê de novo', async () => {
+    const a = abridorDaChave(prova(), SEM)
+    const [p1, p2, p3] = [await a.observatorio(), await a.observatorio(), await a.observatorio()]
+    expect(m.loadPageRows).toHaveBeenCalledTimes(1)
+    expect(p2).toBe(p1)
+    expect(p3).toBe(p1)
+    await a.observatorio(async () => 'x')
+    expect(m.loadPageRows).toHaveBeenCalledTimes(2)
+    await abridorDaChave(prova(), SEM).observatorio()
+    expect(m.loadPageRows).toHaveBeenCalledTimes(3)
+  })
   it('o extra roda com o site da prova', async () => {
     const extra = vi.fn(async (s: string) => `extra:${s}`)
     const p = await abridorDaChave(prova(), SEM).observatorio(extra)

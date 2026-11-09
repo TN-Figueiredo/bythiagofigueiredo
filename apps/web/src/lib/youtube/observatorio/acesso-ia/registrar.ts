@@ -52,6 +52,23 @@ const contador = (v: unknown): v is number => typeof v === 'number' && Number.is
 /** Os desfechos que a ferramenta grava (`ok` é a entrega; os outros são o motivo de não haver entrega). */
 const DESFECHOS = ['ok', 'limite', 'tempo', 'falhou', 'pedido_invalido', 'nao_encontrado'] as const
 
+/** Separa os pares `k=v` de `parametros` entre os que têm a forma (ordenados, até 12) e os que saem; `null` se o valor não é lista nem objeto. */
+function paresDeParametros(v: unknown): { ok: string[]; fora: number } | null {
+  const pares: string[] = []
+  if (Array.isArray(v)) {
+    for (const x of v) if (typeof x === 'string') pares.push(x)
+  } else if (typeof v === 'object' && v !== null) {
+    for (const [k, val] of Object.entries(v)) if (typeof val === 'string') pares.push(`${k}=${val}`)
+  } else return null
+  const ok = new Set<string>()
+  for (const x of pares) {
+    const i = x.indexOf('=')
+    if (i < 1) continue
+    if (CHAVE_DE_PARAMETRO.test(x.slice(0, i)) && VALOR_DE_PARAMETRO.test(x.slice(i + 1))) ok.add(x)
+  }
+  return { ok: [...ok].sort().slice(0, 12), fora: new Set(pares).size - ok.size }
+}
+
 /** A chave aceita? Se sim, o valor (cortado/ajustado) que vai para a linha; se não, `undefined` e a chave sai. */
 const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | undefined>> = {
   acao: (v) => (daLista(ACOES)(v) ? v : undefined),
@@ -72,20 +89,11 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   id: (v) => (idValido(v) ? v : undefined),
   // `pacote_da_tela`: pares `k=v` (ou o objeto do esquema); chave e valor na forma fechada, até 12, ordenados; o par fora da forma sai
   parametros: (v) => {
-    const pares: string[] = []
-    if (Array.isArray(v)) {
-      for (const x of v) if (typeof x === 'string') pares.push(x)
-    } else if (typeof v === 'object' && v !== null) {
-      for (const [k, val] of Object.entries(v)) if (typeof val === 'string') pares.push(`${k}=${val}`)
-    } else return undefined
-    const ok = new Set<string>()
-    for (const x of pares) {
-      const i = x.indexOf('=')
-      if (i < 1) continue
-      if (CHAVE_DE_PARAMETRO.test(x.slice(0, i)) && VALOR_DE_PARAMETRO.test(x.slice(i + 1))) ok.add(x)
-    }
-    return ok.size === 0 ? undefined : [...ok].sort().slice(0, 12)
+    const r = paresDeParametros(v)
+    return r === null || r.ok.length === 0 ? undefined : r.ok
   },
+  // quantos pares de `parametros` saíram por estar fora da forma: calculado por `filtrarParams`, nunca vem do chamador
+  parametros_fora: (v) => (contador(v) && v > 0 ? v : undefined),
   desfecho: (v) => (daLista(DESFECHOS)(v) ? v : undefined),
   privado: (v) => (typeof v === 'boolean' ? v : undefined),
   comentarios: (v) => (typeof v === 'boolean' ? v : undefined),
@@ -105,6 +113,10 @@ function filtrarParams(params: Record<string, unknown>): Record<string, ValorDeP
     const aceito = FORMA_DOS_PARAMS[k]!(v)
     if (aceito !== undefined) saida[k] = aceito
   }
+  // o par descartado não some em silêncio: fica a contagem (número tem forma)
+  delete saida.parametros_fora
+  const fora = paresDeParametros(params.parametros)?.fora ?? 0
+  if (fora > 0) saida.parametros_fora = fora
   return saida
 }
 

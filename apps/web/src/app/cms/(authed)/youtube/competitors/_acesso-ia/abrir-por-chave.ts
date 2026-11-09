@@ -7,7 +7,7 @@ import { chaveProvada, type ChaveDoPerfilProvada } from '@/lib/youtube/observato
 import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import type { Abridor } from '../_chrome/abridor'
-import { carregarCanal, carregarObservatorio } from '../_chrome/page-data'
+import { carregarCanal, carregarObservatorio, type ObservatoryPage } from '../_chrome/page-data'
 
 const SEM_DIREITO: AcessoPrivado = { leitura: null, edita: false, negativa: 'sem_direito' }
 
@@ -17,8 +17,15 @@ export function abridorDaChave(prova: ChaveDoPerfilProvada, acesso: AcessoPrivad
   const siteId = prova.siteId
   // `edita` é sempre falso por este caminho, mesmo para quem edita pela sessão: a chave só lê
   const doSite: AcessoPrivado = { leitura: acesso.leitura, edita: false, negativa: acesso.negativa }
+  // o conjunto sem `extra` é o mesmo em toda tela da requisição (comparar e definicoes montam até 5): uma promessa por abridor, que nasce por requisição
+  let semExtra: Promise<ObservatoryPage<unknown>> | undefined
   return {
-    observatorio: (extra) => carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null, extra }),
+    observatorio: <T = undefined>(extra?: (siteId: string) => Promise<T>) => {
+      if (extra) return carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null, extra })
+      // sem `extra` o tipo é `ObservatoryPage<undefined>`, o que `T = undefined` pede
+      semExtra ??= carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null })
+      return semExtra as unknown as Promise<ObservatoryPage<T>>
+    },
     canal: (channelId) => carregarCanal({ siteId, now: observatoryNow(), channelId, acesso: doSite, meuCanalLembrado: null }),
     acessoPrivado: async (pedido) => (pedido === siteId ? doSite : SEM_DIREITO),
   }
