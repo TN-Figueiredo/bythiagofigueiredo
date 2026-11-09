@@ -173,6 +173,11 @@ describe('cms/layout', () => {
       const { getByTestId } = render(await Layout({ children: <div>x</div> }))
       expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('reporter')
     })
+    it('reporter no site B (primeiro da lista) e editor no host: o menu usa o papel do HOST, editor', async () => {
+      papeis.podeEditar = true; papeis.sites = [site('site-b', 'reporter'), site('site-1', 'editor')]
+      const { getByTestId } = render(await Layout({ children: <div>x</div> }))
+      expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('editor')
+    })
     it('quem edita o host: papel do vínculo e contadores buscados', async () => {
       vi.mocked(fetchSidebarBadges).mockClear(); vi.mocked(fetchLayoutCounts).mockClear()
       papeis.podeEditar = true; papeis.sites = [site('site-1', 'editor')]

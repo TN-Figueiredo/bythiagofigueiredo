@@ -57,9 +57,12 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const { data: { user: rawUser }, error: userErr } = await supabase.auth.getUser()
   if (userErr || !rawUser) redirect('/cms/login')
 
-  const [staffRes, sitesRes] = await Promise.all([
+  // A2 (MG19): o site do host vem antes, para a RPC `can_edit_site` entrar no mesmo Promise.all (sem ida extra em série).
+  const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
+  const [staffRes, sitesRes, editaHostRes] = await Promise.all([
     supabase.rpc('is_member_staff'),
     supabase.rpc('user_accessible_sites'),
+    supabase.rpc('can_edit_site', { p_site_id: middlewareSiteId }),
   ])
   if (staffRes.error || !staffRes.data) redirect('/?error=insufficient_access')
 
@@ -74,11 +77,12 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const currentSiteId = rawSites[0]?.site_id ?? ''
   const currentSite = rawSites.find((s) => s.site_id === currentSiteId)
   const userDisplayName = rawUser.email ?? 'User'
-  const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
   // A2 (MG19): o mesmo predicado da porta de papel do middleware. Quem não edita o site do host é tratado como `reporter`: menu só do
   // Observatório e nenhum contador do CMS no payload (os números iriam junto).
-  const podeEditarHost = (await supabase.rpc('can_edit_site', { p_site_id: middlewareSiteId })).data === true
-  const userRole = podeEditarHost ? (currentSite?.user_role ?? 'reporter') : 'reporter'
+  const podeEditarHost = editaHostRes.data === true
+  // o papel é o do site do HOST, não o do primeiro da lista (editor no A e reporter no B, com B no host)
+  const hostSite = rawSites.find((s) => s.site_id === middlewareSiteId)
+  const userRole = podeEditarHost ? (hostSite?.user_role ?? 'editor') : 'reporter'
 
   // Degrau "administrar o site": só decide o que a TELA mostra (cada action
   // restrita confere de novo no servidor). Falha fechado → controles somem.
