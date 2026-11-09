@@ -15,7 +15,7 @@ const PERMITIDOS = new Set(['_chrome/abridor.ts', '_chrome/page-data.ts', '_prop
 const PROIBIDA = /(?<![.\w])(openObservatoryPage|openChannelPage|acessoPrivado|podeVerPrivado|provarAcessoPrivado|requireSiteScope|getSiteContext|provarEdicao\w*|podeEditarSite|canAdminSiteUsers|permissoesDoSite|cookies)\s*\(/g
 /** Guarda/sessão que o alcance por imports enxerga, mas que fica atrás de uma condição que a chave nunca cumpre. Cada entrada diz qual. */
 const EXCECOES_DE_SESSAO: Record<string, string> = {
-  '_sugestoes/dados.ts': 'sugestoes: por chave o EMPACOTAR devolve nulo antes (identidade do abridor); o montar só roda pela sessão',
+  '_sugestoes/dados.ts': 'sugestoes: a guarda fica atrás de abrir === ABRIDOR_DE_SESSAO; por chave lê o site da prova pelo abridor (sugestoes-por-chave.test.ts)',
   '_saiu/dados.ts': 'fila: idem sugestoes',
   '_chrome/permissoes.ts': 'só chamada por quem já está atrás de abridor de sessão (fila, sugestões, canAdmin do canal)',
   '_chrome/ab-entradas/permissao.ts': 'guarda do A/B; alcançada só por telas de sessão (fila, sugestões)',

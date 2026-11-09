@@ -2,7 +2,7 @@
 /**
  * E17 degrau 2, Tarefa 8b: cada entrada de `EMPACOTAR` que as ações do MCP usam abre o dado pelo `Abridor` que recebe. Com tudo que é de sessão
  * (site, guarda, cookie, redirect, as portas das telas, `acessoPrivado`) simulado para LANÇAR, a resposta não lança e o abridor falso foi chamado.
- * `fila` e `sugestoes` pedem edição pela sessão: por chave são "não encontrado", sem tocar a guarda nem ler nada.
+ * `fila` pede edição pela sessão: por chave é "não encontrado". `sugestoes` (M-2) lê pelo abridor, com o site da prova.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { proprioWorld } from './proprio-fixture'
@@ -95,17 +95,16 @@ describe('EMPACOTAR por chave (sem sessão)', () => {
     })
   }
 
-  it('fila e sugestões por chave: "não encontrado", sem chamar a guarda nem ler nada', async () => {
+  it('fila por chave: "não encontrado", sem chamar a guarda nem ler nada; sugestões por chave vai ao montar COM o abridor (M-2, sem guarda)', async () => {
     const { EMPACOTAR } = await import(`${R}/_contexto-ia`)
     const abrir = falso()
     expect(await EMPACOTAR.fila!({ sp: {} }, abrir)).toBeNull()
-    expect(await EMPACOTAR.sugestoes!({ sp: {} }, abrir)).toBeNull()
+    sessao.sugestoes.mockResolvedValue({ marca: 'pacote' })
+    expect(await EMPACOTAR.sugestoes!({ sp: {} }, abrir)).toEqual({ marca: 'pacote' })
+    expect(sessao.sugestoes).toHaveBeenCalledWith(abrir)
     expect(sessao.guarda).not.toHaveBeenCalled()
     expect(sessao.fila).not.toHaveBeenCalled()
-    expect(sessao.sugestoes).not.toHaveBeenCalled()
-    expect(abrir.observatorio).not.toHaveBeenCalled()
     expect(abrir.canal).not.toHaveBeenCalled()
-    expect(abrir.acessoPrivado).not.toHaveBeenCalled()
   })
 
   it('sem abridor vale o de sessão: fila e sugestões seguem para o montar (caminho de sessão igual)', async () => {
