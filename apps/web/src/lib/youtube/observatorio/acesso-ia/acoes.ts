@@ -138,7 +138,7 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
     return {
       ok: true,
       pedido: {
-        telas: outros.map((b) => ({ tela: 'comparar' as const, sp: { ...(a === 'proprio' ? {} : { a }), b, niche: NICHO_PADRAO } })),
+        telas: outros.map((b) => ({ tela: 'comparar' as const, sp: { ...(a === 'proprio' ? {} : { a }), b, niche: NICHO_PADRAO, estrito: '1' } })),
         teto: TETO, limite: NENHUM, semEquivalente: aviso,
       },
     }

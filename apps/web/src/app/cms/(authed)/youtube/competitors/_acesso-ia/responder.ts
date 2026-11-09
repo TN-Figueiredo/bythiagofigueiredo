@@ -289,7 +289,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const doPar = Math.floor((pedido.teto - reserva) / pares)
       const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>> }> = []
       for (const tela of pedido.telas) achados.push({ a: tela.sp.a ?? '', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir) })
-      if (achados.every((x) => x.montado === null)) return NAO_ENCONTRADO({ ...params, pares })
+      // A1c: nenhum par saiu: a frase fechada MAIS os ids pedidos (já validados pelo esquema), para a IA saber qual id errou
+      if (achados.every((x) => x.montado === null)) return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${achados.map((x) => x.b).join(', ')}`, { ...params, pares })
       let privado = false
       let comentarios = false
       const blocos = achados.map((x, i) => {

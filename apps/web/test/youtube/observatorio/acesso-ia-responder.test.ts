@@ -469,7 +469,10 @@ describe('responder: comparar', () => {
   it('todos os pares null: não encontrado, a frase fechada', async () => {
     dobra('comparar', null)
     const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
-    expect(r).toMatchObject({ desfecho: 'nao_encontrado', texto: FRASES_DA_FERRAMENTA.nao_encontrado })
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain(FRASES_DA_FERRAMENTA.nao_encontrado)
+    expect(r.texto).toContain(C2)
+    expect(r.texto).toContain(C3)
   })
   it('o teto é dividido entre os pares', async () => {
     dobra('comparar', grande(500_000))

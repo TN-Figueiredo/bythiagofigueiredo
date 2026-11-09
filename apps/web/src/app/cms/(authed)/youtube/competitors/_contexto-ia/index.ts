@@ -178,6 +178,13 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
   },
   comparar: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const m = await montarComparar(sp, abrir)
+    // A1c: pela ferramenta (`estrito`), um id que não é canal do site NUNCA vira outro canal em silêncio: sem o canal pedido, "não encontrado"
+    // (a tela, pela URL, segue com a escolha dela). `a` ausente é `proprio`: vale o que `resolverPar` escolheu.
+    if (sp['estrito'] === '1') {
+      const ids = new Set(m.pack.canais.map((c) => c.id))
+      const par0 = m.inicial
+      if ((sp['a'] !== undefined && (!ids.has(sp['a']) || par0?.a !== sp['a'])) || (sp['b'] !== undefined && (!ids.has(sp['b']) || par0?.b !== sp['b']))) return null
+    }
     const privado = await comNegativa(m.privado, m.pagina.siteId, abrir)
     const par = m.inicial ? buildPar(m.pack, m.inicial.a, m.inicial.b) : null
     const modelo = par ? modeloDeComparar(m.pack, par) : null
