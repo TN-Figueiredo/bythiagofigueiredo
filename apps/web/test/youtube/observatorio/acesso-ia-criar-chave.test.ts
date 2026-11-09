@@ -44,6 +44,7 @@ function fazer(c: Partial<Cenario> = {}) {
   const inserts: Array<Record<string, unknown>> = []
   const paginas: number[] = []
   const selects: string[] = []
+  const faixas: Array<[number, number]> = []
   const sb = {
     auth: { admin: { listUsers: async ({ page, perPage }: { page: number; perPage: number }) => {
       paginas.push(page)
@@ -57,7 +58,14 @@ function fazer(c: Partial<Cenario> = {}) {
       return { data: (cen.ve[a.p_user] ?? []).includes(a.p_site), error: null }
     },
     from: (tabela: string) => ({
-      select: async (colunas?: string) => { selects.push(`${tabela}:${String(colunas)}`); return { data: tabela === 'sites' ? cen.sites.map((id) => ({ id })) : cen.chaves, error: null } },
+      select: (colunas?: string) => {
+        selects.push(`${tabela}:${String(colunas)}`)
+        if (tabela !== 'sites') return Promise.resolve({ data: cen.chaves, error: null })
+        // como o PostgREST: sem range, corta em 1000 (max_rows); com range, devolve a fatia pedida (também cortada em 1000)
+        const fatia = (de: number, ate: number) => { faixas.push([de, ate]); return Promise.resolve({ data: cen.sites.slice(de, Math.min(ate + 1, de + 1000)).map((id) => ({ id })), error: null }) }
+        const q = { order: () => q, range: fatia, then: (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => fatia(0, 999).then(ok, ko) }
+        return q
+      },
       insert: async (linha: Record<string, unknown>) => {
         if (tabela !== 'pipeline_api_keys') throw new Error('tabela inesperada')
         if (cen.insertErro) return { error: { code: '23505' } }
@@ -74,11 +82,23 @@ function fazer(c: Partial<Cenario> = {}) {
     excecaoEm: ANTES,
     aleatorio: (k) => Buffer.alloc(k, ++n === 1 ? 0xab : 0x01 * n),
   }
-  return { cen, deps, inserts, paginas, selects }
+  return { cen, deps, inserts, paginas, selects, faixas }
 }
 const pedido = (o: Partial<PedidoDeChave> = {}): PedidoDeChave => ({ email: EMAIL, ...o })
 
 afterEach(() => { vi.restoreAllMocks() })
+
+describe('criarChaveDoPerfil: sites além do corte de 1000 linhas do PostgREST', () => {
+  it('pagina a leitura de sites: o site da pessoa na posição 2200 de 2267 é achado', async () => {
+    const ids = Array.from({ length: 2267 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+    const alvo = ids[2200]!
+    const { deps, inserts, faixas } = fazer({ sites: ids, ve: { [ANA]: [alvo] } })
+    const r = await criarChaveDoPerfil(deps, pedido())
+    expect(r.ok).toBe(true)
+    expect(inserts[0]!.site_id).toBe(alvo)
+    expect(faixas.length).toBeGreaterThanOrEqual(3)
+  })
+})
 
 describe('criarChaveDoPerfil: o caminho feliz', () => {
   it('um insert, com permissions exatamente [observatorio_leitura], user_id, expires_at de 180 dias, created_by nulo e o nome sem dado pessoal; o hash gravado é o SHA-256 da chave devolvida', async () => {

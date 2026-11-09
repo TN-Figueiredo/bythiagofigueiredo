@@ -61,6 +61,9 @@ const falha = (recusa: RecusaDeChave, code?: string): { ok: false; recusa: Recus
 const codigoDe = (e: { code?: unknown } | null | undefined): string => (typeof e?.code === 'string' && e.code !== '' ? e.code : 'desconhecido')
 
 /** Percorre a listagem do Auth até o fim (página curta ou vazia). 20 páginas cheias sem fim = não conferido. */
+const SITES_POR_PAGINA = 1000
+const SITES_PAGINAS_MAX = 50
+
 async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
   const ids: string[] = []
   for (let pagina = 1; pagina <= PAGINAS_MAX; pagina++) {
@@ -114,9 +117,16 @@ export async function criarChaveDoPerfil(deps: DepsDeCriar, p: PedidoDeChave): P
   } else {
     let sites: Array<{ id?: unknown }>
     try {
-      const r = await sb.from('sites').select('id')
-      if (r.error) return falha('nao_conferido', codigoDe(r.error))
-      sites = (r.data ?? []) as Array<{ id?: unknown }>
+      // paginado: o PostgREST corta em max_rows (1000) em silêncio; ordenar por id mantém as páginas estáveis
+      sites = []
+      for (let pagina = 0; ; pagina++) {
+        if (pagina >= SITES_PAGINAS_MAX) return falha('nao_conferido', 'listagem_sem_fim')
+        const r = await sb.from('sites').select('id').order('id').range(pagina * SITES_POR_PAGINA, (pagina + 1) * SITES_POR_PAGINA - 1)
+        if (r.error) return falha('nao_conferido', codigoDe(r.error))
+        const lote = (r.data ?? []) as Array<{ id?: unknown }>
+        sites.push(...lote)
+        if (lote.length < SITES_POR_PAGINA) break
+      }
     } catch { return falha('nao_conferido', 'excecao') }
     const vistos: string[] = []
     for (const s of sites) {
