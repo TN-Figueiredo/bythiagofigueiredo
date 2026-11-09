@@ -151,7 +151,6 @@ Ao criar/deletar routes em `apps/web/src/app/api/pipeline/`:
 4. Domain novo (raro): domain const + `DomainId` + `DOMAIN_LABELS` + `capabilities[]` + doc file — testes guiam o resto
 
 Tests validam estrutura, NÃO conteúdo dos docs. Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar keys.**
-Exceção (decisão do dono de 09/11): chaves do perfil `observatorio_leitura` são criadas pelo dono com `npm run observatorio:acesso`; nenhum agente roda esse comando, e nenhuma outra chave é criada, alterada ou revogada.
 
 ## Variáveis de ambiente e flags
 

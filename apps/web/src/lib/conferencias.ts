@@ -449,7 +449,7 @@ export function conferenciasE18(deploy: string | null): Conferencia[] {
 /** Dia de São Paulo (AAAA-MM-DD) em que o código do degrau 2 foi para `main`, com a variável AUSENTE (lote 2). `null` = ainda não enviado. */
 export const E17_D2_DEPLOY: string | null = '2026-10-15'
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono abriu o acesso (A0: chave criada, variável `on`, redeploy). `null` = fechado. */
-export const E17_D2_ABERTURA: string | null = '2026-11-09'
+export const E17_D2_ABERTURA: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) do envio do lote 3 (a tarefa de poda na agenda). `null` = ainda não enviado. */
 export const E17_D2_PODA_DEPLOY: string | null = '2026-10-15'
 

@@ -7,7 +7,6 @@
     "packages/*"
   ],
   "scripts": {
-    "observatorio:acesso": "npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "dev:web:prod": "NEXT_PUBLIC_API_URL=https://bythiagofigueiredo-api.vercel.app npm run dev -w apps/web",
