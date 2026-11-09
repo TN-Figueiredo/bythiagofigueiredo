@@ -298,7 +298,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>>; faltou: FaltouNoPar }> = []
       for (const tela of pedido.telas) {
         const faltou: FaltouNoPar = {}
-        achados.push({ a: tela.sp.a ?? '', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir, faltou), faltou })
+        achados.push({ a: tela.sp.a ?? 'próprio', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir, faltou), faltou })
       }
       // A1c: nenhum par saiu: a frase fechada MAIS o id que errou (o lado A, quando foi ele; senão os `b`), já validados pelo esquema
       if (achados.every((x) => x.montado === null)) {

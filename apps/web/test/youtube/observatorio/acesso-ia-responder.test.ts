@@ -547,6 +547,12 @@ describe('responder: A1c, revisão do Yannis', () => {
     const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3, C4] }, abrir, AGORA)
     expect(r.texto).toContain('O lado A é o mesmo do Par 2 e não se repete aqui.')
   })
+  it('M-1: com proprio o cabeçalho não fica sem nome do lado A', async () => {
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    const r = await responder({ acao: 'comparar', canal_ids: ['proprio', C2] }, abrir, AGORA)
+    expect(r.texto).not.toContain('canal  contra')
+    expect(r.texto).toContain('## Par 1: canal próprio contra canal')
+  })
 })
 
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
