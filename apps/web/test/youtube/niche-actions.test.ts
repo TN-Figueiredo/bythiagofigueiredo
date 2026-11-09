@@ -35,6 +35,7 @@ describe('getUserNiche', () => {
     vi.resetModules()
     vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
     vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+    vi.doMock('@/lib/youtube/observatorio/guarda-leitura', async () => { const a = await import('@tn-figueiredo/auth-nextjs/server'); return { exigirLeituraDoObservatorio: (siteId: string) => a.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) } })
     vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }) }))
     const { getUserNiche } = await import('@/app/cms/(authed)/youtube/competitors/niche-actions')
@@ -45,6 +46,7 @@ describe('getUserNiche', () => {
     vi.resetModules()
     vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
     vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: false }) }))
+    vi.doMock('@/lib/youtube/observatorio/guarda-leitura', async () => { const a = await import('@tn-figueiredo/auth-nextjs/server'); return { exigirLeituraDoObservatorio: (siteId: string) => a.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) } })
     vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
     const getSupabaseServiceClientMock = vi.fn()
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: getSupabaseServiceClientMock }))
@@ -70,6 +72,7 @@ function setup(opts: SetupOpts = {}) {
   const order: string[] = []
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => { order.push('guard'); return opts.auth ?? { ok: true, user: { id: 'u1' } } } }))
+  vi.doMock('@/lib/youtube/observatorio/guarda-leitura', async () => { const a = await import('@tn-figueiredo/auth-nextjs/server'); return { exigirLeituraDoObservatorio: (siteId: string) => a.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) } })
   const revalidatePathMock = vi.fn()
   vi.doMock('next/cache', () => ({ revalidatePath: revalidatePathMock }))
   const selectMock = vi.fn(async () => opts.result ?? { error: null, data: [{ id: 'ch1' }] })

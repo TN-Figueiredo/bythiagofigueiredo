@@ -47,6 +47,7 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   vi.doMock('next/navigation', () => ({ redirect: (url: string) => { throw new Error('REDIRECT ' + url) } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: o.siteId ?? 'site-1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope }))
+  vi.doMock('@/lib/youtube/observatorio/guarda-leitura', async () => { const a = await import('@tn-figueiredo/auth-nextjs/server'); return { exigirLeituraDoObservatorio: (siteId: string) => a.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) } })
   if (!o.realLoader) vi.doMock('@/lib/youtube/observatorio/load-page', () => ({ loadChannelDataset, loadPageRows: vi.fn() }))
   // o carregador de verdade com um banco que diz "uuid inválido" (22P02) e anota toda tabela consultada
   const tabelas: string[] = []

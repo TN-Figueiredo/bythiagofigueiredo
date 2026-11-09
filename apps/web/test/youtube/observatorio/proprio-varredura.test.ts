@@ -225,7 +225,8 @@ describe('varredura: o dado privado do canal próprio', () => {
   it('a leitura privada pede a guarda com mode "view" e nunca "edit" (quem pede edição é edicao.ts)', () => {
     expect(Object.keys(reais)).toContain(LEITURA)
     const s = semComentarios(reais[LEITURA]!)
-    expect(s).toMatch(/requireSiteScope\(\s*\{[^}]*mode:\s*'view'/)
+    // A2 (MG19): a leitura pede a guarda de leitura do Observatório (can_view_observatorio), nunca a de edição
+    expect(s).toMatch(/exigirLeituraDoObservatorio\(/)
     expect(s).not.toMatch(/mode:\s*'edit'/)
   })
   it('a prova de edição pede a guarda com mode "edit" e nenhum outro', () => {

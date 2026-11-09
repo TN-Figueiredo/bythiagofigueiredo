@@ -17,6 +17,7 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   vi.doMock('next/navigation', () => ({ redirect: (url: string) => { throw new Error('REDIRECT ' + url) } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async (opts: unknown) => { order.push('guard ' + JSON.stringify(opts)); return o.access ?? { ok: true, user: { id: 'u1' } } }) }))
+  vi.doMock('@/lib/youtube/observatorio/guarda-leitura', async () => { const a = await import('@tn-figueiredo/auth-nextjs/server'); return { exigirLeituraDoObservatorio: (siteId: string) => a.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) } })
   vi.doMock('@/lib/youtube/observatorio/load-page', () => ({ loadPageRows }))
   const prefResult = o.prefError ? { data: null, error: { code: '57014', message: 'timeout' } } : { data: o.pref === undefined ? null : { niche: o.pref }, error: null }
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('service'); return { from: (t: string) => ({ select: () => ({ eq: (c: string, v: string) => { prefEq(t, c, v); return { eq: (c2: string, v2: string) => { prefEq(t, c2, v2); return { maybeSingle: async () => { order.push('pref'); return prefResult } } } } } }) }) } } }))
