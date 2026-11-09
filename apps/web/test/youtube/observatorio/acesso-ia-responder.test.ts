@@ -486,6 +486,34 @@ describe('responder: comparar', () => {
 
 /* ------------------------------------------------------------------ tamanho */
 
+describe('responder: A1c, comparar registra os cortes e não repete o lado A', () => {
+  const tab = (id: string, linhas = 2): Tabela => ({
+    id, titulo: `T ${id}`, tipo: 'fixa', nomeNoCorte: `tabela ${id}`, privada: false, colunas: ['Item', 'Valor'],
+    linhas: Array.from({ length: linhas }, (_, i) => [rotulo(`Item ${i}`, `p.${id}[${i}].n`), base(`valor ${id} ${i}`, `p.${id}[${i}].v`)]),
+  })
+  it('pacote que estoura o teto: params.cortes > 0 (antes gravava 0)', async () => {
+    dobra('comparar', grande(500_000))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.params.cortes).toBeGreaterThan(0)
+  })
+  it('pacote que cabe: cortes 0', async () => {
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.params.cortes).toBe(0)
+  })
+  it('as tabelas só do lado A saem no 2º par em diante', async () => {
+    dobra('comparar', { ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a'), tab('direcao-notas-a'), tab('direcao-sentido-a'), tab('direcao-notas-b')] })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [p1, p2] = r.texto.split('## Par ').slice(1)
+    expect(p1).toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('valor direcao-notas-a 0')
+    expect(p2).not.toContain('valor direcao-sentido-a 0')
+    expect(p2).toContain('valor numero-a-numero 0')
+    expect(p2).toContain('valor direcao-notas-b 0')
+  })
+})
+
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
 function grande(alvo: number): PacoteModelo {
   const linhas = Math.ceil(alvo / 100)

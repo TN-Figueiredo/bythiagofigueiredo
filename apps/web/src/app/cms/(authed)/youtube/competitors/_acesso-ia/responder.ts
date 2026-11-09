@@ -248,10 +248,18 @@ const topoDe = (p: Pedido): string => {
 }
 
 /** Texto de um pacote dentro do teto. Se nem o piso do corte cabe, o fim é cortado e a frase diz. Devolve também a 1ª linha de aviso do pacote e o degrau de linhas usado. */
-function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[]): { texto: string; primeira: string | null; degrau: number | null } {
+function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[], cortes?: Cortes): { texto: string; primeira: string | null; degrau: number | null } {
   const pacote = segmentar(m, { geradoEm: agora, recente })
   const t = montarTexto(pacote, '', teto, 'todos', degraus)
+  // A1c: o que `montarTexto` cortou por tamanho (e o piso que estourou, que vira corte do fim) chega ao registro; antes ele gravava `cortes=0` em silêncio
+  if (cortes) cortes.n += t.cortes.length + (t.pisoPassou && t.cortes.length === 0 ? 1 : 0)
   return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
+}
+
+/** As tabelas e o foco que só falam do lado A (`privado-alcance-a`, `…-sentido-a`, `…-notas-a`): o lado A não se repete em cada par. A tabela "número a número" fica (ela põe A ao lado de B). */
+const SO_DO_LADO_A = /(^|-)alcance-a$|-sentido-a$|-notas-a$/
+function semOLadoA(m: PacoteModelo): PacoteModelo {
+  return { ...m, foco: m.foco.slice(1), tabelas: m.tabelas.filter((t) => !SO_DO_LADO_A.test(t.id)) }
 }
 
 const FRASE_DO_FIM = '\n[texto cortado por tamanho: o fim não saiu]'
@@ -299,7 +307,10 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (x.montado === null) return `${cab}Canal ${x.b}: ${FRASES_DA_FERRAMENTA.nao_encontrado}.`
         if (x.montado.modelo.privado.estado === 'incluido') privado = true
         if (x.montado.modelo.comentarios.estado === 'incluido') comentarios = true
-        return cab + textoDoModelo(x.montado.modelo, x.montado.recente, agora, doPar - cab.length).texto
+        // o lado A é o mesmo em todos os pares: só o 1º bloco o descreve por inteiro (foco e tabelas só do lado A); os outros ficam com mais espaço para o lado B
+        const modelo = i === 0 ? x.montado.modelo : semOLadoA(x.montado.modelo)
+        const aviso = i === 0 ? '' : 'O lado A é o mesmo do Par 1 e não se repete aqui.\n'
+        return cab + aviso + textoDoModelo(modelo, x.montado.recente, agora, doPar - cab.length - aviso.length, undefined, cortes).texto
       })
       const texto = cabeEm(`${topo === '' ? '' : `${topo}\n`}${blocos.join('\n\n')}`, pedido.teto)
       return resp('ok', texto, { ...params, privado, comentarios, cortes: cortes.n, pares }, privado || comentarios)
@@ -332,14 +343,14 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       for (let volta = 0; ; volta += 1) {
         cortes.n = 0
         modelo = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, k)
-        feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, degrausDoLimite(n))
+        feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, degrausDoLimite(n), cortes)
         const novo = feito.degrau === null ? k : Math.min(k, feito.degrau)
         if (novo === k || volta >= 6) break
         k = novo
       }
     } else {
       if (pedido.limite.tipo === 'pontos') modelo = recortarSerie(modelo, pedido, agora, cortes)
-      feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto)
+      feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, undefined, cortes)
     }
     const incluiu = privadoIncluido(modelo)
     const { texto, primeira } = feito
