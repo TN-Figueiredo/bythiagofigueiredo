@@ -11,7 +11,7 @@
 //   - a prova de TIPO está em `leitura-privada.type-test.ts`, que o `tsc` do web compila.
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { exigirLeituraDoObservatorio } from '@/lib/youtube/observatorio/guarda-leitura'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { edicaoValida, provarEdicaoComAviso, type EdicaoDoSite } from './edicao'
 import { chaveProvada, type ChaveDoPerfilProvada } from '../acesso-ia/prova'
@@ -93,8 +93,8 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
   }
   let userId: string
   try {
-    const guarda = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
-    if (!guarda.ok) return semDireito
+    const guarda = await exigirLeituraDoObservatorio(siteId)
+    if (!guarda.ok) return guarda.reason === 'nao_foi_possivel_conferir' ? semResposta : semDireito
     userId = guarda.user.id
   } catch (e) {
     // um evento por requisição: se a guarda de edição já caiu e avisou, a de leitura (mesma causa) não repete

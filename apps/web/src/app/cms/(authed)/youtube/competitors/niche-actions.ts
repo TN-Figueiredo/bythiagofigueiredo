@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { exigirLeituraDoObservatorio } from '@/lib/youtube/observatorio/guarda-leitura'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { isNicheSlug, parseNiche, type Niche, type NicheScope } from '@/lib/youtube/observatorio/niche'
@@ -18,7 +19,7 @@ async function nicheExists(sb: SupabaseClient, siteId: string, niche: Niche): Pr
 
 export async function getUserNiche(): Promise<NicheScope> {
   const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const res = await exigirLeituraDoObservatorio(siteId)
   if (!res.ok) return 'todos'
   // Read error falls back to 'todos' on purpose; it is only a preference. Only the FORM is checked here: the page that
   // has the engine applies obs.scopeOf, so a saved niche that no longer exists opens in Todos.
@@ -29,7 +30,7 @@ export async function getUserNiche(): Promise<NicheScope> {
 export async function setUserNiche(niche: NicheScope): Promise<{ ok: boolean }> {
   if (!parseNiche(niche)) return { ok: false }
   const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const res = await exigirLeituraDoObservatorio(siteId)
   if (!res.ok) return { ok: false }
   const sb = getSupabaseServiceClient()
   if (niche !== 'todos' && !(await nicheExists(sb, siteId, niche))) return { ok: false }

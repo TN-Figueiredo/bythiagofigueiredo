@@ -18,3 +18,11 @@ if (process.env.HAS_LOCAL_DB === '1') {
   process.env.SUPABASE_SERVICE_ROLE_KEY ??=
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 }
+
+// A2 (MG19): as telas do Observatório leem pela guarda própria `exigirLeituraDoObservatorio` (RPC can_view_observatorio). As suítes
+// antigas simulam a guarda de leitura com `requireSiteScope({ mode: 'view' })` do pacote; este atalho global faz a guarda nova responder
+// pelo mesmo simulacro, sem reescrever dezenas de arquivos. A guarda de verdade tem teste próprio (guarda-leitura.test.ts, que usa o módulo real).
+vi.mock('@/lib/youtube/observatorio/guarda-leitura', async () => {
+  const auth = await import('@tn-figueiredo/auth-nextjs/server')
+  return { exigirLeituraDoObservatorio: (siteId: string) => auth.requireSiteScope({ area: 'cms', siteId, mode: 'view' }) }
+})

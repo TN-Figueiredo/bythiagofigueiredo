@@ -6,7 +6,7 @@
  * Nada aqui recebe a pergunta: ela é digitada no navegador e nunca chega ao servidor. Só exporta a função (arquivo 'use server').
  */
 import * as Sentry from '@sentry/nextjs'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { exigirLeituraDoObservatorio } from '@/lib/youtube/observatorio/guarda-leitura'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
@@ -47,7 +47,7 @@ export async function gerarPacoteIa(pedido: PedidoDePacote): Promise<RespostaDeP
   const { tela, id, consulta } = valido
 
   const { siteId } = await getSiteContext()
-  const guarda = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const guarda = await exigirLeituraDoObservatorio(siteId)
   if (!guarda.ok) return recusa('sem_acesso')
 
   const empacotar = EMPACOTAR[tela]

@@ -4,7 +4,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { exigirLeituraDoObservatorio } from '@/lib/youtube/observatorio/guarda-leitura'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
@@ -65,7 +65,7 @@ export async function carregarObservatorio<T>(a: {
 /** `extra`: a page's own read (swipe file, unlock permission), run in parallel with the dataset, after the guard. */
 export async function openObservatoryPage<T = undefined>(extra?: (siteId: string) => Promise<T>): Promise<ObservatoryPage<T>> {
   const { siteId } = await getSiteContext()
-  const access = await medirEtapa('guarda', () => requireSiteScope({ area: 'cms', siteId, mode: 'view' }))
+  const access = await medirEtapa('guarda', () => exigirLeituraDoObservatorio(siteId))
   // the same two exits as the CMS layout
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
   return { ...(await carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: access.user.id, meuCanalLembrado: lerMeuCanalLembrado(), extra })), userId: access.user.id }
@@ -94,7 +94,7 @@ export interface ChannelPage {
  */
 export async function openChannelPage(channelId: string): Promise<ChannelPage> {
   const { siteId } = await getSiteContext()
-  const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const access = await exigirLeituraDoObservatorio(siteId)
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
   return carregarCanal({ siteId, now: observatoryNow(), channelId, acesso: acessoPrivado(siteId), meuCanalLembrado: lerMeuCanalLembrado() })
 }
