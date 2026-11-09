@@ -16,6 +16,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, insertAuthUser, deleteAuthUser } from '../helpers/db-seed'
 import { definirSessao } from '../helpers/mg11'
 import { criarChaveDoPerfil, type DepsDeCriar } from '@/lib/youtube/observatorio/acesso-ia/criar-chave'
+import { estenderChaveDoPerfil } from '@/lib/youtube/observatorio/acesso-ia/estender-chave'
 import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
@@ -58,6 +59,11 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
           const r = await rodar<{ id: string; email: string | null }>(`select id, email from auth.users order by created_at, id limit $1 offset $2`, [perPage, (page - 1) * perPage])
           return { data: { users: r.rows }, error: null }
         },
+        getUserById: async (id: string) => {
+          const r = await rodar<{ id: string; banned_until: Date | null }>(`select id, banned_until from auth.users where id = $1`, [id])
+          const u = r.rows[0]
+          return { data: { user: u ? { id: u.id, banned_until: u.banned_until ? u.banned_until.toISOString() : null } : null }, error: null }
+        },
       }
       return { admin }
     },
@@ -93,6 +99,55 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
     for (const u of [ana, bia, sem]) if (u) await deleteAuthUser(u).catch(() => undefined)
   })
 
+  describe('estenderChaveDoPerfil de verdade (a cena é montada por insert direto, sem depender do criar)', () => {
+    const eDeps = (cliente: SupabaseClient = sb) => ({ sb: cliente, agora: () => Date.now(), e19: () => ({ ok: true as const }), excecaoEm: 'excecao-sintetica' })
+    const nomeNovo = (letra: string): string => `observatorio-20260101-${letra}${randomBytes(2).toString('hex').slice(0, 3)}`
+    const inserirDoPerfil = async (nome: string, perms: string[], dias = 10): Promise<void> => {
+      await rodar(`insert into public.pipeline_api_keys (site_id, name, key_hash, permissions, expires_at, user_id) values ($1,$2,$3,$4::text[],$5,$6)`, [siteA, nome, randomUUID(), perms, venc(dias), bia])
+    }
+    const linhaDe = async (nome: string) => (await rodar<{ key_hash: string; expires_at: Date; permissions: string[] }>(`select key_hash, expires_at, permissions from public.pipeline_api_keys where name = $1`, [nome])).rows[0]!
+
+    it('perfil exato: mesma linha, mesmo hash, só expires_at muda; depois de revogada, recusa', async () => {
+      const nome = nomeNovo('a')
+      await inserirDoPerfil(nome, [PERFIL])
+      const antes = await linhaDe(nome)
+      const e = await estenderChaveDoPerfil(eDeps(), { chave: nome, dias: 100 })
+      expect(e, JSON.stringify(e)).toMatchObject({ ok: true, nome })
+      const depois = await linhaDe(nome)
+      expect(depois.key_hash).toBe(antes.key_hash)
+      expect(depois.permissions).toEqual([PERFIL])
+      expect(depois.expires_at.getTime()).toBeGreaterThan(antes.expires_at.getTime())
+      await rodar(`update public.pipeline_api_keys set revoked_at = now() where name = $1`, [nome])
+      expect(await estenderChaveDoPerfil(eDeps(), { chave: nome })).toMatchObject({ ok: false, recusa: 'chave_revogada' })
+    })
+
+    it('chave de outro perfil com nome no formato: perfil_diferente, expires_at igual byte a byte', async () => {
+      const nome = nomeNovo('b')
+      await inserirDoPerfil(nome, ['read'])
+      const antes = await rodar<{ j: string }>(`select row_to_json(k)::text as j from public.pipeline_api_keys k where name = $1`, [nome])
+      expect(await estenderChaveDoPerfil(eDeps(), { chave: nome })).toMatchObject({ ok: false, recusa: 'perfil_diferente' })
+      const depois = await rodar<{ j: string }>(`select row_to_json(k)::text as j from public.pipeline_api_keys k where name = $1`, [nome])
+      expect(depois.rows[0]!.j).toBe(antes.rows[0]!.j)
+    })
+
+    it('CAS perdido de verdade: a validade muda entre a leitura e a escrita; nada_mudou e a linha fica como o outro a deixou', async () => {
+      const nome = nomeNovo('c')
+      await inserirDoPerfil(nome, [PERFIL])
+      // o getUserById (que roda DEPOIS da leitura e ANTES do update) altera expires_at por fora
+      const intruso = new Proxy(sb, {
+        get(alvo, chave, receptor) {
+          if (chave !== 'auth') return Reflect.get(alvo, chave, receptor)
+          const base = (Reflect.get(alvo, chave, receptor) as { admin: { getUserById: (id: string) => Promise<unknown> } }).admin
+          return { admin: { ...base, getUserById: async (id: string) => { await rodar(`update public.pipeline_api_keys set expires_at = expires_at + interval '1 day' where name = $1`, [nome]); return base.getUserById(id) } } }
+        },
+      })
+      const antes = await linhaDe(nome)
+      expect(await estenderChaveDoPerfil(eDeps(intruso), { chave: nome, dias: 100 })).toMatchObject({ ok: false, recusa: 'nada_mudou' })
+      const depois = await linhaDe(nome)
+      expect(depois.expires_at.getTime()).toBe(antes.expires_at.getTime() + 86_400_000)
+    })
+  })
+
   it('criarChaveDoPerfil de verdade grava a linha, e o check do banco a aceita', async () => {
     const r = await criarChaveDoPerfil(deps(), { email: emailAna })
     expect(r, JSON.stringify(r)).toMatchObject({ ok: true })
@@ -123,7 +178,7 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
     // Ana já tem uma chave com 180 dias de vida: não é hora de renovar
     expect(await criarChaveDoPerfil(deps(), { email: emailAna })).toMatchObject({ ok: false, recusa: 'ja_tem_chave' })
     // a recusa não gravou nada
-    const n = await rodar(`select 1 from public.pipeline_api_keys where site_id = $1`, [siteA])
+    const n = await rodar(`select 1 from public.pipeline_api_keys where site_id = $1 and user_id = $2`, [siteA, ana])
     expect(n.rowCount).toBe(1)
   })
 
