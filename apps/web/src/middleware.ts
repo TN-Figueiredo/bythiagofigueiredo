@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { createAuthMiddleware } from '@tn-figueiredo/auth-nextjs/middleware'
 import { SupabaseRingContext } from '@tn-figueiredo/cms/ring'
 import { buildCsp, buildLegacyCsp, getCspMode } from '@/lib/security/csp'
+import { portaDoPapel } from '@/lib/cms/porta-do-papel'
 
 /**
  * Middleware responsibilities:
@@ -442,6 +443,10 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
     }
     if (effectivePathname.startsWith('/cms')) {
       const authRes = await cmsAuth(request)
+      if (authRes.status < 300) {
+        const fechada = await portaDoPapel(effectivePathname, request, authRes, res.headers.get('x-site-id'))
+        if (fechada) return fechada
+      }
       return mergeSiteHeaders(ctx, authRes, res)
     }
     return res
@@ -457,6 +462,10 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
   }
   if (pathname.startsWith('/cms')) {
     const authRes = await cmsAuth(request)
+    if (authRes.status < 300) {
+      const fechada = await portaDoPapel(pathname, request, authRes, siteRes.response.headers.get('x-site-id'))
+      if (fechada) return fechada
+    }
     return mergeSiteHeaders(ctx, authRes, siteRes.response)
   }
 
@@ -560,5 +569,8 @@ export default middleware
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // A2: a porta de papel é a única defesa das páginas do CMS sem guarda própria; o matcher acima deixa escapar caminhos que terminam
+    // em imagem e rotas com parâmetro de texto (pipeline/[format], topics/[code], preview/*/[state]). A união os recupera.
+    '/cms/:path*',
   ],
 }
