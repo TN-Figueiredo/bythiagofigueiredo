@@ -206,7 +206,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     return { modelo: empacotarFila(modeloDeFila(m.view)), recente: m.recente, estado: textoDe(m.estado) }
   },
   // F2 T8: leitor próprio (a tabela dos sinais, não uma tela); o site vem da guarda dentro de `montarSugestoes`
-  sugestoes: async (_pedido, abrir = ABRIDOR_DE_SESSAO) => (abrir !== ABRIDOR_DE_SESSAO ? null : montarSugestoes()),
+  sugestoes: async (_pedido, abrir = ABRIDOR_DE_SESSAO) => montarSugestoes(abrir),
 }
 
 export { telaExiste }

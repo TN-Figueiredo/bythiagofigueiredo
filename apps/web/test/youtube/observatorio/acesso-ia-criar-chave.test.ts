@@ -341,13 +341,18 @@ describe('estrutura: o comando só insere, e o preparo não abre nada', () => {
     expect(c).not.toMatch(/--permissao|--revogar|--apagar/)
     expect(c).toMatch(/criarChaveDoPerfil\(/)
   })
-  it('hoje (excecaoDaPergunta47Em nula): a chave "observatorio:acesso" não existe nos scripts da raiz nem de apps/web, e o CLAUDE.md não traz a frase de exceção', () => {
-    expect(ACESSO_IA_RULES.excecaoDaPergunta47Em).toBeNull()
+  it('o publicado: a exceção da pergunta 47 preenchida exige a chave "observatorio:acesso" no package.json da raiz (e não em apps/web) e a frase no CLAUDE.md; nula exige as duas ausentes', () => {
     const raiz = JSON.parse(readFileSync(join(RAIZ, '../../package.json'), 'utf8')) as { scripts: Record<string, string> }
     const web = JSON.parse(readFileSync(join(RAIZ, 'package.json'), 'utf8')) as { scripts: Record<string, string> }
-    expect(raiz.scripts['observatorio:acesso']).toBeUndefined()
+    const claude = readFileSync(join(RAIZ, '../../CLAUDE.md'), 'utf8')
     expect(web.scripts['observatorio:acesso']).toBeUndefined()
-    expect(readFileSync(join(RAIZ, '../../CLAUDE.md'), 'utf8')).not.toContain('observatorio:acesso')
+    if (ACESSO_IA_RULES.excecaoDaPergunta47Em === null) {
+      expect(raiz.scripts['observatorio:acesso']).toBeUndefined()
+      expect(claude).not.toContain('observatorio:acesso')
+    } else {
+      expect(raiz.scripts['observatorio:acesso']).toMatch(/apps\/web\/scripts\/observatorio-acesso\.ts$/)
+      expect(claude).toContain('npm run observatorio:acesso')
+    }
   })
   it('com a data preenchida, as duas coisas têm de existir (varredura sobre um package.json e um CLAUDE.md de fixture)', () => {
     const exige = (excecaoEm: string | null, pkg: { scripts: Record<string, string> }, claude: string): boolean => {

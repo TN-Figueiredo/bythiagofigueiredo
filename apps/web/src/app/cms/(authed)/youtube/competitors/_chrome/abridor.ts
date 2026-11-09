@@ -10,6 +10,8 @@ export interface Abridor {
   observatorio<T = undefined>(extra?: (siteId: string) => Promise<T>): Promise<ObservatoryPage<T>>
   canal(channelId: string): Promise<ChannelPage>
   acessoPrivado(siteId: string): Promise<AcessoPrivado>
+  /** Só pela chave: lê com o site da prova, sem carregar o conjunto do Observatório. A sessão não usa (segue pelo caminho próprio, com guarda). */
+  doSite?<T>(ler: (siteId: string) => Promise<T>): Promise<T>
 }
 
 export const ABRIDOR_DE_SESSAO: Abridor = {
