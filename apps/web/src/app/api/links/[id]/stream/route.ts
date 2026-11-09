@@ -1,7 +1,9 @@
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
 
 export const runtime = 'nodejs'
 
+const SITE_NINGUEM = '00000000-0000-0000-0000-000000000000'
 const POLL_INTERVAL_MS = 2_000
 const MAX_INACTIVITY_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -11,30 +13,22 @@ export async function GET(
 ): Promise<Response> {
   const { id: linkId } = await params
 
-  // Simple auth check via cookie-based session or bearer token
-  // In a full implementation this would use requireArea('cms'),
-  // but for the SSE route we check the x-site-id header set by middleware
-  const siteId = request.headers.get('x-site-id')
-  if (!siteId) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-
   const supabase = getSupabaseServiceClient()
 
-  // Verify link exists and belongs to the site
-  const { data: link, error: linkErr } = await supabase
+  // A2 (MG19): sessão + permissão de EDITAR o site do LINK. Nunca o cabeçalho x-site-id (fora de /cms o valor do cliente passa).
+  const { data: link } = await supabase
     .from('tracked_links')
     .select('id, site_id')
     .eq('id', linkId)
     .single()
 
-  if (linkErr || !link) {
-    return new Response('Not Found', { status: 404 })
+  // Link inexistente também passa pela guarda (com um site que ninguém edita): quem não tem sessão leva 401 e quem não edita leva 403,
+  // então o status não revela se o id existe.
+  const escopo = await requireSiteScope({ area: 'cms', siteId: link?.site_id ?? SITE_NINGUEM, mode: 'edit' })
+  if (!escopo.ok) {
+    return escopo.reason === 'unauthenticated' ? new Response('Unauthorized', { status: 401 }) : new Response('Forbidden', { status: 403 })
   }
-
-  if (link.site_id !== siteId) {
-    return new Response('Forbidden', { status: 403 })
-  }
+  if (!link) return new Response('Not Found', { status: 404 })
 
   let lastSeenAt = new Date().toISOString()
   let lastActivityAt = Date.now()

@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockSelect = vi.fn()
 const mockLinkSingle = vi.fn()
+const mockScope = vi.fn()
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (o: unknown) => mockScope(o) }))
 
 vi.mock('../../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
@@ -41,36 +44,48 @@ describe('GET /api/links/[id]/stream', () => {
       data: { id: 'link-1', site_id: 'site-1' },
       error: null,
     })
+    // editor com sessão: a guarda `edit` do site do link deixa passar
+    mockScope.mockImplementation(async (o: { siteId: string }) => (o.siteId === 'site-1' ? { ok: true, user: { id: 'u1' } } : { ok: false, reason: 'insufficient_access' }))
   })
 
-  it('returns 401 when no x-site-id header present', async () => {
+  const chamar = async (headers: Record<string, string> = {}) => {
     const { GET } = await import('../../../src/app/api/links/[id]/stream/route')
-    const req = new Request('http://localhost/api/links/link-1/stream')
-    const res = await GET(req, { params: Promise.resolve({ id: 'link-1' }) })
-    expect(res.status).toBe(401)
+    return GET(new Request('http://localhost/api/links/link-1/stream', { headers }), { params: Promise.resolve({ id: 'link-1' }) })
+  }
+
+  it('sem sessão: 401 (e a guarda é a de EDITAR o site do link)', async () => {
+    mockScope.mockResolvedValue({ ok: false, reason: 'unauthenticated' })
+    expect((await chamar()).status).toBe(401)
+    expect(mockScope).toHaveBeenCalledWith({ area: 'cms', siteId: 'site-1', mode: 'edit' })
   })
 
-  it('returns 404 when link not found', async () => {
+  it('reporter (sessão sem direito de editar): 403', async () => {
+    mockScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    expect((await chamar()).status).toBe(403)
+  })
+
+  it('x-site-id forjado não muda o resultado: nem libera quem não edita, nem derruba quem edita', async () => {
+    mockScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    expect((await chamar({ 'x-site-id': 'site-1' })).status).toBe(403)
+    mockScope.mockImplementation(async (o: { siteId: string }) => (o.siteId === 'site-1' ? { ok: true, user: { id: 'u1' } } : { ok: false, reason: 'insufficient_access' }))
+    const res = await chamar({ 'x-site-id': 'outro-site' })
+    expect(res.status).toBe(200)
+    await res.body?.getReader().cancel()
+  })
+
+  it('link inexistente: 404 para quem edita algo; 401 sem sessão e 403 sem direito (não revela se o id existe)', async () => {
     mockLinkSingle.mockReturnValue({ data: null, error: { message: 'not found' } })
-    const { GET } = await import('../../../src/app/api/links/[id]/stream/route')
-    const req = new Request('http://localhost/api/links/link-1/stream', {
-      headers: { 'x-site-id': 'site-1' },
-    })
-    const res = await GET(req, { params: Promise.resolve({ id: 'link-1' }) })
-    expect(res.status).toBe(404)
+    mockScope.mockResolvedValue({ ok: false, reason: 'unauthenticated' })
+    expect((await chamar()).status).toBe(401)
+    mockScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    expect((await chamar()).status).toBe(403)
+    mockScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    expect((await chamar()).status).toBe(404)
   })
 
-  it('returns 403 when link belongs to different site', async () => {
-    mockLinkSingle.mockReturnValue({
-      data: { id: 'link-1', site_id: 'different-site' },
-      error: null,
-    })
-    const { GET } = await import('../../../src/app/api/links/[id]/stream/route')
-    const req = new Request('http://localhost/api/links/link-1/stream', {
-      headers: { 'x-site-id': 'site-1' },
-    })
-    const res = await GET(req, { params: Promise.resolve({ id: 'link-1' }) })
-    expect(res.status).toBe(403)
+  it('link de outro site: a guarda é do site do link (editor do site-1 recebe 403)', async () => {
+    mockLinkSingle.mockReturnValue({ data: { id: 'link-1', site_id: 'different-site' }, error: null })
+    expect((await chamar()).status).toBe(403)
   })
 
   it('returns SSE response with correct content-type', async () => {
