@@ -535,6 +535,18 @@ describe('responder: A1c, revisão do Yannis', () => {
     expect(r.texto).toContain('não há canal próprio com vídeo neste site')
     expect(r.texto).not.toContain(C2)
   })
+  it('I-3: Par 1 nulo: o lado A sai inteiro no 1º par montado', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C2 ? null : pacote({ ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a')] })))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [, p2] = r.texto.split('## Par ').slice(1)
+    expect(p2).toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('não se repete aqui')
+  })
+  it('I-3: o aviso diz de qual par o lado A é', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C2 ? null : pacote(comTela(modeloCheio(), 'comparar'))))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3, C4] }, abrir, AGORA)
+    expect(r.texto).toContain('O lado A é o mesmo do Par 2 e não se repete aqui.')
+  })
 })
 
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */

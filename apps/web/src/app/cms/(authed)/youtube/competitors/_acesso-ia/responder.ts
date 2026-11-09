@@ -306,6 +306,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         const quem = doA === 'proprio' ? 'não há canal próprio com vídeo neste site' : doA === 'a' ? achados[0]!.a : achados.map((x) => x.b).join(', ')
         return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, pares })
       }
+      // o lado A é descrito inteiro no 1º par que saiu (se o Par 1 falhou, é o seguinte)
+      const primeiro = achados.findIndex((x) => x.montado !== null)
       let privado = false
       let comentarios = false
       const blocos = achados.map((x, i) => {
@@ -315,8 +317,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (x.montado.modelo.privado.estado === 'incluido') privado = true
         if (x.montado.modelo.comentarios.estado === 'incluido') comentarios = true
         // o lado A é o mesmo em todos os pares: só o 1º bloco o descreve por inteiro (foco e tabelas só do lado A); os outros ficam com mais espaço para o lado B
-        const modelo = i === 0 ? x.montado.modelo : semOLadoA(x.montado.modelo)
-        const aviso = i === 0 ? '' : 'O lado A é o mesmo do Par 1 e não se repete aqui.\n'
+        const modelo = i === primeiro ? x.montado.modelo : semOLadoA(x.montado.modelo)
+        const aviso = i === primeiro ? '' : `O lado A é o mesmo do Par ${primeiro + 1} e não se repete aqui.\n`
         return cab + aviso + textoDoModelo(modelo, x.montado.recente, agora, doPar - cab.length - aviso.length, undefined, cortes).texto
       })
       const texto = cabeEm(`${topo === '' ? '' : `${topo}\n`}${blocos.join('\n\n')}`, pedido.teto)
