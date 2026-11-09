@@ -104,6 +104,23 @@ const segundaDe = (dia: string): string => {
 const medidaNaLinha = (l: readonly Celula[]): boolean => l.some((c) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido'))
 const dmy = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 
+/** Uma semana (segunda a domingo) vira UMA linha: o rótulo da semana e, por coluna numérica, a soma dos 7 dias só quando os 7 estão medidos (com `x`); senão "não medido" com `N de 7 dias medidos`. `soma=false`: tipo não declarado, nunca soma. */
+function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>, soma: boolean): Celula[] {
+  const ref = linhas[0]!
+  const medidas = (j: number): number[] => linhas.map((l) => l[j]).flatMap((c) => (c && c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && c.x !== null ? [c.x] : []))
+  const quantos = Math.max(0, ...ref.map((c, j) => (c.papel === 'numero' ? medidas(j).length : 0)))
+  const faltou = `${quantos} de 7 dias medidos`
+  return ref.map((c, j): Celula => {
+    if (j === 0) return { papel: 'rotulo', texto: `semana de ${dmy(segunda)} (segunda a domingo)`, origem: c.origem }
+    if (c.papel !== 'numero') return { papel: 'base', texto: faltou, origem: c.origem }
+    const xs = medidas(j)
+    if (!soma) return { papel: 'numero', estado: 'nao_medido', motivo: `soma da semana não calculada (tipo da tabela não declarado); ${faltou}`, origem: c.origem }
+    if (linhas.length < 7 || xs.length < 7) return { papel: 'numero', estado: 'nao_medido', motivo: `semana incompleta: ${faltou}`, origem: c.origem }
+    const total = Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100
+    return total === 0 ? { papel: 'numero', estado: 'zero_medido', texto: '0', x: 0, origem: c.origem } : { papel: 'numero', estado: 'medido', texto: String(total), x: total, origem: c.origem }
+  })
+}
+
 /* ------------------------------------------------------------------ limites próprios */
 
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
@@ -137,7 +154,7 @@ function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes,
   return { ...m, tabelas, citados, avisos }
 }
 
-/** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (seleção, nunca soma nem média) e depois aos `n` mais recentes. */
+/** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (tabela de ganho diário: soma dos 7 dias só com os 7 medidos; acumulada: última leitura; tipo não declarado: \"não medido\") e depois aos `n` mais recentes. */
 function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes): PacoteModelo {
   const n = p.limite.n
   const de = p.de ?? '0000-01-01'
@@ -176,13 +193,21 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     if (grao === 'semana') {
       const semanas = new Map<string, typeof dentro>()
       for (const x of dentro) semanas.set(segundaDe(x.dia), [...(semanas.get(segundaDe(x.dia)) ?? []), x])
-      const escolhidas = [...semanas.values()].map((xs) => {
+      const regra = t.semana === 'soma' ? 'soma' : t.semana === 'ultima' ? 'ultima' : null
+      const escolhidas = [...semanas.entries()].map(([segunda, xs]) => {
         const ord = [...xs].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0))
-        // a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
-        return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
+        if (regra === 'ultima') {
+          // acumulado (total no fim do dia): a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
+          return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
+        }
+        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord.map((x) => x.linha), regra === 'soma'), dia: ord[0]!.dia }
       })
       dentro = escolhidas
-      avisos.push(`série "${t.titulo}": grão semana: a última leitura de cada semana (segunda a domingo, horário de São Paulo); não é soma nem média`)
+      avisos.push(regra === 'soma'
+        ? `série "${t.titulo}": grão semana, regra "ganho diário": cada semana (segunda a domingo, horário de São Paulo) é a soma dos 7 dias, só quando os 7 estão medidos; senão a célula sai "não medido" com quantos dias foram medidos (nunca zero, nunca soma parcial)`
+        : regra === 'ultima'
+          ? `série "${t.titulo}": grão semana, regra "acumulado": a última leitura de cada semana (segunda a domingo, horário de São Paulo); o total no fim do dia, não é soma nem média`
+          : `série "${t.titulo}": grão semana: o tipo desta tabela (ganho por dia ou total acumulado) não declarado, então a soma da semana não é calculada; cada semana sai "não medido" com quantos dias foram medidos; peça o grão dia`)
     }
     if (dentro.length > n) {
       const mantidos = new Set([...dentro].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0)).slice(0, n).map((x) => x.i))

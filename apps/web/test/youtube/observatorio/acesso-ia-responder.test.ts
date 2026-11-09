@@ -55,10 +55,10 @@ function lista(id: string, linhas: number, tela: TelaId = 'canais'): PacoteModel
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 /** `n` dias seguidos terminando em 13/10/2026, do mais recente ao mais antigo, rótulo `dd/mm/aaaa`. `medidoNo(i)` decide se o dia i (0 = mais recente) tem número. */
-function serie(n: number, medidoNo: (i: number) => boolean = () => true, privada = false): Tabela {
+function serie(n: number, medidoNo: (i: number) => boolean = () => true, privada = false, semana?: 'soma' | 'ultima'): Tabela {
   const fim = Date.UTC(2026, 9, 13)
   return {
-    id: 'serie', titulo: 'Views por dia', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia', privada, colunas: ['Dia', 'Views'],
+    id: 'serie', titulo: 'Views por dia', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia', privada, colunas: ['Dia', 'Views'], ...(semana ? { semana } : {}),
     linhas: Array.from({ length: n }, (_, i): Celula[] => {
       const d = new Date(fim - i * 86_400_000)
       const rot = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`
@@ -206,50 +206,61 @@ describe('responder: o limite próprio de cada ação', () => {
 
 describe('responder: serie', () => {
   it('401 pontos no grão dia: passa ao grão semana e diz; 400: fica no dia', async () => {
-    dobra('canal', modeloSerie(serie(401)))
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/401 pontos no grão dia passam de 400; mostrada no grão semana/)
-    expect(r.texto).toContain('não é soma nem média')
+    expect(r.texto).toContain('grão semana')
     expect(linhasDaSerie(r.texto).length).toBeLessThan(80)
     dobra('canal', modeloSerie(serie(400)))
     const r2 = await responder(SERIE, abrir, AGORA)
     expect(r2.texto).not.toMatch(/grão semana/)
     expect(linhasDaSerie(r2.texto).length).toBe(400)
   })
-  it('o grão semana é seleção: a linha escolhida é uma das linhas medidas da semana, com o valor dela', async () => {
-    dobra('canal', modeloSerie(serie(401)))
+  it('acumulado: o grão semana é a última leitura (seleção), com o valor dela', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
-    // 13/10/2026 é terça: a semana corrente fica com o dia mais recente (valor 1000), nunca uma soma
+    // 13/10/2026 é terça: a semana corrente fica com o dia mais recente (valor 1000)
     expect(r.texto).toMatch(/13\/10\/2026.*1000/)
     expect(r.texto).not.toMatch(/12\/10\/2026/)
-    const valores = linhasDaSerie(r.texto).map((l) => Number(/\|\s*(\d+)\s*\|/.exec(l)?.[1] ?? NaN))
-    expect(valores.every((v) => Number.isInteger(v) && v >= 1000 && v < 1401)).toBe(true)
+    expect(r.texto).toMatch(/acumulad.*última leitura/)
   })
-  it('grão semana pedido: vale mesmo com poucos pontos', async () => {
-    dobra('canal', modeloSerie(serie(30)))
-    const r = await responder({ ...SERIE, grao: 'semana' }, abrir, AGORA)
-    expect(linhasDaSerie(r.texto).length).toBeLessThanOrEqual(6)
-    expect(r.texto).toContain('grão semana')
-  })
-  it('semana só com "não medido" sai como "não medido", nunca some; a medida mais antiga da semana vence o dia vazio mais novo', async () => {
-    // dias 0..6 (a semana de 13/10, terça, tem 2 dias: 0 e 1) vazios; o resto medido; 401 pontos para entrar no grão semana
-    dobra('canal', modeloSerie(serie(401, (i) => i > 1)))
-    const r = await responder(SERIE, abrir, AGORA)
-    expect(r.texto).toContain('SEM_LEITURA')
-    expect(r.texto).toMatch(/13\/10\/2026/)
-    // a semana de 29/09 a 05/10 tem medida: não aparece "não medido" nela
-    const linhas = linhasDaSerie(r.texto)
-    expect(linhas.filter((l) => l.includes('SEM_LEITURA')).length).toBe(1)
-  })
-  it('semana com medida e dias vazios no fim: fica a última linha MEDIDA', async () => {
-    // 13/10 (terça) e 12/10 (segunda) vazios, mas é a mesma semana (só vazios): vira "não medido". Com o dia 0 vazio e o 1 medido, fica o 1.
-    dobra('canal', modeloSerie(serie(401, (i) => i !== 0)))
+  it('acumulado: semana com dia vazio no fim fica com a última linha MEDIDA', async () => {
+    dobra('canal', modeloSerie(serie(401, (i) => i !== 0, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/12\/10\/2026.*1001/)
     expect(r.texto).not.toContain('SEM_LEITURA')
   })
+  it('ganho diário: semana completa (7 de 7 medidos) soma os 7 dias; a regra vem no cabeçalho', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    // 05/10 a 11/10 = dias 8..2 antes de 13/10: valores 1002..1008, soma 7035
+    expect(linhasDaSerie(r.texto).length).toBe(1)
+    expect(r.texto).toContain('7035')
+    expect(r.texto).toMatch(/soma dos 7 dias.*só quando os 7 estão medidos/)
+  })
+  it('ganho diário: semana com 1 dia sem medida sai "não medido" com 6 de 7, nunca zero nem soma parcial', async () => {
+    dobra('canal', modeloSerie(serie(401, (i) => i !== 5, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    expect(r.texto).toMatch(/6 de 7 dias medidos/)
+    expect(r.texto).not.toContain('7035')
+    expect(r.texto).not.toMatch(/\|\s*0\s*\|/)
+  })
+  it('ganho diário: semana parcial na borda (2 dias) é "não medido" com 2 de 7', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-12', ate: '2026-10-13' }, abrir, AGORA)
+    expect(r.texto).toMatch(/2 de 7 dias medidos/)
+    expect(r.texto).not.toMatch(/\b2001\b/)
+  })
+  it('tipo não declarado: a semana sai "não medido" (opção mínima), com os dias medidos', async () => {
+    dobra('canal', modeloSerie(serie(401)))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    expect(r.texto).toMatch(/7 de 7 dias medidos/)
+    expect(r.texto).toMatch(/tipo.*não declarado/)
+    expect(r.texto).not.toContain('7035')
+    expect(r.texto).not.toMatch(/\b100\d\b/)
+  })
   it('ainda mais de 400 pontos no grão semana: os 400 mais recentes, e diz', async () => {
-    dobra('canal', modeloSerie(serie(3000)))
+    dobra('canal', modeloSerie(serie(3000, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/ainda são \d+ pontos no grão semana; ficam os 400 mais recentes/)
     expect(linhasDaSerie(r.texto).length).toBe(400)
