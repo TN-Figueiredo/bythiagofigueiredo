@@ -55,3 +55,18 @@ describe.skipIf(skipIfNoLocalDb())('storage.objects: escrita sem conferir papel'
     expect(r.rows.map(x => x.policyname)).toEqual([])
   })
 })
+
+// Phil, revisão A2 I1: tabelas de anúncio com dado de terceiro/financeiro não abrem leitura a authenticated
+describe.skipIf(skipIfNoLocalDb())('ad_*: leitura só pelo service role', () => {
+  let db: Client
+  beforeAll(async () => { db = new Client({ connectionString: PG_URL }); await db.connect() })
+  afterAll(async () => { await db.end() })
+
+  it('nenhuma policy SELECT para anon/authenticated/public em ad_inquiries, ad_revenue_daily, ad_campaigns', async () => {
+    const r = await db.query<{ policyname: string }>(`
+      select tablename || '.' || policyname as policyname from pg_policies
+      where schemaname = 'public' and tablename in ('ad_inquiries','ad_revenue_daily','ad_campaigns')
+        and cmd in ('SELECT','ALL') and (roles && '{public,anon,authenticated}'::name[]) order by 1`)
+    expect(r.rows.map(x => x.policyname)).toEqual([])
+  })
+})
