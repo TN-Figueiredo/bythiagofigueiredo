@@ -253,7 +253,7 @@ function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, t
   const pacote = segmentar(m, { geradoEm: agora, recente })
   const t = montarTexto(pacote, '', teto, 'todos', degraus)
   // A1c: o que `montarTexto` cortou por tamanho (e o piso que estourou, que vira corte do fim) chega ao registro; antes ele gravava `cortes=0` em silêncio
-  if (cortes) cortes.n += t.cortes.length + (t.pisoPassou && t.cortes.length === 0 ? 1 : 0)
+  if (cortes) cortes.n += t.cortes.length + (t.pisoPassou ? 1 : 0)
   return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
 }
 

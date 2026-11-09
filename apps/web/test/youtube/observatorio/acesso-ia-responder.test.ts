@@ -560,6 +560,17 @@ describe('responder: A1c, revisão do Yannis', () => {
     expect(p2).not.toContain('valor privado-alcance-a-notas 0')
     expect(p2).toContain('valor privado-alcance-b-notas 0')
   })
+  it('M-3: piso estourado junto com tabela cortada: conta o fim cortado também', async () => {
+    const g = grande(500_000)
+    const modelo = { ...g, tela: 'comparar' as TelaId, avisos: ['y'.repeat(70_000)] }
+    dobra('comparar', modelo)
+    const cab = `## Par 1: canal ${C1} contra canal ${C2}\n`
+    const t = montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', 59_999 - cab.length, 'todos')
+    expect(t.pisoPassou).toBe(true)
+    expect(t.cortes.length).toBeGreaterThan(0)
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)
+    expect(r.params.cortes).toBe(t.cortes.length + 1)
+  })
 })
 
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
