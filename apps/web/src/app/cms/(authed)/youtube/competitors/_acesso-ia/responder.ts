@@ -13,6 +13,7 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
+import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
@@ -256,10 +257,9 @@ function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, t
   return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
 }
 
-/** As tabelas e o foco que só falam do lado A (`privado-alcance-a`, `…-sentido-a`, `…-notas-a`): o lado A não se repete em cada par. A tabela "número a número" fica (ela põe A ao lado de B). */
-const SO_DO_LADO_A = /(^|-)alcance-a$|-sentido-a$|-notas-a$/
+/** As tabelas e o foco que só falam do lado A (`ehSoDoLadoA`, definido junto de onde os ids nascem): o lado A não se repete em cada par. A tabela "número a número" fica (ela põe A ao lado de B). */
 function semOLadoA(m: PacoteModelo): PacoteModelo {
-  return { ...m, foco: m.foco.slice(1), tabelas: m.tabelas.filter((t) => !SO_DO_LADO_A.test(t.id)) }
+  return { ...m, foco: m.foco.slice(1), tabelas: m.tabelas.filter((t) => !ehSoDoLadoA(t.id)) }
 }
 
 const FRASE_DO_FIM = '\n[texto cortado por tamanho: o fim não saiu]'

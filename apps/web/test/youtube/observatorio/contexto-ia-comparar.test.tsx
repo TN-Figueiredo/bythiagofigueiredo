@@ -18,7 +18,7 @@ import {
   FRASE_ABERTURA, FRASE_ERRO_CARTAO, FRASE_NEGADO_CARTAO, INFO_SO_SEU_CANAL, type LinhaSoSeuCanal, type SoSeuCanalDado,
 } from '@/app/cms/(authed)/youtube/competitors/_comparar/so-seu-canal-model'
 import {
-  AVISO_FREQUENCIA, AVISO_PARCIAL, empacotarComparar, formatoDaPublicacao, formatoDoVideo, INVENTARIO_COMPARAR, modeloDeComparar,
+  AVISO_FREQUENCIA, AVISO_PARCIAL, ehSoDoLadoA, empacotarComparar, formatoDaPublicacao, formatoDoVideo, INVENTARIO_COMPARAR, modeloDeComparar,
   SEM_PAR, SEM_PROVA_POR_IGUALDADE_DIRETA_COMPARAR, type ModeloComparar,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-comparar'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
@@ -356,6 +356,16 @@ describe('Comparar: o dado privado tem seis estados e o pacote nomeia os seis', 
     const m = await montar(DOIS_CONCORRENTES(), false)
     expect(privadoDe(m)).toEqual({ estado: 'na' })
     expect(tabelasPrivadas(m)).toEqual([])
+  })
+
+  it('A1c M-2: ehSoDoLadoA pega os ids reais do lado A (inclusive a nota órfã do alcance) e deixa os do lado B e o número a número', async () => {
+    const m = await montar(proprioContraConcorrente({ eu: ALCANCE_LIDO }, ESTADO_OK, { vpd: 12.5, vpdPorMil: 2.1 }), false)
+    const ids = m.pacote.tabelas.map((t) => t.id)
+    const doA = ids.filter(ehSoDoLadoA)
+    expect(doA).toEqual(expect.arrayContaining(['privado-alcance-a', 'privado-alcance-a-notas']))
+    for (const id of ids) if (/^privado-alcance-b|^numero-a-numero$|^privado-numero-a-numero$/.test(id)) expect(ehSoDoLadoA(id)).toBe(false)
+    // nenhum id sobra com cara de "só do lado A" fora do predicado (renomear um id quebra aqui)
+    for (const id of ids) if (/alcance-a|-sentido-a$|-notas-a$/.test(id)) expect(ehSoDoLadoA(id)).toBe(true)
   })
 
   it('lido: incluido; as linhas do diário e o alcance vão em tabelas privadas, com o motivo do modelo no "% assistido"', async () => {

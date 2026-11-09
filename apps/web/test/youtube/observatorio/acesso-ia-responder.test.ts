@@ -553,6 +553,13 @@ describe('responder: A1c, revisão do Yannis', () => {
     expect(r.texto).not.toContain('canal  contra')
     expect(r.texto).toContain('## Par 1: canal próprio contra canal')
   })
+  it('M-2: a nota órfã do alcance sai junto com a tabela de alcance do lado A', async () => {
+    dobra('comparar', { ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a'), tab('privado-alcance-a-notas'), tab('privado-alcance-b-notas')] })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [, p2] = r.texto.split('## Par ').slice(1)
+    expect(p2).not.toContain('valor privado-alcance-a-notas 0')
+    expect(p2).toContain('valor privado-alcance-b-notas 0')
+  })
 })
 
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
