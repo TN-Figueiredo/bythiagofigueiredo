@@ -28,6 +28,26 @@ const ESPERADO: Array<{ schema: string; tabela: string; policy: string; cmd: str
   { schema: 'storage', tabela: 'objects', policy: 'staff_upload_newsletter_assets', cmd: 'INSERT', tem: ['is_member_staff'], nao: ['is_member_editor'] },
 ]
 
+/** md5 do que está em PRODUÇÃO (a2/phil-leituras-prod-2.out, P1 e P8d/P8e, 09/11/2026): o desfazer tem de reproduzir byte a byte, não só trechos. */
+const MD5_FUNCOES_PROD: Record<string, string> = {
+  'public.can_view_site(uuid)': 'dbe5c7376c891d248fa1da2e6be55d6f',
+  'public.user_accessible_sites()': 'fc27913dd98dbb757542ece94b24fad0',
+  'public.can_edit_site(uuid)': 'c89c2d92ac84153c65e6e9c376210b3f',
+  'public.is_member_staff()': '47727334953ca752feabbedefa432e8b',
+}
+/** md5(qual | with_check | roles) de cada policy em produção. */
+const MD5_POLICIES_PROD: Record<string, string> = {
+  'public.blog_posts:blog_posts_delete': '2abb0c95769b5f1cb6a482e67bf9cc82',
+  'public.blog_posts:blog_posts_insert': 'b355cf508acf8dd5c7f0cdf0c45a2eeb',
+  'public.blog_posts:blog_posts_select': '2ae86b5f2209298e7522512b76e2bdd7',
+  'public.blog_posts:blog_posts_update': '4acb9c447d7093e61c4d4b87028974aa',
+  'public.competitor_agenda_runs:competitor_agenda_runs_select': '75aeedf51c61d64a98c2ad6583acbd01',
+  'public.newsletter_types:staff_manage_types': 'd176021c586516e64eaae93cdcef0ae9',
+  'public.obs_db_size_daily:obs_db_size_daily_select': '75aeedf51c61d64a98c2ad6583acbd01',
+  'storage.objects:staff_delete_newsletter_assets': '51cdfc0df8bb3e1261cc58d199ac9c7b',
+  'storage.objects:staff_upload_newsletter_assets': '09708d85f7576cb0ab97b5e979e43b60',
+}
+
 describe.skipIf(skipIfNoLocalDb())('A2 MG19: o desfazer devolve o estado de produção', () => {
   let pg: Client
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
@@ -56,6 +76,20 @@ describe.skipIf(skipIfNoLocalDb())('A2 MG19: o desfazer devolve o estado de prod
       expect(norm(f.rows[0].a)).toContain(norm("FROM site_memberships WHERE site_id = p_site_id AND user_id = auth.uid()"))
       expect(norm(f.rows[0].a)).not.toContain('can_edit_site')
       expect(norm(f.rows[0].b)).toContain(norm('WHERE public.can_view_site(s.id)'))
+      // Phil M2: o corpo inteiro, por md5, igual ao de produção
+      for (const [fn, md5] of Object.entries(MD5_FUNCOES_PROD)) {
+        const m = await pg.query(`select md5(pg_get_functiondef($1::regprocedure)) m`, [fn])
+        expect(m.rows[0].m, `md5 de ${fn} depois do desfazer`).toBe(md5)
+      }
+      for (const [chave, md5] of Object.entries(MD5_POLICIES_PROD)) {
+        const [sp, pol] = chave.split(':') as [string, string]
+        const [schema, tabela] = sp.split('.') as [string, string]
+        const m = await pg.query(
+          `select md5(coalesce(qual,'')||'|'||coalesce(with_check,'')||'|'||roles::text) m from pg_policies where schemaname=$1 and tablename=$2 and policyname=$3`,
+          [schema, tabela, pol],
+        )
+        expect(m.rows[0]?.m, `md5 da policy ${chave} depois do desfazer`).toBe(md5)
+      }
     } finally {
       await pg.query('rollback')
     }

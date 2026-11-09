@@ -67,6 +67,8 @@ create policy blog_posts_delete on public.blog_posts for delete to authenticated
 drop policy if exists staff_manage_types on public.newsletter_types;
 create policy staff_manage_types on public.newsletter_types for all
   using (public.can_edit_site(site_id)) with check (public.can_edit_site(site_id));
+-- Marcador de intenção (Phil M1): hoje redundante com staff_manage_types (FOR ALL já cobre SELECT, e can_view_site = can_edit_site). Fica para que a
+-- leitura não dependa da política de escrita no dia em que can_view_site voltar a divergir de can_edit_site.
 drop policy if exists staff_read_types on public.newsletter_types;
 create policy staff_read_types on public.newsletter_types for select
   using (public.can_view_site(site_id));

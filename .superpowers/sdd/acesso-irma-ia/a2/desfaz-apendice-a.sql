@@ -1,3 +1,4 @@
+-- Fica de propósito (Phil M3): can_view_observatorio e is_member_editor NÃO são apagadas aqui. Sem policy que as use, só respondem sobre quem chama; não são resto esquecido.
 
 -- funções (corpos de prod; md5 na seção 3, P1)
 create or replace function public.can_view_site(p_site_id uuid) returns boolean language sql stable security definer set search_path to 'public' as $$
