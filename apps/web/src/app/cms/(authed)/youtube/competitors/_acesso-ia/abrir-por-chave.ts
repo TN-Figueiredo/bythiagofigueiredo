@@ -27,6 +27,7 @@ export function abridorDaChave(prova: ChaveDoPerfilProvada, acesso: AcessoPrivad
       return semExtra as unknown as Promise<ObservatoryPage<T>>
     },
     canal: (channelId) => carregarCanal({ siteId, now: observatoryNow(), channelId, acesso: doSite, meuCanalLembrado: null }),
+    doSite: (ler) => ler(siteId),
     acessoPrivado: async (pedido) => (pedido === siteId ? doSite : SEM_DIREITO),
   }
 }

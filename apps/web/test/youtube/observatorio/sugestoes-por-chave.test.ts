@@ -5,20 +5,26 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ chamadas: [] as unknown[][], lista: null as unknown, calculoLigado: true }))
+const h = vi.hoisted(() => ({ chamadas: [] as unknown[][], lista: null as unknown, calculoLigado: true, falha: null as Error | null, carregou: vi.fn() }))
 vi.mock('server-only', () => ({}))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => { throw new Error('guarda de sessão não pode rodar por chave') }) }))
 vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn(async () => { throw new Error('getSiteContext não pode rodar por chave') }) }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
+  carregarObservatorio: h.carregou, carregarCanal: h.carregou, openObservatoryPage: h.carregou, openChannelPage: h.carregou,
+}))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ marca: 'cliente-de-servico' }) }))
 vi.mock('@/lib/youtube/observatorio/sinais/leitura', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/observatorio/sinais/leitura')>()),
   calculoLigadoNoAmbiente: () => h.calculoLigado,
-  listarSinaisDoNicho: vi.fn(async (...a: unknown[]) => { h.chamadas.push(a); return h.lista }),
+  listarSinaisDoNicho: vi.fn(async (...a: unknown[]) => { h.chamadas.push(a); if (h.falha) throw h.falha; return h.lista }),
 }))
 
 import { montarSugestoes } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/montar'
 import { EMPACOTAR } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
+import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
+import { abridorDaChave } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave'
+import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import type { Abridor } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
 import type { AcessoPrivado } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
@@ -41,6 +47,7 @@ const abridorFalso = (acesso: AcessoPrivado): Abridor & { pedidos: string[] } =>
   return {
     pedidos,
     observatorio: (async (extra?: (s: string) => Promise<unknown>) => ({ siteId: SITE, extra: extra ? await extra(SITE) : undefined })) as unknown as Abridor['observatorio'],
+    doSite: (ler) => ler(SITE),
     canal: (async () => { throw new Error('não usado') }) as unknown as Abridor['canal'],
     acessoPrivado: async (s) => { pedidos.push(s); return acesso },
   }
@@ -48,7 +55,7 @@ const abridorFalso = (acesso: AcessoPrivado): Abridor & { pedidos: string[] } =>
 const SEM: AcessoPrivado = { leitura: null, edita: false, negativa: 'sem_direito' }
 const COM = { leitura: { marca: 'leitura-valida' }, edita: false, negativa: null } as unknown as AcessoPrivado
 
-beforeEach(() => { h.chamadas.length = 0; h.lista = null; h.calculoLigado = true })
+beforeEach(() => { h.chamadas.length = 0; h.lista = null; h.calculoLigado = true; h.falha = null; h.carregou.mockReset() })
 
 describe('sugestões pela chave (M-2)', () => {
   it('lê o site da PROVA, sem guarda de sessão, e o acesso passado à lista é o da chave com edita falso', async () => {
@@ -101,5 +108,25 @@ describe('sugestões pela chave (M-2)', () => {
   it('o empacotador por chave não devolve null (antes devolvia)', async () => {
     h.lista = lista([item(null)])
     expect(await EMPACOTAR.sugestoes({ sp: {} }, abridorFalso(SEM))).not.toBeNull()
+  })
+
+  it('I-1: pela chave NÃO carrega o conjunto do Observatório, só lê as sugestões do site da prova', async () => {
+    h.lista = lista([item(null)])
+    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', '2099-01-01T00:00:00Z')
+    const r = await responder({ acao: 'sugestoes' }, abridorDaChave(prova, COM), Date.now())
+    expect(r.desfecho).toBe('ok')
+    expect(h.carregou).not.toHaveBeenCalled()
+    expect(h.chamadas).toHaveLength(1)
+    expect(h.chamadas[0]![1]).toBe(SITE)
+    expect(h.chamadas[0]![5]).toMatchObject({ edita: false })
+  })
+
+  it('M-A: a leitura das sugestões falhar dá falhou (nunca verde nem nao_encontrado)', async () => {
+    h.falha = new Error('x')
+    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', '2099-01-01T00:00:00Z')
+    const r = await responder({ acao: 'sugestoes' }, abridorDaChave(prova, COM), Date.now())
+    expect(r.desfecho).toBe('falhou')
+    expect(r.desfecho).not.toBe('nao_encontrado')
+    expect(r.texto).toBe(FRASES_DA_FERRAMENTA.nao_montou)
   })
 })
