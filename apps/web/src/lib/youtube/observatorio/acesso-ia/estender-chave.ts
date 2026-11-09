@@ -67,7 +67,7 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
   // a linha
   let linha: { site_id?: unknown; user_id?: unknown; expires_at?: unknown; permissions?: unknown; revoked_at?: unknown } | undefined
   try {
-    const r = await sb.from('pipeline_api_keys').select('*').eq('name', nome)
+    const r = await sb.from('pipeline_api_keys').select('name, site_id, user_id, expires_at, permissions, revoked_at').eq('name', nome)
     if (r.error) return falha('nao_conferido', { code: codigoDe(r.error) })
     const linhas = (r.data ?? []) as Array<NonNullable<typeof linha>>
     if (linhas.length === 0) return falha('chave_inexistente')
@@ -103,7 +103,8 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
     }
     if (!u.data?.user) return falha('sem_vinculo')
     const banido = (u.data.user as { banned_until?: string | null }).banned_until
-    if (typeof banido === 'string' && banido !== '' && (!instanteValido(banido) || Date.parse(banido) > t)) return falha('pessoa_banida')
+    // mesma regra de lib/lgpd/account-status-cache: banned_until preenchido = banida (passado, futuro ou ilegível)
+    if (banido !== null && banido !== undefined && banido !== '') return falha('pessoa_banida')
   } catch { return falha('nao_conferido', { code: 'excecao' }) }
   // o efeito: UM update com CAS
   const venceAgora = new Date(nova).toISOString()

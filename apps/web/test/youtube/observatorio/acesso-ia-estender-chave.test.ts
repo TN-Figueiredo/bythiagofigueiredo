@@ -114,6 +114,39 @@ describe('erros do Auth e do banco', () => {
   })
 })
 
+describe('colunas lidas, banimento e fronteiras', () => {
+  it('M-1: lista as colunas, sem key_hash e sem *', async () => {
+    const c = fazer()
+    await estenderChaveDoPerfil(c.deps, pedido)
+    expect(c.selects).toEqual(['name, site_id, user_id, expires_at, permissions, revoked_at'])
+  })
+  it('M-3: banned_until preenchido bane, como em lib/lgpd (passado, futuro ou ilegível)', async () => {
+    for (const b of [new Date(AGORA - DIA).toISOString(), new Date(AGORA + DIA).toISOString(), 'lixo']) {
+      const c = fazer({ banidoAte: b })
+      expect(await estenderChaveDoPerfil(c.deps, pedido)).toMatchObject({ ok: false, recusa: 'pessoa_banida' })
+      expect(c.updates).toHaveLength(0)
+    }
+  })
+  it('M-4: vencida há exatamente 30 dias estende; nova data igual à atual estende', async () => {
+    expect((await estenderChaveDoPerfil(fazer({ linhas: [linha({ expires_at: new Date(AGORA - 30 * DIA).toISOString() })] }).deps, pedido)).ok).toBe(true)
+    expect((await estenderChaveDoPerfil(fazer({ linhas: [linha({ expires_at: new Date(AGORA + 30 * DIA).toISOString() })] }).deps, { chave: NOME, dias: 30 })).ok).toBe(true)
+  })
+  it('M-4: nome repetido, relógio inválido, rpc com erro ou forma inválida: nao_conferido, zero updates', async () => {
+    const a = fazer({ linhas: [linha(), linha()] })
+    expect(await estenderChaveDoPerfil(a.deps, pedido)).toMatchObject({ recusa: 'nao_conferido', code: 'nome_repetido' })
+    const b = fazer(); b.deps.agora = () => Number.NaN
+    expect(await estenderChaveDoPerfil(b.deps, pedido)).toMatchObject({ recusa: 'nao_conferido', code: 'relogio' })
+    const c = fazer({ rpc: 'erro' })
+    expect(await estenderChaveDoPerfil(c.deps, pedido)).toMatchObject({ recusa: 'nao_conferido', code: 'XX000' })
+    const d = fazer({ rpc: 'forma' })
+    expect(await estenderChaveDoPerfil(d.deps, pedido)).toMatchObject({ recusa: 'nao_conferido', code: 'forma_invalida' })
+    for (const x of [a, b, c, d]) expect(x.updates).toHaveLength(0)
+  })
+  it('exceção na escrita: nao_conferido (resultado desconhecido)', async () => {
+    expect(await estenderChaveDoPerfil(fazer({ lancaNoUpdate: true }).deps, pedido)).toMatchObject({ ok: false, recusa: 'nao_conferido', code: 'excecao' })
+  })
+})
+
 describe('estender adia o aviso de vencimento', () => {
   it('a conferência segue o expires_at novo', async () => {
     const antes = conferenciaDeVencimento(NOME, new Date(AGORA + 10 * DIA).toISOString())!
