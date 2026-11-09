@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { estenderChaveDoPerfil, lerArgumentosDeEstender, type DepsDeEstender } from '@/lib/youtube/observatorio/acesso-ia/estender-chave'
+import { descreverResultadoDeEstender } from '@/lib/youtube/observatorio/acesso-ia/estender-chave'
 import { conferenciaDeVencimento } from '@/lib/youtube/observatorio/acesso-ia/vencimento'
 
 const DIA = 86_400_000
@@ -153,7 +154,9 @@ describe('estender adia o aviso de vencimento', () => {
     const r = await estenderChaveDoPerfil(fazer().deps, pedido)
     if (!r.ok) throw new Error('esperava ok')
     const depois = conferenciaDeVencimento(NOME, r.venceAgora)!
-    expect(depois.id).toBe(antes.id)
+    // I-1: o id carrega o vencimento, então a entrada feita (antiga) e a nova convivem com ids únicos
+    expect(depois.id).not.toBe(antes.id)
+    expect(new Set([antes.id, depois.id]).size).toBe(2)
     expect(depois.data > antes.data).toBe(true)
     expect(depois.data).toBe(ymd(AGORA + 366 * DIA - 14 * DIA))
   })
@@ -180,5 +183,24 @@ describe('estrutura: o estender só faz UM update de expires_at', () => {
     expect(c).toMatch(/\.update\(\{ expires_at: venceAgora \}\)/)
     expect(c).not.toMatch(/revoked_at\s*:/)
     for (const m of c.matchAll(/\.rpc\s*\(\s*['"]([a-z_]+)['"]/g)) expect(['can_view_site_as']).toContain(m[1])
+  })
+})
+
+describe('descreverResultadoDeEstender (frases da casca)', () => {
+  it('ok: imprime o expires_at ISO completo e o passo de conferencias.ts', () => {
+    const t = descreverResultadoDeEstender({ ok: true, nome: NOME, venceAntes: '2027-05-08T15:00:00.000Z', venceAgora: '2028-05-08T15:00:00.000Z' }).texto
+    expect(t).toContain('2028-05-08T15:00:00.000Z')
+    expect(t).toContain(`e17d2-chave-${NOME}-vence-20270508`)
+    expect(t).toContain('conferencias.ts')
+  })
+  it('nao_conferido: resultado desconhecido, nunca "recusado"', () => {
+    const t = descreverResultadoDeEstender({ ok: false, recusa: 'nao_conferido', code: 'XX000' }, NOME).texto
+    expect(t).toContain('resultado desconhecido')
+    expect(t).toContain(NOME)
+    expect(t).not.toContain('recusado')
+  })
+  it('nada_mudou e recusa comum', () => {
+    expect(descreverResultadoDeEstender({ ok: false, recusa: 'nada_mudou' }).texto).toContain('rode de novo')
+    expect(descreverResultadoDeEstender({ ok: false, recusa: 'ja_vale_ate', venceEm: '2028-01-01' }).texto).toBe('recusado: ja_vale_ate (já vale até 2028-01-01)')
   })
 })

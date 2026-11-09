@@ -36,7 +36,8 @@ export function conferenciaDeVencimento(nomeDaChave: string, expiresAt: string):
   const dd = String(venceNoDiaDeSp.getUTCDate()).padStart(2, '0')
   const mm = String(venceNoDiaDeSp.getUTCMonth() + 1).padStart(2, '0')
   return {
-    id: `e17d2-chave-${nomeDaChave}-vence`,
+    // o id leva o dia do vencimento: estender gera uma entrada NOVA e a antiga fica marcada como feita (ids únicos, histórico preservado)
+    id: `e17d2-chave-${nomeDaChave}-vence-${venceNoDiaDeSp.getUTCFullYear()}${mm}${dd}`,
     etapa: 'E17',
     data: dia.toISOString().slice(0, 10),
     responsavel: 'dono',

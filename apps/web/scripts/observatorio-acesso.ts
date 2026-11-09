@@ -6,7 +6,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'node:crypto'
 import { criarChaveDoPerfil, lerArgumentos } from '../src/lib/youtube/observatorio/acesso-ia/criar-chave'
-import { estenderChaveDoPerfil, lerArgumentosDeEstender, diaDeSp } from '../src/lib/youtube/observatorio/acesso-ia/estender-chave'
+import { estenderChaveDoPerfil, lerArgumentosDeEstender, descreverResultadoDeEstender } from '../src/lib/youtube/observatorio/acesso-ia/estender-chave'
 import { e19ConferidaParaChave } from '../src/lib/youtube/observatorio/acesso-ia/interruptor'
 import { ACESSO_IA_RULES } from '../src/lib/youtube/observatorio/acesso-ia/regras'
 
@@ -39,12 +39,10 @@ async function estender(): Promise<number> {
   if (!url || !servico) { console.error('faltam NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY'); return 2 }
   const sb = createClient(url, servico, { auth: { persistSession: false } })
   const r = await estenderChaveDoPerfil({ sb, agora: Date.now, e19: e19ConferidaParaChave, excecaoEm: ACESSO_IA_RULES.excecaoDaPergunta47Em }, args.pedido)
-  if (!r.ok) {
-    if (r.recusa === 'nada_mudou') { console.error('nada mudou: a chave foi alterada entre a leitura e a escrita; rode de novo'); return 1 }
-    console.error(`recusado: ${r.recusa}${r.venceEm ? ` (já vale até ${r.venceEm})` : ''}${r.code ? ` (${r.code})` : ''}`); return 1
-  }
-  console.log(`chave estendida: ${r.nome}, vencia em ${diaDeSp(r.venceAntes)}, agora vence em ${diaDeSp(r.venceAgora)} (dia de São Paulo). O segredo é o mesmo; nada a reinstalar.`)
+  const { texto } = descreverResultadoDeEstender(r, args.pedido.chave)
+  if (!r.ok) { console.error(texto); return 1 }
+  console.log(texto)
   return 0
 }
 
-main().then((c) => { process.exitCode = c }, () => { console.error('falha inesperada: nada foi criado ou o resultado é desconhecido; confira as chaves no banco'); process.exitCode = 1 })
+main().then((c) => { process.exitCode = c }, () => { console.error('falha inesperada: nada foi criado nem estendido, ou o resultado é desconhecido; confira as chaves no banco'); process.exitCode = 1 })

@@ -118,3 +118,16 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
   } catch { return falha('nao_conferido', { code: 'excecao' }) }
   return { ok: true, nome, venceAntes: lido, venceAgora }
 }
+
+/** As frases da casca. `nao_conferido` NUNCA sai como "recusado": o `update` pode ter gravado antes de a resposta se perder. */
+export function descreverResultadoDeEstender(r: ResultadoDeEstender, nome?: string): { texto: string } {
+  if (r.ok) {
+    const idAntigo = `e17d2-chave-${r.nome}-vence-${diaDeSp(r.venceAntes).replace(/-/g, '')}`
+    return { texto: `chave estendida: ${r.nome}, vencia em ${diaDeSp(r.venceAntes)}, agora vence em ${diaDeSp(r.venceAgora)} (dia de São Paulo). O segredo é o mesmo; nada a reinstalar.\n`
+      + `expires_at novo: ${r.venceAgora}\n`
+      + `Falta um commit em apps/web/src/lib/conferencias.ts: marque feitaEm (hoje) na entrada ${idAntigo} e acrescente a entrada de conferenciaDeVencimento('${r.nome}', '${r.venceAgora}'); senão o cron fica vermelho 7 dias depois do aviso antigo.` }
+  }
+  if (r.recusa === 'nada_mudou') return { texto: 'nada mudou: a chave foi alterada entre a leitura e a escrita; rode de novo' }
+  if (r.recusa === 'nao_conferido') return { texto: `resultado desconhecido${r.code ? ` (${r.code})` : ''}: confira expires_at da chave ${nome ?? '<nome>'} no banco; rodar de novo é seguro` }
+  return { texto: `recusado: ${r.recusa}${r.venceEm ? ` (já vale até ${r.venceEm})` : ''}${r.code ? ` (${r.code})` : ''}` }
+}

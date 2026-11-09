@@ -40,7 +40,7 @@ describe('conferenciaDeVencimento', () => {
   it('o responsável é o dono, o identificador carrega o nome da chave e a conferência nasce por fazer', () => {
     const c = conferenciaDeVencimento(NOME, '2026-11-12T15:00:00.000Z')!
     expect(c.responsavel).toBe('dono')
-    expect(c.id).toBe(`e17d2-chave-${NOME}-vence`)
+    expect(c.id).toBe(`e17d2-chave-${NOME}-vence-20261112`)
     expect(c.feitaEm).toBeNull()
     expect(c.etapa).toMatch(/^E\d+$/)
     expect(c.onde).toContain(NOME)
