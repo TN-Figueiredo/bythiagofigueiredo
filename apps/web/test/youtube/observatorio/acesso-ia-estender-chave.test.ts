@@ -187,10 +187,15 @@ describe('estrutura: o estender só faz UM update de expires_at', () => {
 })
 
 describe('descreverResultadoDeEstender (frases da casca)', () => {
+  // Datas relativas ao ano corrente (higiene: nada de ano futuro fixo).
+  const ANO = new Date().getUTCFullYear()
+  const ANTES = `${ANO + 1}-05-08T15:00:00.000Z`
+  const AGORA = `${ANO + 2}-05-08T15:00:00.000Z`
+  const JA_VALE = `${ANO + 2}-01-01`
   it('ok: imprime o expires_at ISO completo e o passo de conferencias.ts', () => {
-    const t = descreverResultadoDeEstender({ ok: true, nome: NOME, venceAntes: '2027-05-08T15:00:00.000Z', venceAgora: '2028-05-08T15:00:00.000Z' }).texto
-    expect(t).toContain('2028-05-08T15:00:00.000Z')
-    expect(t).toContain(`e17d2-chave-${NOME}-vence-20270508`)
+    const t = descreverResultadoDeEstender({ ok: true, nome: NOME, venceAntes: ANTES, venceAgora: AGORA }).texto
+    expect(t).toContain(AGORA)
+    expect(t).toContain(`e17d2-chave-${NOME}-vence-${ANO + 1}0508`)
     expect(t).toContain('conferencias.ts')
   })
   it('nao_conferido: resultado desconhecido, nunca "recusado"', () => {
@@ -201,6 +206,6 @@ describe('descreverResultadoDeEstender (frases da casca)', () => {
   })
   it('nada_mudou e recusa comum', () => {
     expect(descreverResultadoDeEstender({ ok: false, recusa: 'nada_mudou' }).texto).toContain('rode de novo')
-    expect(descreverResultadoDeEstender({ ok: false, recusa: 'ja_vale_ate', venceEm: '2028-01-01' }).texto).toBe('recusado: ja_vale_ate (já vale até 2028-01-01)')
+    expect(descreverResultadoDeEstender({ ok: false, recusa: 'ja_vale_ate', venceEm: JA_VALE }).texto).toBe(`recusado: ja_vale_ate (já vale até ${JA_VALE})`)
   })
 })
