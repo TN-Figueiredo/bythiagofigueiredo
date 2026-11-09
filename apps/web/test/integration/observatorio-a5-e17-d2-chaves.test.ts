@@ -16,6 +16,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, insertAuthUser, deleteAuthUser } from '../helpers/db-seed'
 import { definirSessao } from '../helpers/mg11'
 import { criarChaveDoPerfil, type DepsDeCriar } from '@/lib/youtube/observatorio/acesso-ia/criar-chave'
+import { estenderChaveDoPerfil } from '@/lib/youtube/observatorio/acesso-ia/estender-chave'
 import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
@@ -58,6 +59,11 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
           const r = await rodar<{ id: string; email: string | null }>(`select id, email from auth.users order by created_at, id limit $1 offset $2`, [perPage, (page - 1) * perPage])
           return { data: { users: r.rows }, error: null }
         },
+        getUserById: async (id: string) => {
+          const r = await rodar<{ id: string; banned_until: Date | null }>(`select id, banned_until from auth.users where id = $1`, [id])
+          const u = r.rows[0]
+          return { data: { user: u ? { id: u.id, banned_until: u.banned_until ? u.banned_until.toISOString() : null } : null }, error: null }
+        },
       }
       return { admin }
     },
@@ -91,6 +97,21 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
     await rodar(`delete from public.site_memberships where site_id = any($1::uuid[])`, [[siteA, siteB]]).catch(() => undefined)
     await apagarSitesDeTeste('id = any($1::uuid[])', [[siteA, siteB]]).catch(() => undefined)
     for (const u of [ana, bia, sem]) if (u) await deleteAuthUser(u).catch(() => undefined)
+  })
+
+  it('estenderChaveDoPerfil de verdade: mesma linha, mesmo hash, só expires_at muda; revogada e outro perfil recusam', async () => {
+    const r = await criarChaveDoPerfil(deps(), { email: emailBia, dias: 10 })
+    expect(r, JSON.stringify(r)).toMatchObject({ ok: true })
+    if (!r.ok) return
+    const antes = (await rodar<{ key_hash: string; expires_at: Date }>(`select key_hash, expires_at from public.pipeline_api_keys where name = $1`, [r.nome])).rows[0]!
+    const e = await estenderChaveDoPerfil({ sb, agora: () => Date.now(), e19: () => ({ ok: true }), excecaoEm: 'excecao-sintetica' }, { chave: r.nome, dias: 100 })
+    expect(e, JSON.stringify(e)).toMatchObject({ ok: true, nome: r.nome })
+    const depois = (await rodar<{ key_hash: string; expires_at: Date }>(`select key_hash, expires_at from public.pipeline_api_keys where name = $1`, [r.nome])).rows[0]!
+    expect(depois.key_hash).toBe(antes.key_hash)
+    expect(depois.expires_at.getTime()).toBeGreaterThan(antes.expires_at.getTime())
+    // revogada: recusa
+    await rodar(`update public.pipeline_api_keys set revoked_at = now() where name = $1`, [r.nome])
+    expect(await estenderChaveDoPerfil({ sb, agora: () => Date.now(), e19: () => ({ ok: true }), excecaoEm: 'excecao-sintetica' }, { chave: r.nome })).toMatchObject({ ok: false, recusa: 'chave_revogada' })
   })
 
   it('criarChaveDoPerfil de verdade grava a linha, e o check do banco a aceita', async () => {

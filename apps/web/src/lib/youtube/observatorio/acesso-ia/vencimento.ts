@@ -11,7 +11,7 @@ const DIA_MS = 86_400_000
 const TRES_HORAS_MS = 3 * 3_600_000 // São Paulo é UTC-3, sem horário de verão desde 2019 (igual a `lib/pipeline/chave.ts`)
 
 /** O nome que o comando de criar gera: sem dado pessoal, único por emissão. Só ele vai ao git. */
-const NOME_DA_CHAVE = /^observatorio-(\d{4})(\d{2})(\d{2})-[0-9a-f]{4}$/
+export const NOME_DA_CHAVE = /^observatorio-(\d{4})(\d{2})(\d{2})-[0-9a-f]{4}$/
 
 const dataReal = (a: number, m: number, d: number): boolean => {
   const t = new Date(Date.UTC(a, m - 1, d))
@@ -40,7 +40,7 @@ export function conferenciaDeVencimento(nomeDaChave: string, expiresAt: string):
     etapa: 'E17',
     data: dia.toISOString().slice(0, 10),
     responsavel: 'dono',
-    onde: `${PLANO}: a chave ${nomeDaChave} vence em ${dd}/${mm}. Decida renovar (criar outra com o comando; ele aceita a segunda chave a partir de hoje) ou deixar vencer; nos dois casos marque esta conferência como feita, ou 7 dias depois do vencimento o cron fica vermelho`,
+    onde: `${PLANO}: a chave ${nomeDaChave} vence em ${dd}/${mm}. Decida renovar (comando estender --chave ${nomeDaChave}: mesma chave, nova validade, nada a reinstalar) ou deixar vencer; nos dois casos marque esta conferência como feita, ou 7 dias depois do vencimento o cron fica vermelho`,
     feitaEm: null,
   }
 }
