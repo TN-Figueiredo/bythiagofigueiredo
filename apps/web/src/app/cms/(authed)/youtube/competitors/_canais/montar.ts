@@ -7,7 +7,8 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { medirEtapa } from '@/lib/youtube/observatorio/medicao-abertura'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { permissoesDoSite, type PermissoesDoSite } from '../_chrome/permissoes'
-import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
+import type { ObservatoryPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { carregarExtrasProprio } from '../_proprio/carregar-extras'
 import type { ExtrasProprio } from '../_proprio/extras'
 import { canalDoPainel } from './legacy'
@@ -30,6 +31,9 @@ export function privadoDaLista(extras: ExtrasProprio | undefined): EstadoDoPriva
   return { acessoPorCanal, negativa: extras?.negativa ?? null }
 }
 
+/** Por chave a pessoa nunca edita nem administra: sem ler a sessão. */
+const SEM_PERMISSOES = async (): Promise<PermissoesDoSite> => ({ canUnlock: false, podeEditar: false })
+
 const one = (v: string | undefined): string | undefined => v
 
 /**
@@ -38,11 +42,11 @@ const one = (v: string | undefined): string | undefined => v
  * `aoAbrir` roda logo depois de abrir o conjunto e ANTES de qualquer leitura privada: é onde a página redireciona o link de canal que tem página
  * (nenhuma leitura privada antes de um redirecionamento). A ação não passa nada.
  */
-export async function montarCanais(sp: Record<string, string | undefined>, opcoes?: { aoAbrir?: (obs: Obs) => void }): Promise<{
+export async function montarCanais(sp: Record<string, string | undefined>, opcoes?: { aoAbrir?: (obs: Obs) => void }, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<{
   pagina: ObservatoryPage<PermissoesDoSite>; view: ReturnType<typeof buildCanaisView>; ri: RiView; recente: string | null
   estado: Record<string, string | undefined>; privado: EstadoDoPrivado
 }> {
-  const pagina = await openObservatoryPage(permissoesDoSite)
+  const pagina = await abrir.observatorio(abrir === ABRIDOR_DE_SESSAO ? permissoesDoSite : SEM_PERMISSOES)
   const { siteId, now, rows, obs, savedNiche, meuCanalLembrado } = pagina
   opcoes?.aoAbrir?.(obs)
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
@@ -63,7 +67,7 @@ export async function montarCanais(sp: Record<string, string | undefined>, opcoe
   }
   // A5 E5a R9b: os retratos públicos diários do canal próprio (MG20) vêm do motor (`rows.ownSnapshots`, lidos uma vez em load.ts): lista, cabeçalho, Comparar e Cowork leem a mesma fonte. Falha = 'erro' (pílula do motivo; o evento vai ao Sentry no carregador).
   const retratosProprios: ReadonlyMap<string, RetratosProprios> | 'erro' = rows.ownSnapshots === 'erro' ? 'erro' : new Map(Object.entries(rows.ownSnapshots ?? {}))
-  const [extras, medidas] = await Promise.all([medirEtapa('diario', () => carregarExtrasProprio(obs, siteId, now)), medirEtapa('medidas', carregarMedidas)])
+  const [extras, medidas] = await Promise.all([medirEtapa('diario', () => carregarExtrasProprio(obs, siteId, now, undefined, undefined, abrir)), medirEtapa('medidas', carregarMedidas)])
   const view = buildCanaisView(obs, {
     medidas,
     niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,

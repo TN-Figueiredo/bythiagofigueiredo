@@ -9,7 +9,8 @@ import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimens
 import type { LeituraPrivadaDoSite, MotivoSemLeitura } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { canalTemVideos } from '../_chrome/own-channels'
-import { openChannelPage, openObservatoryPage, type ChannelPage } from '../_chrome/page-data'
+import type { ChannelPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { buildMudancasView } from '../_mudancas/view-model'
 import { carregarExtrasProprio } from '../_proprio/carregar-extras'
 import { ausenciaDaProva, lerDadosDoCanal, lerDiarioLongo } from '../_proprio/dados'
@@ -49,7 +50,7 @@ export async function origemDoCanal(p: PropsOrigemDoCanal): Promise<OrigemView> 
   const [origem, termos]: [Awaited<ReturnType<typeof lerOrigem>>, Privado<DetalheCanal>] = temLeitura
     ? await Promise.all([
       lerOrigem({ canalId: p.canalId, ytIds, de, ate, diarioDesde, publicacoes, agora: p.agora, prova: p.leitura }),
-      lerTermosESites({ canalId: p.canalId, ytIds, de, ate, agora: p.agora, prova: p.leitura }),
+      p.podeEditar ? lerTermosESites({ canalId: p.canalId, ytIds, de, ate, agora: p.agora, prova: p.leitura }) : Promise.resolve<Privado<DetalheCanal>>({ acesso: 'negado' }), // sem edição os termos já saíam negados; assim o caminho da chave não toca a guarda de sessão
     ])
     : [sem as NonNullable<typeof sem>, sem as NonNullable<typeof sem>]
   const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar, falhou: sem?.acesso === 'erro' })
@@ -103,8 +104,8 @@ export interface OpcoesDoMontarCanal {
   iniciarMedidas?: (c: { pagina: ChannelPage; obs: Obs; view: NonNullable<ReturnType<typeof buildCanalView>> }) => Promise<CanalInteiro>
 }
 
-export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCanal = {}): Promise<MontarCanal> {
-  const pagina = await medirEtapa('pagina', () => openChannelPage(id))
+export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCanal = {}, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<MontarCanal> {
+  const pagina = await medirEtapa('pagina', () => abrir.canal(id))
   const { obs, siteId, now, leitura: leituraPrivada, ownYtIds, canEdit, owns } = pagina
   if (!obs) return { tipo: 'nao_encontrado', pagina, recente: null }
   // o carregador casa o id sem distinguir maiúsculas; o canal é achado do mesmo jeito, e a partir daqui só vale o id RESOLVIDO dele
@@ -114,8 +115,8 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
     // erro de leitura LANÇA (D5): a error.tsx da rota aparece, nunca um canal sem número
     const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: ownYtIds, agora: now, leitura: leituraPrivada })
     // as posições precisam do conjunto do site: lido só neste ramo, com o diário do próprio canal já lido (sem segunda guarda, sem segunda leitura)
-    const site = await openObservatoryPage()
-    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario, negativa: pagina.negativa })
+    const site = await abrir.observatorio()
+    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario, negativa: pagina.negativa }, abrir)
     const { posicao, concorrenteAcima } = posicaoDoSite(site.obs, proprio.id, extras)
     const hoje = dayPt(new Date(now))
     const pv = buildProprioView(obs, proprio.id, sp, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1, negativa: pagina.negativa })
@@ -143,11 +144,12 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
   const view = buildCanalView(obs, id, sp)
   if (!view) return { tipo: 'nao_encontrado', pagina, recente: null }
   const medidas = opcoes.iniciarMedidas ? opcoes.iniciarMedidas({ pagina, obs, view }) : null
-  const canAdmin = await medirEtapa('admin', () => canAdminSiteUsers(siteId))
+  // por chave a pessoa não administra (e a guarda é de sessão): falso, sem chamar `canAdminSiteUsers`
+  const canAdmin = abrir === ABRIDOR_DE_SESSAO ? await medirEtapa('admin', () => canAdminSiteUsers(siteId)) : false
   // Só a aba Leitura lê o conjunto do site (o do canal não tem o que agrega entre canais, como forja.niches); as outras abas não pagam por isso.
   let leituraMv: ReturnType<typeof buildMudancasView> | null = null
   if (view.state.tab === 'leitura' && view.header.niche && view.header.nicheLabel) {
-    const site = await medirEtapa('leitura', () => openObservatoryPage())
+    const site = await medirEtapa('leitura', () => abrir.observatorio())
     leituraMv = buildMudancasView(site.obs, { niche: view.header.niche }, new Set())
   }
   return { tipo: 'concorrente', pagina, obs, view, canAdmin, leituraMv, recente: recenteDe(obs), estado: sp, medidas }

@@ -319,6 +319,14 @@ describe('Canal, medidas: Lançamentos, 72 horas e Linha do tempo', () => {
     expect(t).toBeDefined()
     for (const l of t!.linhas) for (const c of l) if (c.papel === 'numero' && c.estado !== 'medido') expect(c.estado).toBe('nao_medido')
   })
+  it('Linha do tempo: o rótulo de cada dia é lido pelo responder (contrato da série dd/mm, M-1 do Yannis)', async () => {
+    const { diaDaLinha } = await import('@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder')
+    const m = await montar(CASOS[0]![1](), false)
+    const dias = tab(m, 'canal-linha-do-tempo')!
+    expect(dias.linhas.length).toBeGreaterThanOrEqual(28)
+    const agora = Date.UTC(2026, 9, 13, 15)
+    expect(dias.linhas.filter((l) => diaDaLinha(l, agora) === null).map((l) => l[0]!.texto)).toEqual([])
+  })
   it('Linha do tempo: noventa dias, "sem registro" é não medido e 0 medido é zero medido; eventos com título entram como terceiros', async () => {
     const m = await montar(CASOS[0]![1](), false)
     const dias = tab(m, 'canal-linha-do-tempo')!

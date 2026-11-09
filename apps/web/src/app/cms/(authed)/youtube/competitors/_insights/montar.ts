@@ -4,7 +4,8 @@ import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observa
 import { anteriorCoberto } from '@/lib/youtube/observatorio/medidas-telas/cobertura'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { parseNiche, type Niche } from '@/lib/youtube/observatorio/niche'
-import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
+import type { ObservatoryPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { buildInsightsView } from './view-model'
 import { direcaoDoNicho, parseLeitura } from './direcao-nicho-model'
 
@@ -50,11 +51,11 @@ async function carregarDirecao(pagina: ObservatoryPage<undefined>, niche: Niche,
  * Do conjunto aberto ao modelo de Insights: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA" (E17 degrau 1,
  * Tarefa 8a). `sp` são os parâmetros planos da URL. O `siteId` não é parâmetro: vem da guarda.
  */
-export async function montarInsights(sp: Record<string, string | undefined>): Promise<{
+export async function montarInsights(sp: Record<string, string | undefined>, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<{
   pagina: ObservatoryPage<undefined>; view: ReturnType<typeof buildInsightsView>; heatMode: 'views' | 'uploads'; recente: string | null
   estado: { niche: string; fmt: string | undefined; heat: 'views' | 'uploads' }
 }> {
-  const pagina = await openObservatoryPage()
+  const pagina = await abrir.observatorio()
   const { obs, savedNiche } = pagina
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
   const niche = obs.scopeOf(parseNiche(sp.niche) ?? savedNiche)

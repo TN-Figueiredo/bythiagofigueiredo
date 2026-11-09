@@ -7,9 +7,10 @@ import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimens
 import type { DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { LeituraPrivadaDoSite, MotivoSemLeitura } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
+import type { ObservatoryPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { loadSwipeRows, savedFromRows } from '../_mudancas/swipe-rows'
-import { acessoPrivado, ausenciaDaProva, lerDadosDoVideo, lerDiarioLongo, longosAcompanhadosDe } from '../_proprio/dados'
+import { ausenciaDaProva, lerDadosDoVideo, lerDiarioLongo, longosAcompanhadosDe } from '../_proprio/dados'
 import { lerOrigem } from '../_proprio/dados-origem'
 import { lerTermosESites } from '../_proprio/dados-termos'
 import { buildOrigem, type OrigemView } from '../_proprio/origem-model'
@@ -45,7 +46,7 @@ export async function origemDoVideo(p: PropsOrigemDoVideo): Promise<OrigemView> 
   const [origem, termos]: [Awaited<ReturnType<typeof lerOrigem>>, Privado<DetalheCanal>] = temLeitura
     ? await Promise.all([
       lerOrigem({ canalId: p.canalId, ytIds: [p.ytId], de, ate, diarioDesde, publicacoes, agora: p.agora, prova: p.leitura }),
-      lerTermosESites({ canalId: p.canalId, ytIds: [p.ytId], de, ate, agora: p.agora, prova: p.leitura }),
+      p.podeEditar ? lerTermosESites({ canalId: p.canalId, ytIds: [p.ytId], de, ate, agora: p.agora, prova: p.leitura }) : Promise.resolve<Privado<DetalheCanal>>({ acesso: 'negado' }), // sem edição os termos já saíam negados; assim o caminho da chave não toca a guarda de sessão
     ])
     : [sem as NonNullable<typeof sem>, sem as NonNullable<typeof sem>]
   const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar, falhou: sem?.acesso === 'erro' })
@@ -88,8 +89,8 @@ const quandoSp = (iso: string): { dia: string; hora: string } => {
  * URL; a decisão própria/concorrente é do servidor, a partir do canal resolvido do vídeo. Vídeo desconhecido: `concorrente` com a vista "não encontrado"
  * do Histórico (`view.notFound`). O `siteId` não é parâmetro. Os cartões de período e a origem voltam como funções, para a página os pedir num `Suspense`.
  */
-export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pagina> = () => openObservatoryPage(), opcoes: { trocas?: boolean } = {}): Promise<MontarVideo> {
-  const pagina = await abrir()
+export async function montarVideo(id: string, sp: Flat, abrir?: () => Promise<Pagina>, opcoes: { trocas?: boolean } = {}, abridor: Abridor = ABRIDOR_DE_SESSAO): Promise<MontarVideo> {
+  const pagina = await (abrir ?? (() => abridor.observatorio()))()
   const { siteId, obs, savedNiche, now } = pagina
   const recente = obs.SYNC.last == null ? null : obs.SYNC.title
   const proprio = canalProprioDoVideo(obs, id)
@@ -98,7 +99,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     const base = buildProprioVideoBase(obs, id, sp)
     if (!base) throw new Error(`Vídeo próprio ${id}: o cartão não foi achado no conjunto do canal ${proprio.id}`)
     // UMA leitura do dado privado, depois da guarda de edição; erro de leitura LANÇA (D5)
-    const acesso = await acessoPrivado(siteId)
+    const acesso = await abridor.acessoPrivado(siteId)
     const leitura = acesso.leitura
     // as trocas (T16e): lidas DEPOIS da guarda de edição, com a mesma prova, em paralelo com o diário (não dependem dele); sem a opção (pacote da IA) nada é lido
     // os testes abertos do A/B (entradas do cabeçalho e do Antes e depois): mesma opção, só quem edita, uuid RESOLVIDO (nunca o id bruto da rota)

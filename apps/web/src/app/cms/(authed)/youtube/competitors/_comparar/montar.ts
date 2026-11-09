@@ -1,7 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
-import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
+import type { ObservatoryPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { carregarProprioDaComparacao } from '../_proprio/carregar-extras'
 import { buildCompararPack, type CompararPack } from './pack'
 import { resolverPar } from './par-model'
@@ -14,10 +15,10 @@ type ParIds = ReturnType<typeof resolverPar>
  * Do conjunto aberto ao pacote de Comparar e ao par inicial: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA"
  * (E17 degrau 1, Tarefa 8a). `sp` são os parâmetros planos da URL. A guarda vem antes de qualquer leitura; o `siteId` não é parâmetro.
  */
-export async function montarComparar(sp: Record<string, string | undefined>): Promise<{
+export async function montarComparar(sp: Record<string, string | undefined>, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<{
   pagina: ObservatoryPage<undefined>; pack: CompararPack; inicial: ParIds; recente: string | null; estado: ParIds; privado: EstadoDoPrivado
 }> {
-  const pagina = await openObservatoryPage()
+  const pagina = await abrir.observatorio()
   const { siteId, now, obs, meuCanalLembrado } = pagina
   // as views por dia e o cartão "Só o seu canal mede" dos canais próprios: lidos só para quem edita o site, depois da guarda; sem canal próprio no site
   // nada é consultado, e quem só lê recebe 'negado' sem nenhum número
@@ -33,7 +34,7 @@ export async function montarComparar(sp: Record<string, string | undefined>): Pr
     }
   }
   const [{ extras, soSeuCanal }, medidas] = await Promise.all([
-    carregarProprioDaComparacao(obs, siteId, now, undefined, inicial ? [inicial.a, inicial.b] : []),
+    carregarProprioDaComparacao(obs, siteId, now, undefined, inicial ? [inicial.a, inicial.b] : [], abrir),
     carregarMedidas(),
   ])
   const pack = buildCompararPack(obs, undefined, extras, soSeuCanal, medidas)
