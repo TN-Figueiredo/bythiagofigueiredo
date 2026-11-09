@@ -48,10 +48,10 @@ const FUNCOES = [
   'public.competitor_capture_health(uuid, timestamptz)',
 ] as const
 
-type Who = 'anon' | 'sem' | 'a' | 'b'
+type Who = 'anon' | 'sem' | 'a' | 'b' | 'leitor'
 interface Cenario {
   siteA: string; siteB: string
-  users: { sem: string; a: string; b: string }
+  users: { sem: string; a: string; b: string; leitor: string }
   conc: { canal: string; video: string }
   dono: { canal: string; yt: string; video: string }
   tarefa: string; lease: string
@@ -135,12 +135,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: RLS e privilégios (ba
   async function cenario(): Promise<Cenario> {
     const siteA = (await seedSite(sb)).siteId; sites.push(siteA)
     const siteB = (await seedSite(sb)).siteId; sites.push(siteB)
-    const users = { sem: randomUUID(), a: randomUUID(), b: randomUUID() }
+    const users = { sem: randomUUID(), a: randomUUID(), b: randomUUID(), leitor: randomUUID() }
     for (const id of Object.values(users)) {
       usuarios.push(id)
       await pg.query(`insert into auth.users (id, aud, role, email) values ($1, 'authenticated', 'authenticated', $2)`, [id, id + '@a5.test'])
     }
-    await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'editor'), ($3, $4, 'editor')`, [siteA, users.a, siteB, users.b])
+    await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'editor'), ($3, $4, 'editor'), ($1, $5, 'reporter')`, [siteA, users.a, siteB, users.b, users.leitor])
     const n = randomUUID().replace(/-/g, '')
     const canal = String((await pg.query(`insert into public.competitor_channels (site_id, channel_id, channel_name) values ($1, $2, 'Teste') returning id`, [siteA, 'UC' + n.slice(0, 20)])).rows[0].id)
     const video = String((await pg.query(`insert into public.competitor_videos (competitor_channel_id, video_id, published_at) values ($1, $2, $3) returning id`, [canal, 'v' + n.slice(0, 10), iso(P - 24 * HORA)])).rows[0].id)
@@ -194,9 +194,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: RLS e privilégios (ba
 
   it('competitor_agenda_runs: staff lê, anônimo e usuário sem papel não', async () => {
     const c = await cenario()
-    // a policy é `is_member_staff()`: papel editor/reporter em QUALQUER site (não é por site)
+    // MG19: a policy é `is_member_editor()`: papel editor em QUALQUER site (a tabela não tem site_id); o reporter lê 0
     expect(await contar(c, 'a', 'competitor_agenda_runs')).toMatchObject({ rows: 1, error: null })
     expect(await contar(c, 'b', 'competitor_agenda_runs')).toMatchObject({ rows: 1, error: null })
+    expect(await contar(c, 'leitor', 'competitor_agenda_runs')).toMatchObject({ rows: 0, error: null })
     expect((await contar(c, 'sem', 'competitor_agenda_runs')).rows).toBe(0)
     expect((await contar(c, 'anon', 'competitor_agenda_runs')).rows).toBe(0)
   })

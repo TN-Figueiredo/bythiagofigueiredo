@@ -16158,6 +16158,7 @@ export type Database = {
       }
       can_publish_site: { Args: { p_site_id: string }; Returns: boolean }
       can_view_private_site: { Args: { p_site_id: string }; Returns: boolean }
+      can_view_observatorio: { Args: { p_site_id: string }; Returns: boolean }
       can_view_site: { Args: { p_site_id: string }; Returns: boolean }
       can_view_site_as: {
         Args: { p_site: string; p_user: string }
@@ -16723,6 +16724,7 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
+      is_member_editor: { Args: never; Returns: boolean }
       is_member_staff: { Args: never; Returns: boolean }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
       is_org_admin_as: {

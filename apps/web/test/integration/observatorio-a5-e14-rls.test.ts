@@ -146,10 +146,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): RLS e privilégios (banco loca
     }
   })
 
-  it('leitor (reporter): lê o retrato; zero linhas de texto, de leitura e de identidade (sem a MG11)', async () => {
+  it('leitor (reporter, MG19): zero linhas em todas as quatro, inclusive o retrato; o editor lê o retrato (controle positivo)', async () => {
     const c = await cenario()
-    expect(await contar(c, 'leitor', 'competitor_video_comment_snaps')).toMatchObject({ rows: 1, error: null })
-    for (const t of ['competitor_video_comments', 'competitor_video_comment_marks', 'competitor_video_comment_authors'] as const) {
+    expect(await contar(c, 'editor', 'competitor_video_comment_snaps')).toMatchObject({ rows: 1, error: null })
+    for (const t of ['competitor_video_comment_snaps', 'competitor_video_comments', 'competitor_video_comment_marks', 'competitor_video_comment_authors'] as const) {
       expect(await contar(c, 'leitor', t), t).toMatchObject({ rows: 0, error: null })
     }
     // a identidade nunca chega ao leitor, nem pela coluna nem por junção

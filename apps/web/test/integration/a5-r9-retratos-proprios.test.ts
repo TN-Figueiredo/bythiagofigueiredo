@@ -24,7 +24,7 @@ const T = 'public.yt_own_channel_snapshots'
 const DIA = '2026-01-15'
 const OPCOES = { onConflict: 'youtube_channel_id,snapshot_date', ignoreDuplicates: true } as const
 
-type Who = 'anon' | 'sem' | 'membro' | 'outroSite'
+type Who = 'anon' | 'sem' | 'membro' | 'leitora' | 'outroSite'
 interface Cen { siteA: string; siteB: string; canal: string; users: Record<Exclude<Who, 'anon'>, string> }
 
 describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (banco local, GUC forjado)', () => {
@@ -76,16 +76,16 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
       values ($1, $2, 'pt', $3, 'Teste', $4, $5) returning id`, [site, 'UC' + x.slice(0, 22), '@t' + x.slice(0, 8), 'UU' + x.slice(2, 24), 'teste-' + x.slice(0, 8)])).rows[0].id)
   }
 
-  /** Dois sites; usuários: sem vínculo, membro (reporter) de A e membro de B. Um canal em A com um retrato. */
+  /** Dois sites; usuários: sem vínculo, membro (editor) de A, leitora (reporter, MG19: lê 0) de A e membro de B. Um canal em A com um retrato. */
   async function cenario(): Promise<Cen> {
     const siteA = (await seedSite(sb, { siteSlug: 'r9a-' + randomUUID(), siteName: 'R9a teste' })).siteId; sites.push(siteA)
     const siteB = (await seedSite(sb, { siteSlug: 'r9a-' + randomUUID(), siteName: 'R9a teste' })).siteId; sites.push(siteB)
-    const users = { sem: randomUUID(), membro: randomUUID(), outroSite: randomUUID() }
+    const users = { sem: randomUUID(), membro: randomUUID(), leitora: randomUUID(), outroSite: randomUUID() }
     for (const id of Object.values(users)) {
       usuarios.push(id)
       await pg.query(`insert into auth.users (id, aud, role, email) values ($1, 'authenticated', 'authenticated', $2)`, [id, id + '@a5.test'])
     }
-    await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'reporter'), ($3, $4, 'editor')`, [siteA, users.membro, siteB, users.outroSite])
+    await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'editor'), ($1, $5, 'reporter'), ($3, $4, 'editor')`, [siteA, users.membro, siteB, users.outroSite, users.leitora])
     const canal = await canalNovo(siteA)
     await pg.query(`insert into ${T} (youtube_channel_id, snapshot_date, subscriber_count, view_count, video_count) values ($1, $2, 1420000, 5, 7)`, [canal, DIA])
     return { siteA, siteB, canal, users }
@@ -111,12 +111,13 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
     await expect(pg.query(`insert into ${T} (youtube_channel_id, snapshot_date, subscriber_count) values ($1, '2026-01-18', -1)`, [c.canal])).rejects.toThrow(/check/i)
   })
 
-  it('RLS: membro do site lê as linhas do seu canal (controle positivo); sem vínculo e membro de outro site leem 0, forjando o GUC', async () => {
+  it('RLS: membro editor do site lê as linhas do seu canal (controle positivo); reporter, sem vínculo e membro de outro site leem 0, forjando o GUC', async () => {
     const c = await cenario()
     for (const guc of [c.siteA, c.siteB, '']) {
-      // a subconsulta em youtube_channels passa pela RLS dela (site_visible): com o GUC de OUTRO site o canal some (fecha, não abre)
-      expect(await lerComo(c, 'membro', guc), `membro, GUC ${guc || 'vazio'}`).toBe(guc === c.siteB ? 0 : 1)
+      // MG19: o membro é editor de A (can_view_site = can_edit_site, que não olha o GUC): lê o canal do próprio site com qualquer GUC; forjar o GUC não abre nada a quem não edita
+      expect(await lerComo(c, 'membro', guc), `membro editor, GUC ${guc || 'vazio'}`).toBe(1)
       expect(await lerComo(c, 'sem', guc), `sem vínculo, GUC ${guc || 'vazio'}`).toBe(0)
+      expect(await lerComo(c, 'leitora', guc), `reporter (MG19), GUC ${guc || 'vazio'}`).toBe(0)
       expect(await lerComo(c, 'outroSite', guc), `membro de B, GUC ${guc || 'vazio'}`).toBe(0)
     }
   })

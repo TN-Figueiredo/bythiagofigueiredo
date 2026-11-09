@@ -50,7 +50,8 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 matrix', () => {
   })
 
   // ── Reporter scope ──────────────────────────────────────────────
-  it('reporter-A can create draft on site A', async () => {
+  // MG19 (A2): o reporter só lê o Observatório; deixa de criar, editar e apagar rascunho (nem o próprio)
+  it('reporter-A CANNOT create draft on site A (MG19)', async () => {
     const c = clientFor(s.reporterAId)
     const { error } = await c.from('blog_posts').insert({
       site_id: s.siteAId,
@@ -58,7 +59,33 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 matrix', () => {
       status: 'draft',
       owner_user_id: s.reporterAId,
     })
-    expect(error).toBeNull()
+    expect(error).not.toBeNull()
+    expect(error!.code).toBe('42501')
+  })
+
+  async function rascunhoDoReporter(): Promise<string> {
+    const ins = await admin
+      .from('blog_posts')
+      .insert({ site_id: s.siteAId, author_id: s.authorsByUser[s.reporterAId], status: 'draft', owner_user_id: s.reporterAId })
+      .select('id')
+      .single()
+    expect(ins.error).toBeNull()
+    return ins.data!.id
+  }
+
+  it('reporter-A CANNOT update nor delete its own draft (MG19, N1); the draft stays intact', async () => {
+    const id = await rascunhoDoReporter()
+    const c = clientFor(s.reporterAId)
+    const upd = await c.from('blog_posts').update({ site_id: s.siteBId }).eq('id', id).select('id')
+    expect(upd.error ?? null).toBeNull()
+    expect(upd.data).toEqual([]) // RLS filtra a linha: 0 afetadas
+    const del = await c.from('blog_posts').delete().eq('id', id).select('id')
+    expect(del.data ?? []).toEqual([])
+    const { data: depois } = await admin.from('blog_posts').select('site_id,status').eq('id', id).single()
+    expect(depois).toEqual({ site_id: s.siteAId, status: 'draft' })
+    // controle positivo: o editor do mesmo site enxerga e altera a linha (a policy deixa alguém passar)
+    const ed = await clientFor(s.editorAId).from('blog_posts').update({ status: 'draft' }).eq('id', id).select('id')
+    expect(ed.data).toHaveLength(1)
   })
 
   it('reporter-A CANNOT create on site B', async () => {
@@ -75,26 +102,15 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 matrix', () => {
 
   it('reporter-A CANNOT publish own draft (RLS/trigger blocks)', async () => {
     const c = clientFor(s.reporterAId)
-    const ins = await c
-      .from('blog_posts')
-      .insert({
-        site_id: s.siteAId,
-        author_id: s.authorsByUser[s.reporterAId],
-        status: 'draft',
-        owner_user_id: s.reporterAId,
-      })
-      .select('id')
-      .single()
-    expect(ins.error).toBeNull()
+    const id = await rascunhoDoReporter()
     const upd = await c
       .from('blog_posts')
       .update({ status: 'published' })
-      .eq('id', ins.data!.id)
-    // Either RLS filtered WHERE (0 rows updated, error null) or trigger raised.
+      .eq('id', id)
     const { data: after } = await admin
       .from('blog_posts')
       .select('status')
-      .eq('id', ins.data!.id)
+      .eq('id', id)
       .single()
     expect(after!.status).toBe('draft')
     if (upd.error) expect(['P0001', '42501']).toContain(upd.error.code)

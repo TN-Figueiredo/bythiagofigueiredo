@@ -74,7 +74,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: RLS das tabelas novas com GUC fo
       await pg.query('rollback')
     }
   }
-  const sees = (who: Who, table: string): boolean => (who === 'editor') || (who === 'leitor' && (READ as readonly string[]).includes(table))
+  // MG19: o reporter (leitor) lê 0 em todas, pela RLS (o Observatório dele vem do servidor); o editor é o controle positivo
+  const sees = (who: Who, _table: string): boolean => who === 'editor'
 
   for (const who of ['anon', 'fora', 'leitor', 'editor'] as const) {
     for (const table of ALL) {
