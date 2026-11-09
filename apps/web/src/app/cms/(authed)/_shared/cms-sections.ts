@@ -17,21 +17,22 @@ const ICON_SIZE = 16
 const STROKE = 1.75
 const icon = (Icon: LucideIcon) => createElement(Icon, { size: ICON_SIZE, strokeWidth: STROKE })
 
+// A2 (MG19): o reporter (só lê) alcança apenas o Observatório; todo o resto do menu pede `editor`. A porta do middleware fecha pela URL.
 export function buildCmsSections(): SidebarSection[] {
   return [
     {
       label: 'HUB',
       items: [
-        { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
+        { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms', minRole: 'editor' },
         { icon: icon(Kanban), label: 'Up Next', href: '/cms/up-next', minRole: 'editor' },
-        { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
-        { icon: icon(Bell), label: 'Notificações', href: '/cms/notifications' },
+        { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule', minRole: 'editor' },
+        { icon: icon(Bell), label: 'Notificações', href: '/cms/notifications', minRole: 'editor' },
       ],
     },
     {
       label: 'Content',
       items: [
-        { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
+        { icon: icon(FileText), label: 'Blog', href: '/cms/blog', minRole: 'editor' },
         { icon: icon(Kanban), label: 'Vídeos', href: '/cms/video', minRole: 'editor' },
         { icon: icon(GraduationCap), label: 'Courses', href: '/cms/courses', minRole: 'editor' },
         { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
@@ -56,13 +57,13 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(Video), label: 'Videos', href: '/cms/youtube/videos', minRole: 'editor' },
         { icon: icon(FlaskConical), label: 'A/B Lab', href: '/cms/youtube/ab-lab', minRole: 'editor' },
         { icon: icon(TrendingUp), label: 'Performance', href: '/cms/youtube/analytics', minRole: 'editor' },
-        { icon: icon(Eye), label: 'Competitors', href: '/cms/youtube/competitors', minRole: 'editor' },
+        { icon: icon(Eye), label: 'Competitors', href: '/cms/youtube/competitors', minRole: 'reporter' },
       ],
     },
     {
       label: 'Social',
       items: [
-        { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
+        { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'editor' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
       ],
     },
@@ -81,4 +82,5 @@ export const CMS_SETTINGS_ITEM: SidebarNavItem = {
   icon: icon(Settings),
   label: 'Settings',
   href: '/cms/settings',
+  minRole: 'editor',
 }

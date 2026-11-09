@@ -32,9 +32,9 @@ describe('buildCmsSections — Social section (v3 redesign)', () => {
     ])
   })
 
-  it('sets reporter minRole for read-only items', () => {
+  it('Posts requires editor (A2: o reporter só vê o Observatório)', () => {
     const postsItem = social.items.find(i => i.label === 'Posts')!
-    expect(postsItem.minRole).toBe('reporter')
+    expect(postsItem.minRole).toBe('editor')
   })
 
   it('does not include removed items (Queue, Composer, Insights, Stories, Templates, Accounts, Link in Bio)', () => {

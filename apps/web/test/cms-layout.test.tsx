@@ -4,6 +4,8 @@ import React from 'react'
 
 // See apps/web/test/admin-layout.test.tsx — mirror setup for the CMS
 // (authed) layout which also went through the Track F3/F4 refactor.
+const papeis = vi.hoisted(() => ({ podeEditar: true as unknown, sites: [] as unknown[] }))
+
 vi.mock('next/headers', () => ({
   cookies: async () => ({ getAll: () => [], set: () => {} }),
   headers: async () => ({ get: () => null }),
@@ -43,15 +45,17 @@ vi.mock('@tn-figueiredo/cms-ui/client', () => ({
   CmsShell: ({
     siteName,
     userDisplayName,
+    userRole,
     children,
   }: {
     siteName: string
     userDisplayName: string
+    userRole?: string
     children: React.ReactNode
   }) =>
     React.createElement(
       'div',
-      { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName },
+      { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName, 'data-role': userRole },
       children,
     ),
 }))
@@ -70,7 +74,8 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
     },
     rpc: vi.fn(async (name: string) => {
       if (name === 'is_member_staff') return { data: true, error: null }
-      if (name === 'user_accessible_sites') return { data: [], error: null }
+      if (name === 'user_accessible_sites') return { data: papeis.sites, error: null }
+      if (name === 'can_edit_site') return { data: papeis.podeEditar, error: null }
       return { data: null, error: null }
     }),
   })),
@@ -128,6 +133,8 @@ vi.mock('@/lib/supabase/service', () => {
 })
 
 import Layout from '../src/app/cms/(authed)/layout'
+import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
+import { fetchLayoutCounts } from '@/lib/cms/layout-counts'
 
 describe('cms/layout', () => {
   it('renders children wrapped in CmsShell', async () => {
@@ -141,5 +148,38 @@ describe('cms/layout', () => {
     const el = await Layout({ children: <div>hello-cms</div> })
     const { getByTestId } = render(el)
     expect(getByTestId('cms-shell').getAttribute('data-user')).toBe('thiago@example.com')
+  })
+
+  describe('A2: o papel vem do site do host', () => {
+    const site = (id: string, role: string) => ({ site_id: id, site_name: id, site_slug: id, primary_domain: `${id}.test`, org_id: 'o', org_name: 'O', user_role: role, is_master_ring: false })
+
+    it('quem não edita o host: papel reporter e nenhum contador do CMS é buscado', async () => {
+      vi.mocked(fetchSidebarBadges).mockClear(); vi.mocked(fetchLayoutCounts).mockClear()
+      papeis.podeEditar = false; papeis.sites = [site('site-1', 'reporter')]
+      const { getByTestId } = render(await Layout({ children: <div>x</div> }))
+      expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('reporter')
+      expect(fetchSidebarBadges).not.toHaveBeenCalled()
+      expect(fetchLayoutCounts).not.toHaveBeenCalled()
+    })
+    it('resposta que não é true (erro, nula) também fecha', async () => {
+      vi.mocked(fetchSidebarBadges).mockClear()
+      papeis.podeEditar = null; papeis.sites = [site('site-1', 'editor')]
+      const { getByTestId } = render(await Layout({ children: <div>x</div> }))
+      expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('reporter')
+      expect(fetchSidebarBadges).not.toHaveBeenCalled()
+    })
+    it('reporter no site A e editor no B: no host A vê reporter (a RPC é do host)', async () => {
+      papeis.podeEditar = false; papeis.sites = [site('site-b', 'editor'), site('site-1', 'reporter')]
+      const { getByTestId } = render(await Layout({ children: <div>x</div> }))
+      expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('reporter')
+    })
+    it('quem edita o host: papel do vínculo e contadores buscados', async () => {
+      vi.mocked(fetchSidebarBadges).mockClear(); vi.mocked(fetchLayoutCounts).mockClear()
+      papeis.podeEditar = true; papeis.sites = [site('site-1', 'editor')]
+      const { getByTestId } = render(await Layout({ children: <div>x</div> }))
+      expect(getByTestId('cms-shell').getAttribute('data-role')).toBe('editor')
+      expect(fetchSidebarBadges).toHaveBeenCalledTimes(1)
+      expect(fetchLayoutCounts).toHaveBeenCalledTimes(1)
+    })
   })
 })

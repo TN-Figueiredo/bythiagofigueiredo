@@ -16,6 +16,7 @@ import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { fetchLayoutCounts } from '@/lib/cms/layout-counts'
+import type { SidebarBadgeData } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { SiteAdminProvider } from '@/lib/cms/site-admin-context'
@@ -26,6 +27,10 @@ import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
 import CmsLink from './_shared/cms-link'
 
 const CMS_SECTIONS = buildCmsSections()
+
+// A2: o que o layout entrega a quem só lê (nenhum número do CMS no payload)
+const BADGES_VAZIOS: SidebarBadgeData = { posts: { wip: 0 }, newsletters: { wip: 0, wipDraft: 0, wipReady: 0, urgency: null }, pipeline: { urgency: null } }
+const CONTAGENS_VAZIAS = { pendingContacts: 0, ytPending: 0, researchUnread: 0, waitlistsNeedAttention: 0 }
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -69,14 +74,17 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const currentSiteId = rawSites[0]?.site_id ?? ''
   const currentSite = rawSites.find((s) => s.site_id === currentSiteId)
   const userDisplayName = rawUser.email ?? 'User'
-  const userRole = currentSite?.user_role ?? 'reporter'
-
   const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
+  // A2 (MG19): o mesmo predicado da porta de papel do middleware. Quem não edita o site do host é tratado como `reporter`: menu só do
+  // Observatório e nenhum contador do CMS no payload (os números iriam junto).
+  const podeEditarHost = (await supabase.rpc('can_edit_site', { p_site_id: middlewareSiteId })).data === true
+  const userRole = podeEditarHost ? (currentSite?.user_role ?? 'reporter') : 'reporter'
+
   // Degrau "administrar o site": só decide o que a TELA mostra (cada action
   // restrita confere de novo no servidor). Falha fechado → controles somem.
   const [badgeData, layoutCounts, siteAdmin] = await Promise.all([
-    fetchSidebarBadges(middlewareSiteId, siteTimezone),
-    fetchLayoutCounts(middlewareSiteId),
+    podeEditarHost ? fetchSidebarBadges(middlewareSiteId, siteTimezone) : Promise.resolve(BADGES_VAZIOS),
+    podeEditarHost ? fetchLayoutCounts(middlewareSiteId) : Promise.resolve(CONTAGENS_VAZIAS),
     requireSiteAdminScope(middlewareSiteId),
   ])
   const badges: Record<string, number> = {}

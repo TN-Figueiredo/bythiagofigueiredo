@@ -48,9 +48,10 @@ describe('buildCmsSections — v3 nav redesign', () => {
       ])
     })
 
-    it('Dashboard and Schedule have no minRole (public)', () => {
-      expect(hub.items[0].minRole).toBeUndefined()
-      expect(hub.items[2].minRole).toBeUndefined()
+    it('Dashboard, Schedule and Notificações require editor (A2: o reporter só vê o Observatório)', () => {
+      expect(hub.items[0].minRole).toBe('editor')
+      expect(hub.items[2].minRole).toBe('editor')
+      expect(hub.items[3].minRole).toBe('editor')
     })
 
     it('Up Next requires editor', () => {
@@ -67,9 +68,8 @@ describe('buildCmsSections — v3 nav redesign', () => {
       ])
     })
 
-    it('Blog has no minRole (public), rest require editor', () => {
-      expect(content.items[0].minRole).toBeUndefined()
-      for (const item of content.items.slice(1)) {
+    it('every Content item requires editor (A2)', () => {
+      for (const item of content.items) {
         expect(item.minRole).toBe('editor')
       }
     })
@@ -113,9 +113,9 @@ describe('buildCmsSections — v3 nav redesign', () => {
       ])
     })
 
-    it('all items require editor role', () => {
+    it('all items require editor, except Competitors (reporter): A2', () => {
       for (const item of youtube.items) {
-        expect(item.minRole).toBe('editor')
+        expect(item.minRole).toBe(item.label === 'Competitors' ? 'reporter' : 'editor')
       }
     })
   })
