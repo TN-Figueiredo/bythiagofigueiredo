@@ -200,7 +200,7 @@ export function NumeroANumero({ pack, par, medidas = null }: { pack: CompararPac
       {janelasDiferentes ? (
         <p className="cp-aviso" data-janelas-aviso="">
           <span className="cp-aviso-i" aria-hidden="true">{Icon.info()}</span>
-          <span>As duas janelas de tempo são diferentes: 28 dias de um lado, desde {pack.serieDesde} do outro. Maior não quer dizer melhor: são canais de tamanhos diferentes.</span>
+          <span>As duas janelas de tempo e os dois métodos são diferentes: 28 dias de um lado (média diária por vídeo), desde {pack.serieDesde} do outro (variação das views acumuladas). Maior não quer dizer melhor: são canais de tamanhos diferentes.</span>
         </p>
       ) : null}
       {medidas?.semCanalProprio ? <p className="cp-n" data-sem-proprio="">Nenhum dos dois canais é seu, então esta comparação não tem os números que só o dono de um canal vê.</p> : null}

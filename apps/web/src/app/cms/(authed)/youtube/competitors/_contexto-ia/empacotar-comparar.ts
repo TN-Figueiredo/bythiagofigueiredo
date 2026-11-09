@@ -516,7 +516,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
 
   // as duas janelas do "Views por dia nos longos" diferem quando só um dos lados é seu (a tela escreve o aviso)
   if (modelo.a.own !== modelo.b.own && modelo.linhas.some((l) => l.id === 'vpd')) {
-    avisos.push(`As duas janelas de tempo são diferentes: 28 dias de um lado, desde ${modelo.serieDesde} do outro.`)
+    avisos.push(`As duas janelas de tempo e os dois métodos são diferentes: 28 dias de um lado (média diária por vídeo), desde ${modelo.serieDesde} do outro (variação das views acumuladas).`)
   }
 
   const naoMede = [NAO_MEDE_CAUSA, NAO_MEDE_CONCORRENTE]
@@ -541,3 +541,10 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
     listasCompletas: false,
   }
 }
+
+/**
+ * Os ids de tabela que só falam do lado A (alcance privado e sua nota, sentido e notas da direção): a ferramenta `comparar` os descreve só no 1º par.
+ * De propósito ficam em todos os pares: `numero-a-numero` (põe A ao lado de B), `posicao-a` e `notas-dos-numeros-a` (sem prefixo `privado-`
+ * ou com ele; o lado A aparece ali em relação ao B).
+ */
+export const ehSoDoLadoA = (id: string): boolean => /^privado-alcance-a(-notas)?$|-sentido-a$|-notas-a$/.test(id)

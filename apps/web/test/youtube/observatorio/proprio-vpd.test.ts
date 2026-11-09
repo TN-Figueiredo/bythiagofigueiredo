@@ -44,6 +44,16 @@ describe('views por dia de um vídeo', () => {
 })
 
 describe('views por dia do canal', () => {
+  it('A1c: mediana 0: a nota diz "N de M longos sem nenhuma view"; com valor positivo a nota não muda', () => {
+    const zeros = ['a', 'b', 'c'].flatMap((id) => serie(id, Array(7).fill(0)))
+    const c = vpdDoCanal(ok([...zeros, ...serie('d', Array(7).fill(5)), ...serie('e', Array(7).fill(9))]), ['a', 'b', 'c', 'd', 'e'], HOJE)
+    expect(c.valor).toBe(0)
+    expect(c.semView).toBe(3)
+    expect(baseVpdTexto(c, dm)).toContain('3 de 5 longos sem nenhuma view nos dias medidos dos 28')
+    const p = vpdDoCanal(ok([...serie('a', Array(7).fill(1)), ...serie('b', Array(7).fill(3))]), ['a', 'b'], HOJE)
+    expect(p.semView).toBeUndefined()
+    expect(baseVpdTexto(p, dm)).not.toContain('sem nenhuma view')
+  })
   it('mediana entre os longos acompanhados que têm o número', () => {
     const c = vpdDoCanal(ok([...serie('a', Array(7).fill(1)), ...serie('b', Array(7).fill(3)), ...serie('x', Array(7).fill(100)), ...serie('poucos', [9])]), ['a', 'b', 'poucos'], HOJE)
     expect(c).toEqual({ valor: 2, motivo: null, n: 2, janela: { de: d(27), ate: ULT }, ultimoDia: ULT, foraDoTeto: 0 })

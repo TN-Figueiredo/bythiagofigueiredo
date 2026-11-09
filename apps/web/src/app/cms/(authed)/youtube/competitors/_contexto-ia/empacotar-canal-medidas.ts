@@ -433,7 +433,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   const T = `${O}.tempo`
   const tem = m.tempo
   if (tem.dias.length) {
-    tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, colunas: ['Dia', 'Views ganhas', 'Situação'],
+    tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, semana: 'soma', colunas: ['Dia', 'Views ganhas', 'Situação'],
       linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? naoMedido(d.situacao !== 'sem registro' ? d.situacao : 'sem registro', `${T}.dias[${i}].views`) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0'), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
   }
   if (tem.eventos.length) {

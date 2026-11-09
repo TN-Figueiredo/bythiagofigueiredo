@@ -20,6 +20,11 @@ export interface Tabela {
   colunas: string[]
   linhas: Celula[][]
   tipo: 'fixa' | 'lista' | 'dia_a_dia'
+  /**
+   * Só para `dia_a_dia` com data. `'soma'` = valor GANHO no dia (a semana é a soma dos 7 dias, só se os 7 estão medidos); `'ultima'` = total ACUMULADO no fim
+   * do dia (a semana é a última leitura). Ausente = não declarado: no grão semana a célula sai "não medido" (nunca se adivinha o tipo).
+   */
+  semana?: 'soma' | 'ultima'
   nomeNoCorte: string
   privada: boolean
 }

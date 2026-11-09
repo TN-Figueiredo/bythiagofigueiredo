@@ -13,7 +13,8 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
-import { EMPACOTAR } from '../_contexto-ia'
+import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
+import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -103,6 +104,23 @@ const segundaDe = (dia: string): string => {
 const medidaNaLinha = (l: readonly Celula[]): boolean => l.some((c) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido'))
 const dmy = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 
+/** Uma semana (segunda a domingo) vira UMA linha: o rótulo da semana e, por coluna numérica, a soma dos 7 dias só quando os 7 estão medidos (com `x`); senão "não medido" com `N de 7 dias medidos`. `soma=false`: tipo não declarado, nunca soma. */
+function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>, soma: boolean): Celula[] {
+  const ref = linhas[0]!
+  const medidas = (j: number): number[] => linhas.map((l) => l[j]).flatMap((c) => (c && c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && c.x !== null ? [c.x] : []))
+  const quantos = Math.max(0, ...ref.map((c, j) => (c.papel === 'numero' ? medidas(j).length : 0)))
+  const faltou = `${quantos} de 7 dias medidos`
+  return ref.map((c, j): Celula => {
+    if (j === 0) return { papel: 'rotulo', texto: `semana de ${dmy(segunda)} (segunda a domingo)`, origem: c.origem }
+    if (c.papel !== 'numero') return { papel: 'base', texto: faltou, origem: c.origem }
+    const xs = medidas(j)
+    if (!soma) return { papel: 'numero', estado: 'nao_medido', motivo: `soma da semana não calculada (tipo da tabela não declarado); ${faltou}`, origem: c.origem }
+    if (linhas.length < 7 || xs.length < 7) return { papel: 'numero', estado: 'nao_medido', motivo: `semana incompleta: ${faltou}`, origem: c.origem }
+    const total = Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100
+    return total === 0 ? { papel: 'numero', estado: 'zero_medido', texto: '0', x: 0, origem: c.origem } : { papel: 'numero', estado: 'medido', texto: String(total), x: total, origem: c.origem }
+  })
+}
+
 /* ------------------------------------------------------------------ limites próprios */
 
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
@@ -136,7 +154,7 @@ function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes,
   return { ...m, tabelas, citados, avisos }
 }
 
-/** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (seleção, nunca soma nem média) e depois aos `n` mais recentes. */
+/** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (tabela de ganho diário: soma dos 7 dias só com os 7 medidos; acumulada: última leitura; tipo não declarado: \"não medido\") e depois aos `n` mais recentes. */
 function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes): PacoteModelo {
   const n = p.limite.n
   const de = p.de ?? '0000-01-01'
@@ -175,13 +193,21 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     if (grao === 'semana') {
       const semanas = new Map<string, typeof dentro>()
       for (const x of dentro) semanas.set(segundaDe(x.dia), [...(semanas.get(segundaDe(x.dia)) ?? []), x])
-      const escolhidas = [...semanas.values()].map((xs) => {
+      const regra = t.semana === 'soma' ? 'soma' : t.semana === 'ultima' ? 'ultima' : null
+      const escolhidas = [...semanas.entries()].map(([segunda, xs]) => {
         const ord = [...xs].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0))
-        // a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
-        return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
+        if (regra === 'ultima') {
+          // acumulado (total no fim do dia): a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
+          return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
+        }
+        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord.map((x) => x.linha), regra === 'soma'), dia: ord[0]!.dia }
       })
       dentro = escolhidas
-      avisos.push(`série "${t.titulo}": grão semana: a última leitura de cada semana (segunda a domingo, horário de São Paulo); não é soma nem média`)
+      avisos.push(regra === 'soma'
+        ? `série "${t.titulo}": grão semana, regra "ganho diário": cada semana (segunda a domingo, horário de São Paulo) é a soma dos 7 dias, só quando os 7 estão medidos; senão a célula sai "não medido" com quantos dias foram medidos (nunca zero, nunca soma parcial)`
+        : regra === 'ultima'
+          ? `série "${t.titulo}": grão semana, regra "acumulado": a última leitura de cada semana (segunda a domingo, horário de São Paulo); o total no fim do dia, não é soma nem média`
+          : `série "${t.titulo}": grão semana: o tipo desta tabela (ganho por dia ou total acumulado) não declarado, então a soma da semana não é calculada; cada semana sai "não medido" com quantos dias foram medidos; peça o grão dia`)
     }
     if (dentro.length > n) {
       const mantidos = new Set([...dentro].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0)).slice(0, n).map((x) => x.i))
@@ -230,11 +256,11 @@ const resp = (desfecho: Resposta['desfecho'], texto: string, params: Params = {}
 const NAO_ENCONTRADO = (params: Params): Resposta => resp('nao_encontrado', FRASES_DA_FERRAMENTA.nao_encontrado, params)
 
 /** Com a tela como veio (`canal`), ou resolvendo `canal?`/`video?` entre a versão de concorrente e a própria. */
-async function empacotar(t: Pedido['telas'][number], abrir: Abridor) {
+async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: FaltouNoPar) {
   const chamar = async (tela: TelaId) => {
     const f = EMPACOTAR[tela]
     if (!f) throw new Error('sem empacotador')
-    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp }, abrir)
+    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(faltou ? { faltou } : {}) }, abrir)
   }
   if (t.tela === 'canal?') return (await chamar('canal')) ?? (await chamar('canal-proprio'))
   if (t.tela === 'video?') return (await chamar('video')) ?? (await chamar('video-proprio'))
@@ -248,10 +274,17 @@ const topoDe = (p: Pedido): string => {
 }
 
 /** Texto de um pacote dentro do teto. Se nem o piso do corte cabe, o fim é cortado e a frase diz. Devolve também a 1ª linha de aviso do pacote e o degrau de linhas usado. */
-function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[]): { texto: string; primeira: string | null; degrau: number | null } {
+function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[], cortes?: Cortes): { texto: string; primeira: string | null; degrau: number | null } {
   const pacote = segmentar(m, { geradoEm: agora, recente })
   const t = montarTexto(pacote, '', teto, 'todos', degraus)
+  // A1c: o que `montarTexto` cortou por tamanho (e o piso que estourou, que vira corte do fim) chega ao registro; antes ele gravava `cortes=0` em silêncio
+  if (cortes) cortes.n += t.cortes.length + (t.pisoPassou ? 1 : 0)
   return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
+}
+
+/** As tabelas e o foco que só falam do lado A (`ehSoDoLadoA`, definido junto de onde os ids nascem): o lado A não se repete em cada par. A tabela "número a número" fica (ela põe A ao lado de B). */
+function semOLadoA(m: PacoteModelo): PacoteModelo {
+  return { ...m, foco: m.foco.slice(1), tabelas: m.tabelas.filter((t) => !ehSoDoLadoA(t.id)) }
 }
 
 const FRASE_DO_FIM = '\n[texto cortado por tamanho: o fim não saiu]'
@@ -287,9 +320,19 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const pares = pedido.telas.length
       const reserva = topo.length + 1 + 2 * (pares - 1)
       const doPar = Math.floor((pedido.teto - reserva) / pares)
-      const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>> }> = []
-      for (const tela of pedido.telas) achados.push({ a: tela.sp.a ?? '', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir) })
-      if (achados.every((x) => x.montado === null)) return NAO_ENCONTRADO({ ...params, pares })
+      const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>>; faltou: FaltouNoPar }> = []
+      for (const tela of pedido.telas) {
+        const faltou: FaltouNoPar = {}
+        achados.push({ a: tela.sp.a ?? 'próprio', b: tela.sp.b ?? '', montado: await empacotar(tela, abrir, faltou), faltou })
+      }
+      // A1c: nenhum par saiu: a frase fechada MAIS o id que errou (o lado A, quando foi ele; senão os `b`), já validados pelo esquema
+      if (achados.every((x) => x.montado === null)) {
+        const doA = achados[0]!.faltou.lado
+        const quem = doA === 'proprio' ? 'não há canal próprio com vídeo neste site' : doA === 'a' ? achados[0]!.a : achados.map((x) => x.b).join(', ')
+        return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, pares })
+      }
+      // o lado A é descrito inteiro no 1º par que saiu (se o Par 1 falhou, é o seguinte)
+      const primeiro = achados.findIndex((x) => x.montado !== null)
       let privado = false
       let comentarios = false
       const blocos = achados.map((x, i) => {
@@ -298,7 +341,10 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (x.montado === null) return `${cab}Canal ${x.b}: ${FRASES_DA_FERRAMENTA.nao_encontrado}.`
         if (x.montado.modelo.privado.estado === 'incluido') privado = true
         if (x.montado.modelo.comentarios.estado === 'incluido') comentarios = true
-        return cab + textoDoModelo(x.montado.modelo, x.montado.recente, agora, doPar - cab.length).texto
+        // o lado A é o mesmo em todos os pares: só o 1º bloco o descreve por inteiro (foco e tabelas só do lado A); os outros ficam com mais espaço para o lado B
+        const modelo = i === primeiro ? x.montado.modelo : semOLadoA(x.montado.modelo)
+        const aviso = i === primeiro ? '' : `O lado A é o mesmo do Par ${primeiro + 1} e não se repete aqui.\n`
+        return cab + aviso + textoDoModelo(modelo, x.montado.recente, agora, doPar - cab.length - aviso.length, undefined, cortes).texto
       })
       const texto = cabeEm(`${topo === '' ? '' : `${topo}\n`}${blocos.join('\n\n')}`, pedido.teto)
       return resp('ok', texto, { ...params, privado, comentarios, cortes: cortes.n, pares }, privado || comentarios)
@@ -331,14 +377,14 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       for (let volta = 0; ; volta += 1) {
         cortes.n = 0
         modelo = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, k)
-        feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, degrausDoLimite(n))
+        feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, degrausDoLimite(n), cortes)
         const novo = feito.degrau === null ? k : Math.min(k, feito.degrau)
         if (novo === k || volta >= 6) break
         k = novo
       }
     } else {
       if (pedido.limite.tipo === 'pontos') modelo = recortarSerie(modelo, pedido, agora, cortes)
-      feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto)
+      feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, undefined, cortes)
     }
     const incluiu = privadoIncluido(modelo)
     const { texto, primeira } = feito

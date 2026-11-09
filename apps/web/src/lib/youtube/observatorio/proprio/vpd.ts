@@ -22,6 +22,8 @@ export interface VpdCanal {
   ultimoDia: DiaYt | null
   /** dos longos pedidos, quantos ficaram além do teto de vídeos do diário e NÃO foram lidos (a mediana é só dos lidos): a base escrita diz */
   foraDoTeto: number
+  /** A1c: só quando a mediana é 0: quantos dos `n` longos têm média 0 (nenhuma view nos dias medidos); a nota diz "N de M", para o dono separar canal parado de dado atrasado */
+  semView?: number
 }
 
 /** A frase única do corte do teto, para toda tela que soma ou compara vários vídeos do diário. `k` > 0. */
@@ -80,9 +82,11 @@ export function vpdDoCanal(d: Privado<DiarioCanal>, longosAcompanhados: readonly
     if (vpd != null) valores.push(vpd)
   }
   if (valores.length === 0) return semValor('poucos-dias', ultimoDia, foraDoTeto)
+  const valor = mediana(valores)
   return {
-    valor: mediana(valores), motivo: null, n: valores.length,
+    valor, motivo: null, n: valores.length,
     janela: { de: addDays(ultimoDia, -(JANELA_VPD_DIAS - 1)), ate: ultimoDia }, ultimoDia, foraDoTeto,
+    ...(valor === 0 ? { semView: valores.filter(v => v === 0).length } : {}),
   }
 }
 
@@ -104,5 +108,7 @@ export function motivoVpdTexto(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia'>, 
 export function baseVpdTexto(c: VpdCanal, dm: (d: DiaYt) => string): string | null {
   if (c.valor == null || c.janela == null) return null
   const fora = c.foraDoTeto > 0 ? `; ${c.foraDoTeto} ${c.foraDoTeto === 1 ? 'vídeo longo mais antigo ficou' : 'vídeos longos mais antigos ficaram'} de fora da leitura` : ''
-  return `média dos últimos ${JANELA_VPD_DIAS} dias do YouTube com medida (de ${dm(c.janela.de)} a ${dm(c.janela.ate)}), mediana de ${c.n} ${c.n === 1 ? 'longo' : 'longos'}${fora}`
+  // valor 0: a mediana é zero porque ao menos metade dos longos não teve view; dia sem linha dentro da cobertura conta como zero medido
+  const zero = c.valor === 0 && c.semView != null ? `; ${c.semView} de ${c.n} ${c.n === 1 ? 'longo' : 'longos'} sem nenhuma view nos dias medidos dos ${JANELA_VPD_DIAS} (dia sem linha dentro da cobertura conta como zero)` : ''
+  return `média dos últimos ${JANELA_VPD_DIAS} dias do YouTube com medida (de ${dm(c.janela.de)} a ${dm(c.janela.ate)}), mediana de ${c.n} ${c.n === 1 ? 'longo' : 'longos'}${zero}${fora}`
 }

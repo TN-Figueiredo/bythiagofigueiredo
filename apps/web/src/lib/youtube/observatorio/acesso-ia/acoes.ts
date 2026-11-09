@@ -58,7 +58,7 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional() }).strict(),
   z.object({ acao: z.literal('canal'), canal_id: id, janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('video'), video_id: id }).strict(),
-  z.object({ acao: z.literal('comparar'), canal_ids: z.array(id).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
+  z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
   z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional() }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
@@ -132,11 +132,13 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
     const aviso: string[] = []
     janelaSemEquivalente('comparar', e.janela, aviso)
     if (e.formato !== undefined) aviso.push(`formato ${e.formato}: a tela Comparar não escolhe formato; o pacote traz o que a tela mostra`)
+    if (e.canal_ids.slice(1).includes('proprio')) return recusar('comparar aceita `proprio` só como primeiro canal')
     const [a, ...outros] = e.canal_ids as [string, ...string[]]
+    // `proprio`: sem `a` na URL, quem resolve o par escolhe o canal próprio do site pela mesma regra da tela
     return {
       ok: true,
       pedido: {
-        telas: outros.map((b) => ({ tela: 'comparar' as const, sp: { a, b, niche: NICHO_PADRAO } })),
+        telas: outros.map((b) => ({ tela: 'comparar' as const, sp: { ...(a === 'proprio' ? { proprio: '1' } : { a }), b, niche: NICHO_PADRAO, estrito: '1' } })),
         teto: TETO, limite: NENHUM, semEquivalente: aviso,
       },
     }

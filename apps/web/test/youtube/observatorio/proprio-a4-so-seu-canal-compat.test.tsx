@@ -39,12 +39,13 @@ function semIdsDoReact(html: string): string {
 }
 
 // hashes do HTML do código de antes da Tarefa 14 (f0558e15)
+// A1c (09/11): os hashes de eu×c1 e c1×eu mudaram de propósito (a base de views por dia diz o método de cada lado e o aviso diz janela E método); os de dois concorrentes seguem os de antes
 // (as de dois concorrentes: o HTML cru; as com canal seu: o HTML com os ids do `useId` renumerados, porque o cartão, que tem ⓘ, desloca a contagem)
 const ESPERADO = {
   'c1×c2': '79208876e1e7aef6b04173a80fb2593248e8bbe4ac0cc193cec10bcc7a8da093',
   'c3×ia1': 'a555f3c4208c3e5136ba8adacf137a17dfdd102fe067af6a47a3737040d382dc',
-  'eu×c1': '7d644163ef988351f3040a41738da4356e72c8deb173ad870ed68fa4d788b562',
-  'c1×eu': '54a5f11614f028f999905baa9a0ff362dc62884069111921f13558a6ee7291fd',
+  'eu×c1': 'e01509f5a0556d0cde17ea66159aa721593da8ea04f32ab1333cdcca4e8d465d',
+  'c1×eu': '7c45053a6bac4c5ab6146d9f04e27c28e4b2427f2968f44d7bf347a498aac911',
 } as const
 
 beforeEach(() => { window.history.replaceState(null, '', '/cms/youtube/competitors/comparar') })

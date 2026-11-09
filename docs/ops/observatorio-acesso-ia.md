@@ -30,9 +30,19 @@ Rode num terminal comum, fora do Claude Code (nem com "!"): nenhum agente roda e
 npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts criar --usuario <e-mail da pessoa>
 ```
 
-O comando só aceita `criar` e as opções `--usuario`, `--dias` (1 a 366; padrão 180) e `--site`. Ele **só insere**, e recusa: subcomando que não seja `criar`; opção desconhecida (nunca ignorada em silêncio); a E19 não conferida; a exceção do dono ausente; e-mail que não existe ou repetido; pessoa que não vê o site (ou vê dois e `--site` não veio); nome repetido; pessoa que já tem chave ativa (a segunda é aceita a partir de 14 dias antes do vencimento: renovar sem buraco); terceira pessoa com chave ativa (o teto é de duas PESSOAS); validade fora de 1 a 366 dias. O texto da chave aparece **uma vez**; só o SHA-256 vai ao banco. O nome é sempre o gerado (`observatorio-AAAAMMDD-xxxx`), sem dado pessoal.
+O comando só aceita `criar` e as opções `--usuario`, `--dias` (1 a 366; padrão 180) e `--site`. Ele **só insere**, e recusa: subcomando que não seja `criar`; opção desconhecida (nunca ignorada em silêncio); a E19 não conferida; a exceção do dono ausente; e-mail que não existe ou repetido; pessoa que não vê o site (ou vê dois e `--site` não veio); nome repetido; pessoa que já tem chave ativa (a segunda é aceita a partir de 14 dias antes do vencimento; mas o caminho padrão para renovar é `estender`, abaixo); terceira pessoa com chave ativa (o teto é de duas PESSOAS); validade fora de 1 a 366 dias. O texto da chave aparece **uma vez**; só o SHA-256 vai ao banco. O nome é sempre o gerado (`observatorio-AAAAMMDD-xxxx`), sem dado pessoal.
 
 A linha de uma chave vencida fica no banco, de propósito: o registro aponta para ela, e nada no sistema apaga nem revoga chave. Decidiu deixar a chave vencer? Marque a conferência de vencimento como feita mesmo assim, senão o cron fica vermelho 7 dias depois.
+
+## Estender a chave (renovar sem reinstalar)
+
+Renovar ESTENDE a mesma chave: nova validade, mesmo segredo; quem usa a chave não reinstala nada. Não há renovação automática: o dono roda a linha. Mesmo terminal e mesmas guardas do `criar`.
+
+```
+npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts estender --chave <observatorio-AAAAMMDD-xxxx>
+```
+
+Opções: só `--chave` (o nome gerado, obrigatório) e `--dias` (1 a 366; padrão 366). Faz UM `update` de `expires_at`, com compare-and-set; "nada mudou, rode de novo" = a chave mudou no meio, repita. Recusa: nome fora do formato; chave inexistente ou revogada; permissões que não sejam exatamente `observatorio_leitura` (nunca toca `cowork-permanent` nem a forja); vencida há mais de 30 dias (aí use `criar`); nova data anterior à atual ("já vale até ..."); pessoa apagada, sem vínculo com o site ou banida. Imprime nome e validade antiga e nova (dia de São Paulo); nunca imprime segredo. **Depois de estender (obrigatório, o comando imprime o passo):** a conferência de vencimento é uma entrada literal em `apps/web/src/lib/conferencias.ts`; o banco não a move. Num commit: na entrada `e17d2-chave-<nome>-vence-<AAAAMMDD antigo>` marque `feitaEm` com o dia de hoje e acrescente a entrada nova gerada por `conferenciaDeVencimento('<nome>', '<expires_at novo ISO>')` (o id leva o dia do vencimento, então as duas convivem). Sem isso, 7 dias depois do aviso antigo o cron fica vermelho por uma chave que está válida. Saída `resultado desconhecido`: confira `expires_at` da chave no banco; rodar de novo é seguro.
 
 ## Revogar uma chave do perfil (roda o dono, como `postgres`)
 

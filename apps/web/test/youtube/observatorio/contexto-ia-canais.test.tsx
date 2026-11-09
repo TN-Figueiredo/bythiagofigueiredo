@@ -107,7 +107,7 @@ const LINHA = (r: string) => r
 void LINHA
 const TAB = (pre: string): Record<string, Record<string, string | readonly string[]>> => ({
   [`${pre}canais`]: {
-    Posição: ['.posicao', '.semPosicao'], Canal: '.name', Inscritos: ['.subs', '.subsOcultos'], Direção: ['.direcao.texto', '.direcaoNaoCarregou', '.direcao.longa'],
+    Posição: ['.posicao', '.semPosicao'], Canal: '.name', Id: '.id', Inscritos: ['.subs', '.subsOcultos'], Direção: ['.direcao.texto', '.direcaoNaoCarregou', '.direcao.longa'],
     [RITMO_COM_UNIDADE]: ['.cells.cadence.pw', '.cells.cadence.text'], [VPD_POR_MIL]: ['.cells.vpd.big', '.cells.vpd.text'], [VPD_MEDIANA]: ['.cells.vpd.big', '.cells.vpd.text'], Outliers: ['.cells.out.mult', '.cells.out.text'],
     Trocas: ['.cells.swap.n', '.cells.swap.text'], Crescimento: ['.cells.growth.big', '.cells.growth.text'], Sincronização: '.cells.sync.label',
   },
@@ -133,7 +133,7 @@ const COLUNAS = {
   'canais-inscritos-notas': { Canal: '.nome', Nota: ['.sub', '.nota', '.situacao'] },
 }
 const paridade = (m: Montado) => provarParidade({
-  modelo: m.modelo, inventario: INVENTARIO_CANAIS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [],
+  modelo: m.modelo, inventario: INVENTARIO_CANAIS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [], soNoPacote: ['canais', 'privado-canais'],
 })
 
 // ───────────────────────── a matriz de estados
@@ -174,6 +174,17 @@ describe('Canais: paridade em cada estado da matriz', () => {
       expect(() => paridade(m)).not.toThrow()
     })
   }
+
+  it('A1c: a tabela de canais leva o id de cada canal (inclusive o próprio) numa coluna Id', async () => {
+    const m = await montar(MATRIZ[0]![1])
+    const tab = m.pacote.tabelas.find((t) => t.id === 'canais')!
+    const j = tab.colunas.indexOf('Id')
+    expect(j).toBeGreaterThan(-1)
+    const ids = [...m.modelo.list.ranked, ...m.modelo.list.unranked].filter((r) => !r.own).map((r) => r.id)
+    for (const id of ids) expect(m.textoDoPacote).toContain(id)
+    const priv = m.pacote.tabelas.find((t) => t.id === 'privado-canais')
+    if (priv) for (const l of priv.linhas) expect(l[priv.colunas.indexOf('Id')]!.papel).toBe('base')
+  })
 
   it('toda folha do modelo tem destino em todos os estados, e o inventário não guarda declaração velha (união da matriz)', async () => {
     const usos = new Set<string>()

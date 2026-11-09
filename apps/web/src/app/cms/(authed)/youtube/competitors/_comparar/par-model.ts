@@ -218,9 +218,19 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
     }
 
     linhas.push({
-      id, grupo: m.grupo, nome: m.nome, base: m.base(semanas), lados: [na, nb], pos,
+      id, grupo: m.grupo, nome: m.nome, base: baseDaLinha(id, m, semanas), lados: [na, nb], pos,
       eixo: eixoDe(m, na, nb), relacao: relacaoDe(id, m, na, nb),
     })
+  }
+
+  /** A1c: views por dia (e por mil inscritos) de um canal SEU e de um concorrente têm janela e método diferentes: a base diz o de cada lado, na ordem dos lados. */
+  function baseDaLinha(id: NumeroId, m: Meta, semanas: number): string {
+    if ((id !== 'vpd' && id !== 'vpdPorMil') || lados[0].own === lados[1].own) return m.base(semanas)
+    const dele = (c: CanalPack) => (c.own
+      ? 'seu canal, média diária por vídeo nos 28 dias do YouTube, mediana dos longos'
+      : `concorrente, variação das views acumuladas desde ${pack.serieDesde}, mediana dos longos`)
+    const por = id === 'vpdPorMil' ? ' (cada lado ÷ mil inscritos)' : ''
+    return `${dele(lados[0])}; ${dele(lados[1])}${por}`
   }
 
   /* ---- a relação em palavras, sempre nomeando o maior */

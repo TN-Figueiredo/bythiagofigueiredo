@@ -35,7 +35,9 @@ import { empacotarFila, modeloDeFila } from './empacotar-fila'
 import { montarSugestoes } from '../_sugestoes/montar'
 import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 
-export interface PedidoMontado { id?: string; sp: Record<string, string | undefined> }
+/** `faltou`: saída opcional do empacotador de `comparar` estrito: qual lado não existe no site (`proprio` = não há canal próprio com vídeo). */
+export interface FaltouNoPar { lado?: 'a' | 'b' | 'proprio' }
+export interface PedidoMontado { id?: string; sp: Record<string, string | undefined>; faltou?: FaltouNoPar }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
 /** `abrir`: a porta de entrada do dado (E17 d2, Tarefa 8b). Sem ele vale o de sessão (`ABRIDOR_DE_SESSAO`); a rota do MCP passa o da chave. */
 export type Empacotador = (pedido: PedidoMontado, abrir?: Abridor) => Promise<PacoteMontado | null>
@@ -176,8 +178,22 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (m.tipo !== 'proprio') return null
     return { modelo: sem(empacotarVideoProprio(modeloDeVideoProprio(m.base.header, m.blocos), m.privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  comparar: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+  comparar: async ({ sp, faltou }, abrir = ABRIDOR_DE_SESSAO) => {
     const m = await montarComparar(sp, abrir)
+    // A1c: pela ferramenta (`estrito`), um id que não é canal do site NUNCA vira outro canal em silêncio: sem o canal pedido, "não encontrado"
+    // (a tela, pela URL, segue com a escolha dela). `a` ausente é `proprio`: vale o que `resolverPar` escolheu.
+    if (sp['estrito'] === '1') {
+      const ids = new Set(m.pack.canais.map((c) => c.id))
+      const par0 = m.inicial
+      const recusa = (lado: 'a' | 'b' | 'proprio'): null => { if (faltou) faltou.lado = lado; return null }
+      if (sp['a'] !== undefined) {
+        if (!ids.has(sp['a']) || par0?.a !== sp['a']) return recusa('a')
+      } else if (sp['proprio'] === '1') {
+        // `proprio`: o lado A tem de ser MESMO um canal próprio com vídeo; sem ele `resolverPar` põe o maior concorrente no lugar (falha em verde)
+        if (!par0 || m.pack.canais.find((c) => c.id === par0.a)?.own !== true) return recusa('proprio')
+      }
+      if (sp['b'] !== undefined && (!ids.has(sp['b']) || par0?.b !== sp['b'])) return recusa('b')
+    }
     const privado = await comNegativa(m.privado, m.pagina.siteId, abrir)
     const par = m.inicial ? buildPar(m.pack, m.inicial.a, m.inicial.b) : null
     const modelo = par ? modeloDeComparar(m.pack, par) : null

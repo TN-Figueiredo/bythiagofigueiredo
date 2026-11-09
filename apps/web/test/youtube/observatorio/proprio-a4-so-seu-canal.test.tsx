@@ -369,7 +369,7 @@ describe('14 Passo 4: "Views por dia nos longos" com as janelas dos dois lados e
     p.canais.find(c => c.id === 'c1')!.numeros.vpd = { x: 0.2, texto: '0,2', motivo: null, nota: 'views por dia desde 03/10, mediana de 4 longos' }
     wrap(p, 'eu', 'c1')
     const aviso = document.querySelector('[data-janelas-aviso]')!
-    expect(aviso.textContent).toBe('As duas janelas de tempo são diferentes: 28 dias de um lado, desde 03/10 do outro. Maior não quer dizer melhor: são canais de tamanhos diferentes.')
+    expect(aviso.textContent).toBe('As duas janelas de tempo e os dois métodos são diferentes: 28 dias de um lado (média diária por vídeo), desde 03/10 do outro (variação das views acumuladas). Maior não quer dizer melhor: são canais de tamanhos diferentes.')
     expect(aviso.closest('section')!.querySelector('table')).not.toBeNull()
   })
 

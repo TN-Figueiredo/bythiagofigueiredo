@@ -215,6 +215,19 @@ describe('provarParidade', () => {
     expect(() => provarParidade(entrada({ modelo: comCampo }))).toThrow(/canais\[\]\.curtidas/)
   })
 
+  it('A1c M-4: célula base com origem ".id" só é dispensada da regra (c) nas tabelas declaradas em soNoPacote', () => {
+    const pacote = empacotar(modelo())
+    pacote.tabelas[0]!.linhas[0]![3] = { papel: 'base', texto: 'zzz-uuid', origem: 'pack.canais[0].id' }
+    // sem declarar: a regra (c) pega
+    expect(() => provarParidade(entrada({ pacote }))).toThrow(/\(c\) o pacote tem "zzz-uuid"/)
+    // declarando outra tabela: continua pegando
+    expect(() => provarParidade(entrada({ pacote, soNoPacote: ['outra'] }))).toThrow(/\(c\) o pacote tem "zzz-uuid"/)
+    // declarando a tabela: a regra (c) deixa passar (as outras regras seguem valendo)
+    let msg = ''
+    try { provarParidade(entrada({ pacote, soNoPacote: ['canais'] })) } catch (err) { msg = String(err) }
+    expect(msg).not.toMatch(/\(c\) o pacote tem "zzz-uuid"/)
+  })
+
   it('falha quando o pacote tem um número que a tela não tem', () => {
     const pacote = empacotar(modelo())
     pacote.tabelas[0]!.linhas[0]![1] = { papel: 'numero', estado: 'medido', texto: '99 mil', x: 99000, origem: 'pack.canais[0].mediana.texto' }

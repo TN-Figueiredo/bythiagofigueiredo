@@ -55,10 +55,10 @@ function lista(id: string, linhas: number, tela: TelaId = 'canais'): PacoteModel
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 /** `n` dias seguidos terminando em 13/10/2026, do mais recente ao mais antigo, rótulo `dd/mm/aaaa`. `medidoNo(i)` decide se o dia i (0 = mais recente) tem número. */
-function serie(n: number, medidoNo: (i: number) => boolean = () => true, privada = false): Tabela {
+function serie(n: number, medidoNo: (i: number) => boolean = () => true, privada = false, semana?: 'soma' | 'ultima'): Tabela {
   const fim = Date.UTC(2026, 9, 13)
   return {
-    id: 'serie', titulo: 'Views por dia', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia', privada, colunas: ['Dia', 'Views'],
+    id: 'serie', titulo: 'Views por dia', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia', privada, colunas: ['Dia', 'Views'], ...(semana ? { semana } : {}),
     linhas: Array.from({ length: n }, (_, i): Celula[] => {
       const d = new Date(fim - i * 86_400_000)
       const rot = `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`
@@ -206,50 +206,61 @@ describe('responder: o limite próprio de cada ação', () => {
 
 describe('responder: serie', () => {
   it('401 pontos no grão dia: passa ao grão semana e diz; 400: fica no dia', async () => {
-    dobra('canal', modeloSerie(serie(401)))
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/401 pontos no grão dia passam de 400; mostrada no grão semana/)
-    expect(r.texto).toContain('não é soma nem média')
+    expect(r.texto).toContain('grão semana')
     expect(linhasDaSerie(r.texto).length).toBeLessThan(80)
     dobra('canal', modeloSerie(serie(400)))
     const r2 = await responder(SERIE, abrir, AGORA)
     expect(r2.texto).not.toMatch(/grão semana/)
     expect(linhasDaSerie(r2.texto).length).toBe(400)
   })
-  it('o grão semana é seleção: a linha escolhida é uma das linhas medidas da semana, com o valor dela', async () => {
-    dobra('canal', modeloSerie(serie(401)))
+  it('acumulado: o grão semana é a última leitura (seleção), com o valor dela', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
-    // 13/10/2026 é terça: a semana corrente fica com o dia mais recente (valor 1000), nunca uma soma
+    // 13/10/2026 é terça: a semana corrente fica com o dia mais recente (valor 1000)
     expect(r.texto).toMatch(/13\/10\/2026.*1000/)
     expect(r.texto).not.toMatch(/12\/10\/2026/)
-    const valores = linhasDaSerie(r.texto).map((l) => Number(/\|\s*(\d+)\s*\|/.exec(l)?.[1] ?? NaN))
-    expect(valores.every((v) => Number.isInteger(v) && v >= 1000 && v < 1401)).toBe(true)
+    expect(r.texto).toMatch(/acumulad.*última leitura/)
   })
-  it('grão semana pedido: vale mesmo com poucos pontos', async () => {
-    dobra('canal', modeloSerie(serie(30)))
-    const r = await responder({ ...SERIE, grao: 'semana' }, abrir, AGORA)
-    expect(linhasDaSerie(r.texto).length).toBeLessThanOrEqual(6)
-    expect(r.texto).toContain('grão semana')
-  })
-  it('semana só com "não medido" sai como "não medido", nunca some; a medida mais antiga da semana vence o dia vazio mais novo', async () => {
-    // dias 0..6 (a semana de 13/10, terça, tem 2 dias: 0 e 1) vazios; o resto medido; 401 pontos para entrar no grão semana
-    dobra('canal', modeloSerie(serie(401, (i) => i > 1)))
-    const r = await responder(SERIE, abrir, AGORA)
-    expect(r.texto).toContain('SEM_LEITURA')
-    expect(r.texto).toMatch(/13\/10\/2026/)
-    // a semana de 29/09 a 05/10 tem medida: não aparece "não medido" nela
-    const linhas = linhasDaSerie(r.texto)
-    expect(linhas.filter((l) => l.includes('SEM_LEITURA')).length).toBe(1)
-  })
-  it('semana com medida e dias vazios no fim: fica a última linha MEDIDA', async () => {
-    // 13/10 (terça) e 12/10 (segunda) vazios, mas é a mesma semana (só vazios): vira "não medido". Com o dia 0 vazio e o 1 medido, fica o 1.
-    dobra('canal', modeloSerie(serie(401, (i) => i !== 0)))
+  it('acumulado: semana com dia vazio no fim fica com a última linha MEDIDA', async () => {
+    dobra('canal', modeloSerie(serie(401, (i) => i !== 0, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/12\/10\/2026.*1001/)
     expect(r.texto).not.toContain('SEM_LEITURA')
   })
+  it('ganho diário: semana completa (7 de 7 medidos) soma os 7 dias; a regra vem no cabeçalho', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    // 05/10 a 11/10 = dias 8..2 antes de 13/10: valores 1002..1008, soma 7035
+    expect(linhasDaSerie(r.texto).length).toBe(1)
+    expect(r.texto).toContain('7035')
+    expect(r.texto).toMatch(/soma dos 7 dias.*só quando os 7 estão medidos/)
+  })
+  it('ganho diário: semana com 1 dia sem medida sai "não medido" com 6 de 7, nunca zero nem soma parcial', async () => {
+    dobra('canal', modeloSerie(serie(401, (i) => i !== 5, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    expect(r.texto).toMatch(/6 de 7 dias medidos/)
+    expect(r.texto).not.toContain('7035')
+    expect(r.texto).not.toMatch(/\|\s*0\s*\|/)
+  })
+  it('ganho diário: semana parcial na borda (2 dias) é "não medido" com 2 de 7', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-12', ate: '2026-10-13' }, abrir, AGORA)
+    expect(r.texto).toMatch(/2 de 7 dias medidos/)
+    expect(r.texto).not.toMatch(/\b2001\b/)
+  })
+  it('tipo não declarado: a semana sai "não medido" (opção mínima), com os dias medidos', async () => {
+    dobra('canal', modeloSerie(serie(401)))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
+    expect(r.texto).toMatch(/7 de 7 dias medidos/)
+    expect(r.texto).toMatch(/tipo.*não declarado/)
+    expect(r.texto).not.toContain('7035')
+    expect(r.texto).not.toMatch(/\b100\d\b/)
+  })
   it('ainda mais de 400 pontos no grão semana: os 400 mais recentes, e diz', async () => {
-    dobra('canal', modeloSerie(serie(3000)))
+    dobra('canal', modeloSerie(serie(3000, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
     expect(r.texto).toMatch(/ainda são \d+ pontos no grão semana; ficam os 400 mais recentes/)
     expect(linhasDaSerie(r.texto).length).toBe(400)
@@ -469,7 +480,10 @@ describe('responder: comparar', () => {
   it('todos os pares null: não encontrado, a frase fechada', async () => {
     dobra('comparar', null)
     const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
-    expect(r).toMatchObject({ desfecho: 'nao_encontrado', texto: FRASES_DA_FERRAMENTA.nao_encontrado })
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain(FRASES_DA_FERRAMENTA.nao_encontrado)
+    expect(r.texto).toContain(C2)
+    expect(r.texto).toContain(C3)
   })
   it('o teto é dividido entre os pares', async () => {
     dobra('comparar', grande(500_000))
@@ -482,6 +496,93 @@ describe('responder: comparar', () => {
 })
 
 /* ------------------------------------------------------------------ tamanho */
+
+describe('responder: A1c, comparar registra os cortes e não repete o lado A', () => {
+  const tab = (id: string, linhas = 2): Tabela => ({
+    id, titulo: `T ${id}`, tipo: 'fixa', nomeNoCorte: `tabela ${id}`, privada: false, colunas: ['Item', 'Valor'],
+    linhas: Array.from({ length: linhas }, (_, i) => [rotulo(`Item ${i}`, `p.${id}[${i}].n`), base(`valor ${id} ${i}`, `p.${id}[${i}].v`)]),
+  })
+  it('pacote que estoura o teto: params.cortes > 0 (antes gravava 0)', async () => {
+    dobra('comparar', grande(500_000))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.params.cortes).toBeGreaterThan(0)
+  })
+  it('pacote que cabe: cortes 0', async () => {
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.params.cortes).toBe(0)
+  })
+  it('as tabelas só do lado A saem no 2º par em diante', async () => {
+    dobra('comparar', { ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a'), tab('direcao-notas-a'), tab('direcao-sentido-a'), tab('direcao-notas-b')] })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [p1, p2] = r.texto.split('## Par ').slice(1)
+    expect(p1).toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('valor direcao-notas-a 0')
+    expect(p2).not.toContain('valor direcao-sentido-a 0')
+    expect(p2).toContain('valor numero-a-numero 0')
+    expect(p2).toContain('valor direcao-notas-b 0')
+  })
+})
+
+describe('responder: A1c, revisão do Yannis', () => {
+  const tab = (id: string, titulo = `T ${id}`): Tabela => ({
+    id, titulo, tipo: 'fixa', nomeNoCorte: `tabela ${id}`, privada: false, colunas: ['Item', 'Valor'],
+    linhas: [[rotulo('Item', `p.${id}.n`), base(`valor ${id} 0`, `p.${id}.v`)]],
+  })
+  const cmp = m.empacotar
+  it('I-2: o 1º id inválido (lado a): a frase nomeia o a, não os b', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async (p: { faltou?: { lado?: string } }) => { if (p.faltou) p.faltou.lado = 'a'; return null })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain(C1)
+    expect(r.texto).not.toContain(C2)
+    expect(r.texto).not.toContain(C3)
+  })
+  it('I-2: proprio sem canal próprio com vídeo: frase específica', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async (p: { faltou?: { lado?: string } }) => { if (p.faltou) p.faltou.lado = 'proprio'; return null })
+    const r = await responder({ acao: 'comparar', canal_ids: ['proprio', C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('nao_encontrado')
+    expect(r.texto).toContain('não há canal próprio com vídeo neste site')
+    expect(r.texto).not.toContain(C2)
+  })
+  it('I-3: Par 1 nulo: o lado A sai inteiro no 1º par montado', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C2 ? null : pacote({ ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a')] })))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [, p2] = r.texto.split('## Par ').slice(1)
+    expect(p2).toContain('valor privado-alcance-a 0')
+    expect(p2).not.toContain('não se repete aqui')
+  })
+  it('I-3: o aviso diz de qual par o lado A é', async () => {
+    ;(cmp.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C2 ? null : pacote(comTela(modeloCheio(), 'comparar'))))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3, C4] }, abrir, AGORA)
+    expect(r.texto).toContain('O lado A é o mesmo do Par 2 e não se repete aqui.')
+  })
+  it('M-1: com proprio o cabeçalho não fica sem nome do lado A', async () => {
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    const r = await responder({ acao: 'comparar', canal_ids: ['proprio', C2] }, abrir, AGORA)
+    expect(r.texto).not.toContain('canal  contra')
+    expect(r.texto).toContain('## Par 1: canal próprio contra canal')
+  })
+  it('M-2: a nota órfã do alcance sai junto com a tabela de alcance do lado A', async () => {
+    dobra('comparar', { ...comTela(modeloCheio(), 'comparar'), tabelas: [tab('numero-a-numero'), tab('privado-alcance-a'), tab('privado-alcance-a-notas'), tab('privado-alcance-b-notas')] })
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    const [, p2] = r.texto.split('## Par ').slice(1)
+    expect(p2).not.toContain('valor privado-alcance-a-notas 0')
+    expect(p2).toContain('valor privado-alcance-b-notas 0')
+  })
+  it('M-3: piso estourado junto com tabela cortada: conta o fim cortado também', async () => {
+    const g = grande(500_000)
+    const modelo = { ...g, tela: 'comparar' as TelaId, avisos: ['y'.repeat(70_000)] }
+    dobra('comparar', modelo)
+    const cab = `## Par 1: canal ${C1} contra canal ${C2}\n`
+    const t = montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', 59_999 - cab.length, 'todos')
+    expect(t.pisoPassou).toBe(true)
+    expect(t.cortes.length).toBeGreaterThan(0)
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)
+    expect(r.params.cortes).toBe(t.cortes.length + 1)
+  })
+})
 
 /** Um pacote de uns 500.000 caracteres: lista de linhas longas. */
 function grande(alvo: number): PacoteModelo {
