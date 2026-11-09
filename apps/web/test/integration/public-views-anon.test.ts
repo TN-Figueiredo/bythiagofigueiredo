@@ -1,0 +1,72 @@
+// @vitest-environment node
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { Client } from 'pg'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { EXCECOES } from '../helpers/views-excecoes'
+
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+
+const CONSULTA = `
+select c.relname, c.relkind
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind in ('v','m')
+  and (has_any_column_privilege('anon', c.oid, 'select') or has_any_column_privilege('authenticated', c.oid, 'select'))
+  and (c.relkind = 'm' or not exists (select 1 from unnest(coalesce(c.reloptions, '{}')) o
+                                      where o ~* '^security_invoker=(on|true|yes|1)$'))
+order by 1`
+
+describe.skipIf(skipIfNoLocalDb())('public: views/mvs legíveis por anon/authenticated', () => {
+  let db: Client
+  beforeAll(async () => { db = new Client({ connectionString: PG_URL }); await db.connect() })
+  afterAll(async () => { await db.end() })
+
+  it('só EXCECOES aparecem', async () => {
+    const r = await db.query<{ relname: string }>(CONSULTA)
+    expect(r.rows.map(x => x.relname).sort()).toEqual(Object.keys(EXCECOES).sort())
+  })
+
+  it('negativo: view sem invoker com grant só de coluna a anon aparece', async () => {
+    await db.query('begin')
+    try {
+      await db.query('create view public.zz_teste_view_anon as select 1 as a, 2 as b')
+      await db.query('revoke all on public.zz_teste_view_anon from anon, authenticated')
+      await db.query('grant select (a) on public.zz_teste_view_anon to anon')
+      const r = await db.query<{ relname: string }>(CONSULTA)
+      expect(r.rows.map(x => x.relname)).toContain('zz_teste_view_anon')
+    } finally { await db.query('rollback') }
+  })
+})
+
+// spec §9: escrita em storage.objects aberta a public/anon sem conferir papel
+const ESCRITA_STORAGE_ABERTA = `
+select policyname from pg_policies
+where schemaname = 'storage' and tablename = 'objects' and cmd <> 'SELECT'
+  and (roles && '{public,anon}'::name[])
+  and coalesce(qual, '') || coalesce(with_check, '') !~ '(auth\\.uid\\(\\)|is_[a-z_]+\\(|can_[a-z_]+\\(|auth\\.role\\(\\))'
+order by 1`
+
+describe.skipIf(skipIfNoLocalDb())('storage.objects: escrita sem conferir papel', () => {
+  let db: Client
+  beforeAll(async () => { db = new Client({ connectionString: PG_URL }); await db.connect() })
+  afterAll(async () => { await db.end() })
+
+  it('nenhuma policy de escrita aberta a public/anon só por bucket_id', async () => {
+    const r = await db.query<{ policyname: string }>(ESCRITA_STORAGE_ABERTA)
+    expect(r.rows.map(x => x.policyname)).toEqual([])
+  })
+})
+
+// Phil, revisão A2 I1: tabelas de anúncio com dado de terceiro/financeiro não abrem leitura a authenticated
+describe.skipIf(skipIfNoLocalDb())('ad_*: leitura só pelo service role', () => {
+  let db: Client
+  beforeAll(async () => { db = new Client({ connectionString: PG_URL }); await db.connect() })
+  afterAll(async () => { await db.end() })
+
+  it('nenhuma policy SELECT para anon/authenticated/public em ad_inquiries, ad_revenue_daily, ad_campaigns', async () => {
+    const r = await db.query<{ policyname: string }>(`
+      select tablename || '.' || policyname as policyname from pg_policies
+      where schemaname = 'public' and tablename in ('ad_inquiries','ad_revenue_daily','ad_campaigns')
+        and cmd in ('SELECT','ALL') and (roles && '{public,anon,authenticated}'::name[]) order by 1`)
+    expect(r.rows.map(x => x.policyname)).toEqual([])
+  })
+})
