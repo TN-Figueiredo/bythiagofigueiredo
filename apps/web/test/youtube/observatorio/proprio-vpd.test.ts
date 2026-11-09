@@ -49,7 +49,7 @@ describe('views por dia do canal', () => {
     const c = vpdDoCanal(ok([...zeros, ...serie('d', Array(7).fill(5)), ...serie('e', Array(7).fill(9))]), ['a', 'b', 'c', 'd', 'e'], HOJE)
     expect(c.valor).toBe(0)
     expect(c.semView).toBe(3)
-    expect(baseVpdTexto(c, dm)).toContain('3 de 5 longos sem nenhuma view nos 28 dias')
+    expect(baseVpdTexto(c, dm)).toContain('3 de 5 longos sem nenhuma view nos dias medidos dos 28')
     const p = vpdDoCanal(ok([...serie('a', Array(7).fill(1)), ...serie('b', Array(7).fill(3))]), ['a', 'b'], HOJE)
     expect(p.semView).toBeUndefined()
     expect(baseVpdTexto(p, dm)).not.toContain('sem nenhuma view')

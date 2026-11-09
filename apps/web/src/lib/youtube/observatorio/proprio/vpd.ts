@@ -109,6 +109,6 @@ export function baseVpdTexto(c: VpdCanal, dm: (d: DiaYt) => string): string | nu
   if (c.valor == null || c.janela == null) return null
   const fora = c.foraDoTeto > 0 ? `; ${c.foraDoTeto} ${c.foraDoTeto === 1 ? 'vídeo longo mais antigo ficou' : 'vídeos longos mais antigos ficaram'} de fora da leitura` : ''
   // valor 0: a mediana é zero porque ao menos metade dos longos não teve view; dia sem linha dentro da cobertura conta como zero medido
-  const zero = c.valor === 0 && c.semView != null ? `; ${c.semView} de ${c.n} ${c.n === 1 ? 'longo' : 'longos'} sem nenhuma view nos ${JANELA_VPD_DIAS} dias (dia sem linha dentro da cobertura conta como zero)` : ''
+  const zero = c.valor === 0 && c.semView != null ? `; ${c.semView} de ${c.n} ${c.n === 1 ? 'longo' : 'longos'} sem nenhuma view nos dias medidos dos ${JANELA_VPD_DIAS} (dia sem linha dentro da cobertura conta como zero)` : ''
   return `média dos últimos ${JANELA_VPD_DIAS} dias do YouTube com medida (de ${dm(c.janela.de)} a ${dm(c.janela.ate)}), mediana de ${c.n} ${c.n === 1 ? 'longo' : 'longos'}${zero}${fora}`
 }
