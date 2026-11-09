@@ -43,14 +43,15 @@ credencial). `mode: 'publish'` continua sendo literalmente `can_edit_site`.
 | `super_admin` | `organization_members.role='org_admin'` na organização **raiz** | convite escopo `org`. Com uma organização só, todo `org_admin` é `super_admin` ✔ |
 | `org_admin` | `organization_members` de uma org filha | idem (hoje não existe org filha em produção) |
 | `editor` | `site_memberships.role='editor'` | convite escopo `site`, papel editor ✔ |
-| `reporter` | `site_memberships.role='reporter'` | o formulário de convite **não oferece mais** (07/10); convites antigos e a tela de editar usuário ainda criam 📖 |
+| `reporter` | `site_memberships.role='reporter'` | o formulário de convite **não oferece mais** (07/10); convites antigos e a tela de editar usuário ainda criam 📖. **Desde a MG19 (A2, 09/11/2026): só lê o Observatório** (`/cms/youtube/competitors/*`), pela tela, pela URL, pela ação, pela rota de API e pela API do banco; **deixa de editar o próprio rascunho do blog** (a pergunta 3 do plano está em aberto; implementada a recomendação, num commit isolado que se desfaz) |
 
 Os guardas, do mais largo para o mais estreito:
 
 | Guarda | Passa quem | Onde é usado |
 |---|---|---|
-| layout do `/cms` (`is_member_staff`) | os quatro papéis (✔ adm, editor · 📖 reporter) | entrar no CMS |
-| `can_view_site` (`mode: 'view'`) | os quatro, no site em que têm vínculo (✔ editor · 📖 reporter) | notificações, prévia de newsletter, playlists (GET), leitura de nichos |
+| layout do `/cms` (`is_member_staff`) | os quatro papéis (✔ adm, editor · 📖 reporter); **a porta de papel do middleware** (`can_edit_site` do site do host) manda o `reporter` de volta ao Observatório fora de `/cms/youtube/competitors/*` | entrar no CMS |
+| `can_view_site` (`mode: 'view'`) | **desde a MG19 = `can_edit_site`** (super_admin, org_admin, editor); o reporter não passa ✔ | notificações, prévia de newsletter, playlists (GET), leitura de nichos |
+| **`can_view_observatorio`** (`exigirLeituraDoObservatorio`) | qualquer vínculo no site, inclusive o `reporter` ✔ | as telas e ações de LEITURA do Observatório; `/api/mcp` e a porta da chave usam `can_view_site_as` (vínculo), inalterada |
 | `can_edit_site` (`mode: 'edit'`, `requireEditAccess`, `requireSiteAdminForRow`, `requireEditScope`) | super_admin, org_admin, **editor** ✔ — reporter não 📖 | o dia a dia: quase toda escrita que não está no degrau |
 | `can_publish_site` (`mode: 'publish'`) | igual a `can_edit_site` ✔ | publicar vídeo, upload para o YouTube, textos de página do YouTube |
 | trigger `enforce_publish_permission` | só age em `blog_posts` e `campaigns`, e **ignora o service role** — que é como as ações escrevem 📖 | na prática não barra nada vindo da tela |
@@ -67,9 +68,9 @@ Os guardas, do mais largo para o mais estreito:
 
 | Ação | adm | editor | reporter | |
 |---|---|---|---|---|
-| Entrar no `/cms`, sidebar completa | sim | sim | sim | ✔ adm, editor · 📖 reporter |
-| Abrir todas as telas do CMS (44 rotas varridas: Dashboard, Vídeos, YouTube ×8, Competitors com Mudanças/Outliers/Insights/Histórico, Schedule, Up Next, Media, Blog, Newsletters, Campaigns, Subscribers, Contacts, Settings ×4, Social, Links, Authors, Analytics…) | sim | **sim, idêntico ao dono** | sim (as telas leem pelo service role depois do portão) | ✔ adm, editor · 📖 reporter |
-| Ver lista de assinantes e de contatos (e-mails, mensagens) | sim | **sim** | sim | ✔ editor (tela abre) · 📖 reporter |
+| Entrar no `/cms`, sidebar completa | sim | sim | **só o item Competitors** (MG19) | ✔ adm, editor · ✔ reporter (menu e porta) |
+| Abrir todas as telas do CMS (44 rotas varridas: Dashboard, Vídeos, YouTube ×8, Competitors com Mudanças/Outliers/Insights/Histórico, Schedule, Up Next, Media, Blog, Newsletters, Campaigns, Subscribers, Contacts, Settings ×4, Social, Links, Authors, Analytics…) | sim | **sim, idêntico ao dono** | **não** (MG19): redireciona para o Painel do Observatório | ✔ adm, editor · ✔ reporter (middleware) |
+| Ver lista de assinantes e de contatos (e-mails, mensagens) | sim | **sim** | **não** (MG19: por tela e por banco) | ✔ editor (tela abre) · ✔ reporter |
 | Ver o feed "Atividade" do Dashboard (inclui quem entrou/saiu da equipe) | sim | **sim** | sim | ✔ |
 | Abrir o detalhe de um contato (`/cms/contacts/[id]`) | sim, **depois da migration 0003** (antes: ninguém) | não — volta para `/cms` sem mensagem | não | 📖 (`can_admin_site`) |
 | `/admin`, `/admin/users`, `/admin/sites`, `/admin/audit` | sim (só com papel admin no JWT) | não — cai em `/?error=insufficient_access`, sem mensagem | não | ✔ |
@@ -181,3 +182,11 @@ Ficou como estava, por não estar nas decisões de 07/10 (cada uma é uma linha 
 5. **Sync normal: editora.** Histórico completo e os syncs marcados como caros em cota: só quem administra.
 6. **`reporter` saiu do formulário de convite** (`/admin/users`); o banco, a action e os convites
    antigos continuam aceitando o valor. A tela de editar usuário ainda oferece `reporter`.
+
+## MG19 (A2, 09/11/2026): o login da irmã vê só o Observatório
+
+- **Banco.** `can_view_site` passa a ser `select can_edit_site(...)` (quem "vê sem editar" é exatamente o `reporter`); `can_view_observatorio` guarda o corpo antigo (qualquer vínculo) e `user_accessible_sites()` filtra por ela; `is_member_editor()` é `is_member_staff()` sem o `reporter`. Policies fechadas ao `reporter`: `blog_posts` (sem o ramo do reporter e sem o do dono), `newsletter_types`, `competitor_agenda_runs`, `obs_db_size_daily`, `storage.objects` do bucket `newsletter-assets`.
+- **Tela.** Porta de papel no middleware (`apps/web/lib/cms/porta-do-papel.ts`): fora do Observatório, `/cms/*` pergunta `can_edit_site(site do host)`; `false`, erro ou site ausente = 307 para `/cms/youtube/competitors`. O menu só mostra Competitors ao `reporter`; o layout não busca contadores do CMS para ele.
+- **API.** `api/links/[id]/stream` passa a exigir sessão e `edit` do site do link (antes não tinha guarda nenhuma).
+- **Fora da A2** (frente `anon-views-expostas`): 8 relações sem `security_invoker`, partições lidas por `anon`, escrita em `storage.objects` do bucket `link-assets`; e os achados do inventário 3a/3b (`ad_revenue_daily`, `ad_inquiries`, `ad_campaigns` legíveis por QUALQUER `authenticated`, `using true`). A lista com uma frase por item está em `apps/web/test/integration/a2-reporter-banco.test.ts` (`ABERTO_DE_PROPOSITO`).
+- **Desfazer:** `.superpowers/sdd/acesso-irma-ia/a2/plano.md`, seção 10 (primeiro devolver o papel `editor`; o SQL de devolução dos corpos de produção está em `desfaz-apendice-a.sql`).
