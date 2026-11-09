@@ -138,6 +138,8 @@ export function provarParidade(e: EntradaDaParidade): void {
     for (const linha of t.linhas) {
       for (const c of linha) {
         if (c.papel === 'rotulo' || c.papel === 'terceiros') continue
+        // A1c: o id do canal (uuid) é de propósito só do pacote: a tela não o mostra, a IA o usa para encadear `comparar`/`canal`
+        if (c.papel === 'base' && /\.id$/.test(c.origem)) continue
         const texto = normalizar(textoDaCelula(c))
         if (texto !== '' && !tela.includes(texto)) problemas.push(`(c) o pacote tem "${texto}" (${c.origem}) e a tela não`)
       }

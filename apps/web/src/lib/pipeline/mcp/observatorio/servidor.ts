@@ -20,7 +20,7 @@ const FORMA = {
   acao: z.enum(ACOES).describe('A ação.'),
   canal_id: z.string().optional().describe('uuid do canal ou id do YouTube (canal, serie, mudancas).'),
   video_id: z.string().optional().describe('uuid ou id do YouTube do vídeo (video, serie).'),
-  canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais.'),
+  canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. Para comparar com o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
   janela: z.string().optional().describe('7, 30, 90 ou todas.'),
   formato: z.string().optional().describe('todos, longos ou shorts.'),
   nicho: z.string().optional(),

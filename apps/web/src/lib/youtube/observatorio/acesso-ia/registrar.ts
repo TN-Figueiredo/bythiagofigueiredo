@@ -76,7 +76,7 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   canal_id: (v) => (idValido(v) ? v : undefined),
   video_id: (v) => (idValido(v) ? v : undefined),
   canal_ids: (v) => {
-    if (!Array.isArray(v) || !v.every(idValido)) return undefined
+    if (!Array.isArray(v) || !v.every((x) => x === 'proprio' || idValido(x))) return undefined
     return v.slice(0, ACESSO_IA_RULES.canaisNoComparar.max)
   },
   janela: (v) => (daLista(['7', '30', '90', 'todas'])(v) ? v : undefined),

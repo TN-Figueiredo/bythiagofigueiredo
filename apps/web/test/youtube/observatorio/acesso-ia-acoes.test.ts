@@ -139,6 +139,16 @@ describe('comparar', () => {
   })
 })
 
+describe('comparar com `proprio`', () => {
+  it('proprio como primeiro id: um par por concorrente, sem `a` (o canal próprio é resolvido pela tela)', () => {
+    const p = aceita({ acao: 'comparar', canal_ids: ['proprio', C2, C3, C4] })
+    expect(p.telas.map((t) => [t.sp.a, t.sp.b])).toEqual([[undefined, C2], [undefined, C3], [undefined, C4]])
+  })
+  it('proprio fora da primeira posição: recusado', () => {
+    expect(recusa({ acao: 'comparar', canal_ids: [C1, 'proprio'] })).toMatch(/primeiro/)
+  })
+})
+
 describe('serie', () => {
   const base = { acao: 'serie', de: '2026-09-01', ate: '2026-09-30' }
 

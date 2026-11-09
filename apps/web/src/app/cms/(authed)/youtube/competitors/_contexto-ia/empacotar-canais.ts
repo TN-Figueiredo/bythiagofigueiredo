@@ -104,7 +104,7 @@ const REP = { descartado: 'repetido' } as const
 const IMG = { descartado: 'imagem' } as const
 
 const LINHA = (r: string): Inventario => ({
-  [`${r}.id`]: ID, [`${r}.name`]: 'terceiros', [`${r}.niche`]: REP, [`${r}.own`]: CTRL, [`${r}.href`]: END, [`${r}.semPagina`]: 'base',
+  [`${r}.id`]: 'base', [`${r}.name`]: 'terceiros', [`${r}.niche`]: REP, [`${r}.own`]: CTRL, [`${r}.href`]: END, [`${r}.semPagina`]: 'base',
   [`${r}.comparar`]: CTRL, [`${r}.comparar.*`]: END, [`${r}.lang`]: CTRL, [`${r}.lang.*`]: REP,
   [`${r}.pw`]: REP, [`${r}.vpd`]: REP, [`${r}.outliers.*`]: REP, [`${r}.changes.*`]: REP,
   [`${r}.growth`]: REP, [`${r}.growthTitle`]: REP, [`${r}.sync.*`]: REP,
@@ -325,6 +325,7 @@ function celulasDaLinha(l: Linha): Celula[] {
   return [
     dl.posicao !== null ? medido(dl.posicao, `${d}.posicao`) : naoMedido(dl.semPosicao, `${d}.semPosicao`),
     terceiros(r.name, `${p}.name`),
+    base(r.id, `${p}.id`),
     dl.subsOcultos !== null ? naoMedido(dl.subsOcultos, `${d}.subsOcultos`) : medido(r.subs, `${p}.subs`),
     dir.tipo === 'medido' ? medido(dir.texto, `${p}.direcao.texto`) : dir.tipo === 'nao_carregou' ? celulaAusente('falhou', dl.direcaoNaoCarregou, `${d}.direcaoNaoCarregou`) : naoMedido(dir.longa, `${p}.direcao.longa`),
     ritmo,
@@ -339,7 +340,7 @@ function celulasDaLinha(l: Linha): Celula[] {
 export const VPD_POR_MIL = 'Views/dia por mil inscritos'
 export const VPD_MEDIANA = 'Views/dia, mediana dos vídeos'
 export const RITMO_COM_UNIDADE = 'Ritmo (uploads por semana, 13 semanas)'
-const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Inscritos', 'Direção', RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
+const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Id', 'Inscritos', 'Direção', RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
 
 function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): Tabela[] {
   if (!ls.length) return []
