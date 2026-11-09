@@ -83,6 +83,21 @@ const ABERTO_DE_PROPOSITO: Record<string, string> = {
   'storage.objects:link_assets_service_insert': `roles public, só bucket_id; escrita aberta a anon (P8e, 09/11); conserto na ${FRENTE} §9`,
   'storage.objects:link_assets_service_update': `roles public, só bucket_id; escrita aberta a anon (P8e, 09/11); conserto na ${FRENTE} §9`,
 }
+/** Tira espaços e parênteses externos de uma expressão de policy, para a comparação exata da 3c. */
+function semParenteses(x: string): string {
+  let e = x.replace(/\s+/g, ' ').trim()
+  for (;;) {
+    if (!(e.startsWith('(') && e.endsWith(')'))) return e
+    let d = 0, externo = true
+    for (let i = 0; i < e.length; i++) {
+      if (e[i] === '(') d++
+      else if (e[i] === ')') d--
+      if (d === 0 && i < e.length - 1) { externo = false; break }
+    }
+    if (!externo) return e
+    e = e.slice(1, -1).trim()
+  }
+}
 const nomeBase = (r: string) => r.replace(/_(\d{4}_\d{2}|default)$/, '')
 
 /** 3b. Tabela com linha lida pelo reporter: uma frase por tabela. */
@@ -105,6 +120,14 @@ const ESCREVE_COMO_REPORTER: Record<string, string> = {
   organizations: 'is_org_staff(id): papel de organização, não de site (o reporter não tem)',
   page_content: 'is_org_admin(site_id): exige org_admin',
   organization_members: 'is_org_admin(org_id)', invitations: 'is_org_admin(org_id)',
+  // 3c, 3ª rodada (Yannis I3): escrita que não é exatamente can_*(site_id), uma frase por tabela
+  ab_test_cycles: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', ab_test_variants: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', ab_test_polls: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', author_about_translations: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', media_asset_usage: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', pipeline_dependencies: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', playlist_edges: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', playlist_items: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', post_hashtags: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', post_metrics: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', research_decision_sources: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', research_foco_sources: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', research_foco_themes: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', research_links: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio', waitlist_translations: 'escrita por EXISTS no pai com can_edit_site(pai.site_id); sem ramo próprio',
+  ab_tests: 'delete por org_admin do site (EXISTS em sites + is_org_admin); insert e update são can_edit_site(site_id)',
+  blog_posts: 'delete: super_admin, org_admin ou can_edit_site em não publicado; sem ramo de reporter nem de dono (MG19)',
+  campaigns: 'delete: super_admin, org_admin ou can_edit_site em não publicada; insert e update são can_edit_site(site_id)',
+  link_qr_templates: 'can_edit_site(site_id) OR is_super_admin(): o reporter não passa em nenhum dos dois', link_settings: 'can_edit_site(site_id) OR is_super_admin()', link_utm_presets: 'can_edit_site(site_id) OR is_super_admin()',
+  sites: 'can_admin_site(id): exige admin do site, papel que o reporter não tem',
+  cron_config: 'deny_all (false)', password_reset_attempts: 'deny_all (false)', unsubscribe_tokens: 'deny_all (false)',
 }
 
 /** 3d. Funções security definer executáveis por authenticated, classificadas pela LEITURA do corpo (nunca chamadas). */
@@ -247,7 +270,7 @@ describe.skipIf(skipIfNoLocalDb())('A2 · o reporter no banco (MG19)', () => {
   })
 
   it('3b: yt_own_* privadas dão 0 sem concessão e a linha com concessão (can_view_private_site)', async () => {
-    if (!semente.yt_own_video_daily) return console.info('3b: sem semente de yt_own_video_daily (ver lista acima)')
+    expect(semente.yt_own_video_daily, `semente de yt_own_video_daily (falhas: ${semSemente.join('; ')})`).toBeTruthy()
     const ler = () => comoUsuario(pg, s.reporterAId, async () => (await pg.query(`select count(*)::int n from public.yt_own_video_daily where site_id = $1`, [s.siteAId])).rows[0].n as number)
     expect(await ler()).toBe(0)
     await pg.query(`insert into public.site_private_viewers (site_id, user_id, granted_by) values ($1,$2,$3)`, [s.siteAId, s.reporterAId, s.superAdminId])
@@ -255,21 +278,22 @@ describe.skipIf(skipIfNoLocalDb())('A2 · o reporter no banco (MG19)', () => {
   })
 
   // ───────────────────────── 3c · escrita ─────────────────────────
-  it('3c: policy de escrita que olha algo além de can_* está em ESCREVE_COMO_REPORTER (uma frase por tabela)', async () => {
+  it('3c: toda policy de escrita é exatamente can_edit_site/can_publish_site/can_admin_site_users(site_id), ou a tabela está em ESCREVE_COMO_REPORTER (uma frase)', async () => {
+    // Sem regex de classificação: a lista de "limpas" é nominal e exata. Uma policy "can_edit_site(site_id) OR user_id = auth.uid()" não é
+    // nenhuma das três e cai aqui, mesmo citando can_*.
+    const LIMPAS = new Set(['can_edit_site(site_id)', 'can_publish_site(site_id)', 'can_admin_site_users(site_id)'])
     const pol = await pg.query(`
-      select schemaname s, tablename t, policyname p, coalesce(qual,'')||' '||coalesce(with_check,'') e from pg_policies
+      select schemaname s, tablename t, policyname p, coalesce(qual,'') q, coalesce(with_check,'') w from pg_policies
        where schemaname in ('public','storage') and cmd <> 'SELECT' and roles::text !~ '^\\{service_role\\}$'`)
-    const falhas = pol.rows.filter((p) => {
-      const risco = /(reporter|owner_user_id|is_member_staff\(\)|is_staff\(\)|site_visible\()/.test(p.e) || /(^|[^a-z_])true([^a-z_]|$)/.test(p.e) || (/auth\.uid\(\)/.test(p.e) && !/can_[a-z_]+\(/.test(p.e))
-      return risco && !ESCREVE_COMO_REPORTER[p.t]
-    }).map((p) => `${p.s}.${p.t} "${p.p}"`)
-    expect(falhas, 'policy de escrita nova fora da lista').toEqual([])
+    const falhas = pol.rows.filter((p) => !(([p.q, p.w] as string[]).filter((x) => x.trim() !== '').every((x) => LIMPAS.has(semParenteses(x)))) && !ESCREVE_COMO_REPORTER[nomeBase(p.t)]).map((p) => `${p.s}.${p.t} "${p.p}"`)
+    expect(falhas, 'policy de escrita fora da lista nominal').toEqual([])
     // a MG19 tirou o ramo do reporter e do dono do blog
     const blog = await pg.query(`select policyname from pg_policies where tablename='blog_posts' and cmd<>'SELECT' and policyname like 'blog_posts\\_%' and (coalesce(qual,'')||coalesce(with_check,'')) ~ '(reporter|owner_user_id)'`)
     expect(blog.rows).toEqual([])
   })
 
   it('3c: como reporter_a, com uma linha própria semeada, insert/update/delete nas tabelas semeadas dão 0 linhas ou 42501', async () => {
+    expect(semSemente, 'semente que falha derruba o teste').toEqual([])
     const out: string[] = []
     await comoUsuario(pg, s.reporterAId, async () => {
       // o rascunho do próprio reporter (owner_user_id): antes da emenda o UPDATE devolvia 1 linha
@@ -282,7 +306,7 @@ describe.skipIf(skipIfNoLocalDb())('A2 · o reporter no banco (MG19)', () => {
       const i = await tentar(pg, `insert into public.blog_posts (site_id, author_id, status, owner_user_id) values ($1,$2,'draft',$3)`, [s.siteAId, s.authorsByUser[s.reporterAId], s.reporterAId])
       if (i.code !== '42501') out.push(`blog_posts insert (${i.code ?? 'passou'})`)
       for (const t of ['contact_submissions', 'newsletter_subscriptions', 'content_pipeline', 'media_assets', 'playlists', 'social_posts', 'tracked_links', 'competitor_channels', 'ab_tests', 'youtube_channels', 'youtube_videos']) {
-        if (!semente[t]) continue
+        expect(semente[t], `semente de ${t} (sem ela o 0 do reporter não prova nada)`).toBeTruthy()
         const col = (await pg.query(`select attname from pg_attribute where attrelid = 'public.${t}'::regclass and attnum > 0 and not attisdropped order by attnum limit 1`)).rows[0].attname
         const up = await tentar(pg, `update public.${t} set "${col}" = "${col}" where site_id = $1`, [s.siteAId])
         if (up.rows !== 0 && !up.code) out.push(`${t} update`)
