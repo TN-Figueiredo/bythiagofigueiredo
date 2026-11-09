@@ -18,13 +18,14 @@ export function abridorDaChave(prova: ChaveDoPerfilProvada, acesso: AcessoPrivad
   // `edita` é sempre falso por este caminho, mesmo para quem edita pela sessão: a chave só lê
   const doSite: AcessoPrivado = { leitura: acesso.leitura, edita: false, negativa: acesso.negativa }
   // o conjunto sem `extra` é o mesmo em toda tela da requisição (comparar e definicoes montam até 5): uma promessa por abridor, que nasce por requisição
-  let semExtra: Promise<ObservatoryPage<unknown>> | undefined
+  let semExtra: Promise<ObservatoryPage<undefined>> | undefined
   return {
     observatorio: <T = undefined>(extra?: (siteId: string) => Promise<T>) => {
       if (extra) return carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null, extra })
       // sem `extra` o tipo é `ObservatoryPage<undefined>`, o que `T = undefined` pede
-      semExtra ??= carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null })
-      return semExtra as unknown as Promise<ObservatoryPage<T>>
+      semExtra ??= carregarObservatorio<undefined>({ siteId, now: observatoryNow(), userIdDaPreferencia: null, meuCanalLembrado: null })
+      // cópia rasa por chamada: o `extra` (ausente) ganha o tipo que o chamador pediu, sem cast duplo
+      return semExtra.then((p) => ({ ...p, extra: undefined as T }))
     },
     canal: (channelId) => carregarCanal({ siteId, now: observatoryNow(), channelId, acesso: doSite, meuCanalLembrado: null }),
     doSite: (ler) => ler(siteId),

@@ -94,8 +94,9 @@ describe('abridorDaChave', () => {
     const a = abridorDaChave(prova(), SEM)
     const [p1, p2, p3] = [await a.observatorio(), await a.observatorio(), await a.observatorio()]
     expect(m.loadPageRows).toHaveBeenCalledTimes(1)
-    expect(p2).toBe(p1)
-    expect(p3).toBe(p1)
+    // cópia rasa por chamada; o conjunto (obs e rows) é o mesmo objeto
+    expect(p2.obs).toBe(p1.obs)
+    expect(p3.rows).toBe(p1.rows)
     await a.observatorio(async () => 'x')
     expect(m.loadPageRows).toHaveBeenCalledTimes(2)
     await abridorDaChave(prova(), SEM).observatorio()
