@@ -12,7 +12,6 @@ import { montarOutliers } from '../_outliers/montar'
 import { montarInsights } from '../_insights/montar'
 import { montarMudancas } from '../_mudancas/montar'
 import { montarFila } from '../_saiu/montar'
-import { acessoPrivado } from '../_proprio/dados'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { mascararCrus } from '@/lib/youtube/observatorio/contexto-ia/mascarar'
 import { empacotarCanais, modeloDeCanais } from './empacotar-canais'
@@ -34,10 +33,12 @@ import { empacotarInsights, modeloDeInsights } from './empacotar-insights'
 import { empacotarMudancas, modeloDeMudancas } from './empacotar-mudancas'
 import { empacotarFila, modeloDeFila } from './empacotar-fila'
 import { montarSugestoes } from '../_sugestoes/montar'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 
 export interface PedidoMontado { id?: string; sp: Record<string, string | undefined> }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
-export type Empacotador = (pedido: PedidoMontado) => Promise<PacoteMontado | null>
+/** `abrir`: a porta de entrada do dado (E17 d2, Tarefa 8b). Sem ele vale o de sessão (`ABRIDOR_DE_SESSAO`); a rota do MCP passa o da chave. */
+export type Empacotador = (pedido: PedidoMontado, abrir?: Abridor) => Promise<PacoteMontado | null>
 
 /**
  * A consulta da URL (`window.location.search`) em parâmetros planos, com a regra das páginas (`one()`): vale a PRIMEIRA ocorrência de cada chave.
@@ -78,11 +79,11 @@ const textoDe = (o: Record<string, string | undefined>): Record<string, string> 
 }
 
 /** Negado sem motivo: pergunta uma vez por que, SÓ para a frase. A resposta nunca libera dado; uma leitura "voltada" fica `nao_conferido`. */
-async function comNegativa(privado: EstadoDoPrivado, siteId: string): Promise<EstadoDoPrivado> {
+async function comNegativa(privado: EstadoDoPrivado, siteId: string, abrir: Abridor): Promise<EstadoDoPrivado> {
   if (privado.negativa !== null) return privado
   const negado = Object.values(privado.acessoPorCanal).some((x) => x.diario === 'negado' || x.alcance === 'negado')
   if (!negado) return privado
-  const a = await acessoPrivado(siteId)
+  const a = await abrir.acessoPrivado(siteId)
   return a.negativa === null ? privado : { ...privado, negativa: a.negativa }
 }
 
@@ -98,35 +99,35 @@ const sem = (modelo: PacoteModelo, obs: Parameters<typeof crusDaColeta>[0]): Pac
 const EXIGE_ID = (id: string | undefined): string | null => (id === undefined || id === '' ? null : id)
 
 export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
-  canais: async ({ sp }) => {
-    const m = await montarCanais(sp)
-    const privado = await comNegativa(m.privado, m.pagina.siteId)
+  canais: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    const m = await montarCanais(sp, undefined, abrir)
+    const privado = await comNegativa(m.privado, m.pagina.siteId, abrir)
     return { modelo: sem(empacotarCanais(modeloDeCanais(m.view, m.ri), privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  canal: async ({ id, sp }) => {
+  canal: async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     // a MESMA leitura de medidas da página (uma vez só); `lerMedidasDoCanal` nunca lança: defeito vira "não carregou"
-    const m = await montarCanal(alvo, sp, { iniciarMedidas: lerMedidasDoCanal })
+    const m = await montarCanal(alvo, sp, { iniciarMedidas: lerMedidasDoCanal }, abrir)
     if (m.tipo !== 'concorrente') return null
     const contexto = contextoDoCanal(m.obs, m.view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
     const promessa = m.medidas ?? Promise.resolve(canalNaoCarregou())
     const medidas = projetarMedidas(await promessa.catch(canalNaoCarregou), contexto, await lerComentariosDoCanalParaOPacote(promessa, contexto))
     return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  'canal-proprio': async ({ id, sp }) => {
+  'canal-proprio': async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
-    const m = await montarCanal(alvo, sp)
+    const m = await montarCanal(alvo, sp, {}, abrir)
     if (m.tipo !== 'proprio') return null
     const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
     const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
     return { modelo: sem(empacotarCanalProprio(modelo, m.privado), m.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  video: async ({ id, sp }) => {
+  video: async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
-    const m = await montarVideo(alvo, sp)
+    const m = await montarVideo(alvo, sp, undefined, {}, abrir)
     if (m.tipo !== 'concorrente' || m.view.notFound) return null
     // as MESMAS medidas que a página lê (uma leitura só); defeito vira "não carregou" no pacote, nunca bloco vazio
     const { doMotor, sincrona } = alvoDoHistorico(m.view, m.pagina.obs, m.pagina.now)
@@ -137,7 +138,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (doMotor) {
       const pedido = { obterSb: clienteDeServicoDoVideo, siteId: m.pagina.siteId, obs: m.pagina.obs, agoraMs: m.pagina.now, view: m.view, video: doMotor }
       // as provas nascem ANTES da leitura das medidas, como na página (M2 do portão Yannis): a latência de `acessoPrivado` não soma em série
-      const provas = resolverProvas(acessoPrivado(m.pagina.siteId))
+      const provas = resolverProvas(abrir.acessoPrivado(m.pagina.siteId))
       try {
         const lidas = await lerMedidasDoVideo(pedido)
         // a leitura de "Estourou e parou" falhar não apaga as medidas já lidas: só ela vira "não carregou" (I1 do portão Yannis)
@@ -168,34 +169,36 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     }
     return { modelo: sem(empacotarVideo(modeloDeVideo(m.view, medidas, comentarios)), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  'video-proprio': async ({ id, sp }) => {
+  'video-proprio': async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
-    const m = await montarVideo(alvo, sp)
+    const m = await montarVideo(alvo, sp, undefined, {}, abrir)
     if (m.tipo !== 'proprio') return null
     return { modelo: sem(empacotarVideoProprio(modeloDeVideoProprio(m.base.header, m.blocos), m.privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  comparar: async ({ sp }) => {
-    const m = await montarComparar(sp)
-    const privado = await comNegativa(m.privado, m.pagina.siteId)
+  comparar: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    const m = await montarComparar(sp, abrir)
+    const privado = await comNegativa(m.privado, m.pagina.siteId, abrir)
     const par = m.inicial ? buildPar(m.pack, m.inicial.a, m.inicial.b) : null
     const modelo = par ? modeloDeComparar(m.pack, par) : null
     const estado: Record<string, string> = m.estado ? { a: m.estado.a, b: m.estado.b } : {}
     return { modelo: sem(empacotarComparar(modelo, privado), m.pagina.obs), recente: m.recente, estado }
   },
-  outliers: async ({ sp }) => {
-    const m = await montarOutliers(sp)
+  outliers: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    const m = await montarOutliers(sp, abrir)
     return { modelo: sem(empacotarOutliers(modeloDeOutliers(m.view, m.pagina.obs.nicheLabel(m.view.query.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  insights: async ({ sp }) => {
-    const m = await montarInsights(sp)
+  insights: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    const m = await montarInsights(sp, abrir)
     return { modelo: sem(empacotarInsights(modeloDeInsights(m.view, m.pagina.obs.nicheLabel(m.estado.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  mudancas: async ({ sp }) => {
-    const m = await montarMudancas(sp)
+  mudancas: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    const m = await montarMudancas(sp, abrir)
     return { modelo: sem(empacotarMudancas(modeloDeMudancas(m.view, m.pagina.obs.nicheLabel(m.view.filters.niche))), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  fila: async ({ sp }) => {
+  fila: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
+    // por chave a pessoa nunca edita: a fila não existe ("não encontrado"), sem chamar a guarda nem ler nada
+    if (abrir !== ABRIDOR_DE_SESSAO) return null
     const m = await montarFila(sp)
     // sem acesso de edição a fila não existe para quem pede ("não encontrado"); falha de leitura NUNCA vira "fila vazia": lança e a ação responde `falhou`
     if (m.view.estado === 'sem_acesso') return null
@@ -203,7 +206,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     return { modelo: empacotarFila(modeloDeFila(m.view)), recente: m.recente, estado: textoDe(m.estado) }
   },
   // F2 T8: leitor próprio (a tabela dos sinais, não uma tela); o site vem da guarda dentro de `montarSugestoes`
-  sugestoes: async () => montarSugestoes(),
+  sugestoes: async (_pedido, abrir = ABRIDOR_DE_SESSAO) => (abrir !== ABRIDOR_DE_SESSAO ? null : montarSugestoes()),
 }
 
 export { telaExiste }

@@ -37,6 +37,8 @@ const CANAL_YT = /^UC[A-Za-z0-9_-]{22}$/
 const VIDEO_YT = /^[A-Za-z0-9_-]{11}$/
 const NICHO = /^[a-z0-9][a-z0-9-]{0,31}$/
 const CONTADOR_MAX = 1_000_000
+const CHAVE_DE_PARAMETRO = /^[a-z_]{1,32}$/
+const VALOR_DE_PARAMETRO = /^[A-Za-z0-9_.,:-]{1,64}$/
 
 const daLista = (lista: readonly string[]) => (v: unknown): v is string => typeof v === 'string' && lista.includes(v)
 const idValido = (v: unknown): v is string => typeof v === 'string' && (UUID.test(v) || CANAL_YT.test(v) || VIDEO_YT.test(v))
@@ -66,6 +68,24 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   grao: (v) => (daLista(['dia', 'semana'])(v) ? v : undefined),
   de: (v) => (dataReal(v) ? v : undefined),
   ate: (v) => (dataReal(v) ? v : undefined),
+  desde: (v) => (dataReal(v) ? v : undefined),
+  id: (v) => (idValido(v) ? v : undefined),
+  // `pacote_da_tela`: pares `k=v` (ou o objeto do esquema); chave e valor na forma fechada, até 12, ordenados; o par fora da forma sai
+  parametros: (v) => {
+    const pares: string[] = []
+    if (Array.isArray(v)) {
+      for (const x of v) if (typeof x === 'string') pares.push(x)
+    } else if (typeof v === 'object' && v !== null) {
+      for (const [k, val] of Object.entries(v)) if (typeof val === 'string') pares.push(`${k}=${val}`)
+    } else return undefined
+    const ok = new Set<string>()
+    for (const x of pares) {
+      const i = x.indexOf('=')
+      if (i < 1) continue
+      if (CHAVE_DE_PARAMETRO.test(x.slice(0, i)) && VALOR_DE_PARAMETRO.test(x.slice(i + 1))) ok.add(x)
+    }
+    return ok.size === 0 ? undefined : [...ok].sort().slice(0, 12)
+  },
   desfecho: (v) => (daLista(DESFECHOS)(v) ? v : undefined),
   privado: (v) => (typeof v === 'boolean' ? v : undefined),
   comentarios: (v) => (typeof v === 'boolean' ? v : undefined),
@@ -74,6 +94,8 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }
+/** Para o teste de completude: as chaves que têm forma. Só leitura; o mapa não sai daqui. */
+export const CHAVES_COM_FORMA_DE_PARAMS: readonly string[] = Object.freeze(Object.keys(FORMA_DOS_PARAMS))
 const ambiente = (): string => process.env.VERCEL_ENV ?? 'local'
 
 function filtrarParams(params: Record<string, unknown>): Record<string, ValorDeParam> {

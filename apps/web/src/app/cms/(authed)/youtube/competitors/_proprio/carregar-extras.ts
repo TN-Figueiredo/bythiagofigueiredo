@@ -11,7 +11,8 @@ import type { AlcanceCanal, DiarioCanal, Privado } from '@/lib/youtube/observato
 import { vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { totalDoPeriodo } from '@/lib/youtube/observatorio/proprio/diario-periodo'
 import { montarSoSeuCanalDado, type EntradaOrigemCartao, type SoSeuCanalDado } from '../_comparar/so-seu-canal-model'
-import { acessoPrivado, ausenciaDaProva, lerAlcanceDosCanais, lerDiarioDosCanais, longosAcompanhadosDe } from './dados'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
+import { ausenciaDaProva, lerAlcanceDosCanais, lerDiarioDosCanais, longosAcompanhadosDe } from './dados'
 import { lerOrigem } from './dados-origem'
 import { lerTermosESites } from './dados-termos'
 import { videosDaOrigem } from './origem-model'
@@ -25,10 +26,12 @@ import { dmDia, type ExtrasProprio } from './extras'
 export async function carregarExtrasProprio(
   obs: Observatory, siteId: string, agora: number, avisar?: (e: unknown, n: number) => void,
   previo?: { leitura: LeituraPrivadaDoSite | null; canalId: string; diario: Privado<DiarioCanal>; negativa: MotivoSemLeitura | null },
+  /** A porta do acesso privado (E17 d2, Tarefa 8b): sem ela vale a de sessão. */
+  abrir: Abridor = ABRIDOR_DE_SESSAO,
 ): Promise<ExtrasProprio | undefined> {
   const owns = obs.ownChannels()
   if (owns.length === 0) return undefined
-  const acesso: AcessoPrivado = previo ? { leitura: previo.leitura, edita: false, negativa: previo.negativa } : await acessoPrivado(siteId)
+  const acesso: AcessoPrivado = previo ? { leitura: previo.leitura, edita: false, negativa: previo.negativa } : await abrir.acessoPrivado(siteId)
   const leitura = acesso.leitura
   // decisão 75: guarda caída (`nao_foi_possivel_conferir`) é `erro`, nunca `negado`: o `vpd` sai `leitura-falhou`, nunca o cadeado
   const semLeitura = ausenciaDaProva(acesso)
@@ -52,10 +55,11 @@ export async function carregarProprioDaComparacao(
   obs: Observatory, siteId: string, agora: number, avisar?: (e: unknown, n: number) => void,
   /** Os ids dos canais do par da URL: só estes têm as cinco linhas da origem (7 dias). Ausente = nenhum (o cartão fica com as quatro do alcance). */
   par: readonly string[] = [],
+  abrir: Abridor = ABRIDOR_DE_SESSAO,
 ): Promise<{ extras: ExtrasProprio | undefined; soSeuCanal: Record<string, SoSeuCanalDado> }> {
   const owns = obs.ownChannels()
   if (owns.length === 0) return { extras: undefined, soSeuCanal: {} }
-  const acesso = await acessoPrivado(siteId)
+  const acesso = await abrir.acessoPrivado(siteId)
   const leitura = acesso.leitura
   // decisão 75: guarda caída é `erro` em todo canal (nunca `negado`/cadeado); chave ausente do mapa também é falha, não negação
   const semLeitura = ausenciaDaProva(acesso)

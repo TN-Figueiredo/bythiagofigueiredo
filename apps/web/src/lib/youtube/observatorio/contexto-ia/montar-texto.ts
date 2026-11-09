@@ -192,7 +192,7 @@ function cortarPergunta(pergunta: string): string {
 }
 
 /** Os passos do corte, do mais leve ao mais pesado. O primeiro é o texto inteiro. */
-function passosDoCorte(p: PacoteSerializado, modo: ModoDiaADia): Passo[] {
+function passosDoCorte(p: PacoteSerializado, modo: ModoDiaADia, degraus: readonly number[]): Passo[] {
   const m = medir(p)
   const vazio = new Set<string>()
   const passos: Passo[] = [{ dias: vazio, grau: null, blocos: 0 }]
@@ -204,7 +204,7 @@ function passosDoCorte(p: PacoteSerializado, modo: ModoDiaADia): Passo[] {
   const dias = todos.length ? new Set(todos) : vazio
   const posicoes = m.itens.flatMap((i) => (i.seg.corte?.classe === 'linha_de_lista' ? [i.seg.corte.posicao] : []))
   let anterior = Number.POSITIVE_INFINITY
-  for (const grau of CONTEXTO_IA_RULES.degrausDeLinhas) {
+  for (const grau of degraus) {
     const sobra = posicoes.filter((x) => x > grau).length
     if (sobra === 0 || sobra === anterior) continue // nada de novo sairia neste degrau
     anterior = sobra
@@ -263,15 +263,15 @@ function resolver(
 interface Candidatos { planos: Plano[]; primeiro: number }
 const candidatosGuardados = new WeakMap<PacoteSerializado, Map<string, Candidatos>>()
 
-function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia): Candidatos {
+function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia, degraus: readonly number[]): Candidatos {
   const pergunta = cortarPergunta(perguntaBruta)
-  const chave = `${limite}|${modo}|${pergunta}`
+  const chave = `${limite}|${modo}|${degraus.join(',')}|${pergunta}`
   const doPacote = candidatosGuardados.get(p) ?? new Map<string, Candidatos>()
   candidatosGuardados.set(p, doPacote)
   const guardado = doPacote.get(chave)
   if (guardado) return guardado
 
-  const passos = passosDoCorte(p, modo)
+  const passos = passosDoCorte(p, modo, degraus)
   // O tamanho do texto inteiro: o número dele está na linha "Por tamanho: nada", então também é um ponto fixo.
   const inteiro = somar(p, pergunta, passos[0]!)
   let total = inteiro.semParte7 + parte7(p, [F.porTamanhoNada(0, limite)]).length
@@ -285,7 +285,7 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
     cabe: total <= limite, pisoPassou: total > limite,
   }]
   if (total > limite) {
-    const completo = limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez'))
+    const completo = limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez', CONTEXTO_IA_RULES.degrausDeLinhas))
     const linhasPara = (piso: boolean) => (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number): string[] => {
       const marca = piso ? { total, limite } : null
       if (completo) return linhasDeTamanho(cortes, liquido, { caracteres: completo.caracteres, naoSaem: completo.cabe ? 0 : completo.totalSemCorte - completo.caracteres }, marca)
@@ -333,9 +333,9 @@ function montarPlano(p: PacoteSerializado, pergunta: string, plano: Plano): { te
   return { texto: pecas.join('\n'), pecas }
 }
 
-export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite: number, diaADia: ModoDiaADia): TextoMontado {
+export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite: number, diaADia: ModoDiaADia, degraus: readonly number[] = CONTEXTO_IA_RULES.degrausDeLinhas): TextoMontado {
   const pergunta = cortarPergunta(perguntaBruta)
-  const c = candidatos(p, perguntaBruta, limite, diaADia)
+  const c = candidatos(p, perguntaBruta, limite, diaADia, degraus)
   // A conta é exata; a conferência final só existe para o dia em que alguém mude o formato de um segmento e esqueça a medida:
   // se o texto montado passar do limite, tenta o passo seguinte.
   let i = c.primeiro

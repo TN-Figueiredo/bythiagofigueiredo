@@ -3,7 +3,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
-import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
+import type { ObservatoryPage } from '../_chrome/page-data'
+import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { buildOutliersView, type EntradaDeIdade } from './view-model'
 import { dadosDeIdade } from './idade-dados'
 
@@ -31,11 +32,11 @@ async function carregarIdades(pagina: ObservatoryPage<undefined>, estado: Record
  * Do conjunto aberto ao modelo de Outliers: a MESMA função monta a tela (a página) e o pacote "Perguntar a uma IA" (E17 degrau 1,
  * Tarefa 8a). `sp` são os parâmetros planos da URL. O `siteId` não é parâmetro: vem da guarda.
  */
-export async function montarOutliers(sp: Record<string, string | undefined>): Promise<{
+export async function montarOutliers(sp: Record<string, string | undefined>, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<{
   pagina: ObservatoryPage<undefined>; view: ReturnType<typeof buildOutliersView>; niche: string
   recente: string | null; estado: Record<string, string | undefined>
 }> {
-  const pagina = await openObservatoryPage()
+  const pagina = await abrir.observatorio()
   const { obs, savedNiche } = pagina
   // The chrome persists a valid ?niche= (resolveNiche); here it is only read. An invalid one falls back to the saved niche.
   // parseNiche checks the form; the engine says whether the niche exists (an unknown ?niche= falls back to the saved niche, like a malformed one).

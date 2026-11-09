@@ -41,7 +41,7 @@ describe('parseRemovalImpact', () => {
 
 const EXTRA_OK = { readings: 20, thumbs: 4, alvos: 2 }
 const IMPACTO = { name: 'Canal Um', videos: 50, pinned: 2, versions: 180, dailyDays: 12, bookmarks: 3, videosLeituraMensal: 4, videosNoArquivo: 1, readings: 48, watch: EXTRA_OK }
-const AGO = Date.parse('2026-10-19T12:00:00Z')
+const AGO = Date.now() // relativo: fixture com data fixa vencia em 30 dias (regra anti-regressão de fixture temporal)
 const DIA = 86_400_000
 const iso = (ms: number) => new Date(ms).toISOString()
 

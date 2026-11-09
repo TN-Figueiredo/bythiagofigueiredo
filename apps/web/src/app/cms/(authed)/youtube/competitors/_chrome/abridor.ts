@@ -13,7 +13,8 @@ export interface Abridor {
 }
 
 export const ABRIDOR_DE_SESSAO: Abridor = {
-  observatorio: openObservatoryPage,
-  canal: openChannelPage,
-  acessoPrivado,
+  // getters: a porta é lida na hora do uso (a mesma função, por identidade), não ao carregar o módulo; quem simula só uma das portas das telas não quebra o import
+  get observatorio() { return openObservatoryPage },
+  get canal() { return openChannelPage },
+  get acessoPrivado() { return acessoPrivado },
 }
