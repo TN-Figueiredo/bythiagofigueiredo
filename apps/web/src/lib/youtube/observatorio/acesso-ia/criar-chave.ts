@@ -60,10 +60,11 @@ export function lerArgumentos(argv: readonly string[]): { ok: true; pedido: Pedi
 const falha = (recusa: RecusaDeChave, code?: string): { ok: false; recusa: RecusaDeChave; code?: string } => ({ ok: false, recusa, ...(code ? { code } : {}) })
 const codigoDe = (e: { code?: unknown } | null | undefined): string => (typeof e?.code === 'string' && e.code !== '' ? e.code : 'desconhecido')
 
-/** Percorre a listagem do Auth até o fim (página curta ou vazia). 20 páginas cheias sem fim = não conferido. */
+/** Leitura de `sites` paginada: o PostgREST corta em 1000 linhas. 50 páginas cheias sem fim = não conferido. */
 const SITES_POR_PAGINA = 1000
 const SITES_PAGINAS_MAX = 50
 
+/** Percorre a listagem do Auth até o fim (página curta ou vazia). 20 páginas cheias sem fim = não conferido. */
 async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
   const ids: string[] = []
   for (let pagina = 1; pagina <= PAGINAS_MAX; pagina++) {
