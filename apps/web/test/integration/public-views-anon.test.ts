@@ -36,3 +36,22 @@ describe.skipIf(skipIfNoLocalDb())('public: views/mvs legíveis por anon/authent
     } finally { await db.query('rollback') }
   })
 })
+
+// spec §9: escrita em storage.objects aberta a public/anon sem conferir papel
+const ESCRITA_STORAGE_ABERTA = `
+select policyname from pg_policies
+where schemaname = 'storage' and tablename = 'objects' and cmd <> 'SELECT'
+  and (roles && '{public,anon}'::name[])
+  and coalesce(qual, '') || coalesce(with_check, '') !~ '(auth\\.uid\\(\\)|is_[a-z_]+\\(|can_[a-z_]+\\(|auth\\.role\\(\\))'
+order by 1`
+
+describe.skipIf(skipIfNoLocalDb())('storage.objects: escrita sem conferir papel', () => {
+  let db: Client
+  beforeAll(async () => { db = new Client({ connectionString: PG_URL }); await db.connect() })
+  afterAll(async () => { await db.end() })
+
+  it('nenhuma policy de escrita aberta a public/anon só por bucket_id', async () => {
+    const r = await db.query<{ policyname: string }>(ESCRITA_STORAGE_ABERTA)
+    expect(r.rows.map(x => x.policyname)).toEqual([])
+  })
+})
