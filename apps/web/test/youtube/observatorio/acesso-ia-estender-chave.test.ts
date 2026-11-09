@@ -53,7 +53,7 @@ describe('estenderChaveDoPerfil', () => {
     expect(JSON.stringify(r)).not.toContain('obs_')
     expect(c.updates).toHaveLength(1)
     expect(c.updates[0]!.set).toEqual({ expires_at: new Date(AGORA + 366 * DIA).toISOString() })
-    expect(c.updates[0]!.filtros).toEqual([['name', NOME], ['permissions', [PERFIL]], ['revoked_at', null], ['expires_at', new Date(AGORA + 10 * DIA).toISOString()]])
+    expect(c.updates[0]!.filtros).toEqual([['name', NOME], ['permissions', '{observatorio_leitura}'], ['revoked_at', null], ['expires_at', new Date(AGORA + 10 * DIA).toISOString()]])
   })
   it('--dias respeitado', async () => {
     const r = await estenderChaveDoPerfil(fazer().deps, { chave: NOME, dias: 30 })

@@ -104,7 +104,7 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
   try {
     const { data, error } = await sb.from('pipeline_api_keys')
       .update({ expires_at: venceAgora })
-      .eq('name', nome).eq('permissions', [PERFIL]).is('revoked_at', null).eq('expires_at', lido)
+      .eq('name', nome).eq('permissions', `{${PERFIL}}`).is('revoked_at', null).eq('expires_at', lido)
       .select('name')
     if (error) return falha('nao_conferido', { code: codigoDe(error) })
     if (!Array.isArray(data) || data.length === 0) return falha('nada_mudou')
