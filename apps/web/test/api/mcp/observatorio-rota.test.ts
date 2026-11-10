@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const h = vi.hoisted(() => ({
-  criados: [] as Array<{ cfg: Record<string, unknown> }>,
+  criados: [] as Array<{ cfg: Record<string, unknown>; o: unknown }>,
   pipeline: vi.fn(),
   obs: vi.fn(),
   captureMessage: vi.fn(),
@@ -23,8 +23,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('server-only', () => ({}))
 vi.mock('mcp-handler', () => ({
-  createMcpHandler: vi.fn((_f: unknown, _o: unknown, cfg: Record<string, unknown>) => {
-    h.criados.push({ cfg })
+  createMcpHandler: vi.fn((_f: unknown, o: unknown, cfg: Record<string, unknown>) => {
+    h.criados.push({ cfg, o })
     return h.criados.length === 1 ? h.pipeline : h.obs
   }),
 }))
@@ -49,6 +49,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave', () 
 
 import { POST } from '../../../src/app/api/mcp/route'
 import { contextoDoObservatorio } from '@/lib/pipeline/mcp/observatorio/contexto'
+import { INSTRUCOES } from '@/lib/pipeline/mcp/observatorio/servidor'
 
 const SITE = 'site-1'
 const PESSOA = 'user-1'
@@ -280,6 +281,11 @@ describe('/api/mcp com a chave do perfil', () => {
 })
 
 describe('a configuração dos dois servidores', () => {
+  it('(1) só o servidor do Observatório recebe as instructions; o do Cowork continua com {}', () => {
+    expect(h.criados[1]!.o).toEqual({ instructions: INSTRUCOES })
+    expect(h.criados[0]!.o).toEqual({})
+    expect(INSTRUCOES).toBeTypeOf('string')
+  })
   it('o 2º handler é criado com verboseLogs false, basePath /api e maxDuration 60', () => {
     expect(h.criados).toHaveLength(2)
     expect(h.criados[1]!.cfg).toEqual({ basePath: '/api', maxDuration: 60, verboseLogs: false })
