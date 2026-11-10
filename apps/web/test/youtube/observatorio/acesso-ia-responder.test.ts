@@ -799,3 +799,90 @@ describe('A7d T4: números, tamanho e registro', () => {
     expect(linhas[1]).toBe(linhas[0])
   })
 })
+
+/* ------------------------------------------------------------------ A7 Fatia 2, conserto do parecer (I1, I2, M1, M2, M3, M7), sempre pelo responder */
+
+describe('A7d Fatia 2 conserto: I1, comparar com par não encontrado', () => {
+  it('I1: comparar [C1, C2, C3] com o 2º par ausente: completa falso, "Pares sem dado: 1 de 2" e a frase de parte', async () => {
+    ;(m.empacotar.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C3 ? null : pacote(comTela(modeloCheio(), 'comparar'))))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('ok')
+    expect(r.params.completa).toBe(false)
+    const s = secaoDe(r.texto)
+    expect(s).toContain('Pares sem dado: 1 de 2')
+    expect(s).toContain('Você viu só uma parte')
+    expect(s).not.toContain('Você viu tudo')
+  })
+})
+
+describe('A7d Fatia 2 conserto: I2, o dado ausente e a linha de apoio', () => {
+  it('(a) listar_canais com site sem canais: 0 de 0, frase do vazio, sem próximas, completa falso', async () => {
+    dobra('canais', modeloVazio())
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    const s = secaoDe(r.texto)
+    expect(s).toContain('0 de 0 linhas')
+    expect(s).toContain('A lista está vazia neste recorte')
+    expect(s).not.toContain('Próximas chamadas')
+    expect(r.params.completa).toBe(false)
+  })
+  it('(b) serie de um canal sem tabela dia_a_dia: a frase da série que não veio e completa falso', async () => {
+    const cheio = comTela(modeloCheio(), 'canal')
+    dobra('canal', { ...cheio, tabelas: cheio.tabelas.filter((t) => t.tipo !== 'dia_a_dia') })
+    const r = await responder(SERIE, abrir, AGORA)
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).toContain('A série não veio neste recorte; ausência não é zero.')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+  })
+  it('(c) serie com grão semana pedido e 100 dias: 15 de 15 pontos, grão semana, completa verdadeiro', async () => {
+    dobra('canal', modeloSerie(serie(100, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('Série: 15 de 15 pontos')
+    expect(secaoDe(r.texto)).toContain('grão semana')
+    expect(r.params.completa).toBe(true)
+  })
+  it('(e) "Lida às" aparece com lista parcial (200 de 300) e não aparece com a lista inteira', async () => {
+    dobra('canais', lista('canais', 300))
+    const parcial = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(parcial.texto)).toContain('Lida às 14:32.')
+    dobra('canais', lista('canais', 34))
+    const inteira = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(inteira.texto)).not.toContain('Lida às')
+  })
+  it('(f) listar_canais com a tabela privada do canal próprio: a seção cita o dado privado', async () => {
+    dobra('canais', canaisComId(3, true))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('seu canal está na parte do dado privado')
+    dobra('canais', canaisComId(3, false))
+    expect(secaoDe((await responder({ acao: 'listar_canais' }, abrir, AGORA)).texto)).not.toContain('dado privado')
+  })
+})
+
+describe('A7d Fatia 2 conserto: M1, M2, M3', () => {
+  it('M1: principal com 0 linhas e vazio nulo: lista 0 de 0, frase do vazio, completa falso', async () => {
+    const base0 = canaisComId(0)
+    expect(base0.vazio).toBeNull()
+    dobra('canais', base0)
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('0 de 0 linhas')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+    expect(r.params.completa).toBe(false)
+  })
+  it('M2: série com 2 de 3 linhas sem data: completa falso e a seção diz quantas ficaram fora', async () => {
+    const t = serie(3)
+    t.linhas = t.linhas.map((l, i) => (i === 0 ? l : [rotulo('sem data', `p.s[${i}].dia`), l[1]!]))
+    dobra('canal', modeloSerie(t))
+    const r = await responder(SERIE, abrir, AGORA)
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).toContain('Série: 1 de 3 pontos')
+    expect(secaoDe(r.texto)).toContain('2 linhas sem data ficaram fora')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+  })
+  it('M3: comparar com o fim do texto cortado: "Números" avisa que a contagem é de antes do corte', async () => {
+    const modelo = { ...grande(500_000), tela: 'comparar' as TelaId, avisos: ['y'.repeat(70_000)] }
+    dobra('comparar', modelo)
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('(contados antes do corte do fim)')
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    expect(secaoDe((await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)).texto)).not.toContain('contados antes do corte')
+  })
+})

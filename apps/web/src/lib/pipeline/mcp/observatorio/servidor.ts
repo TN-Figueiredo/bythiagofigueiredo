@@ -21,7 +21,7 @@ export const DESCRICAO =
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
 export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu (ex.: "vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X tirado de "Próximas chamadas".' },
+  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu (ex.: "vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X dito em palavras (o texto depois de " : " em "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
   { fatia: 'T6', texto: 'Pedido recusado traz o formato e um exemplo válido: corrija e tente de novo uma vez.' },
   { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },

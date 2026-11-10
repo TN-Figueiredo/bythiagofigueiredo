@@ -82,4 +82,44 @@ describe('secaoDeCobertura', () => {
     expect(t).not.toContain('Lista principal')
     expect(t).toContain('Tabelas de apoio: 3 de 5 inteiras; cortadas: "Notas e dicas" (0 de 411 linhas).')
   })
+  it('I1: pares sem dado: a linha própria, frase de parte e nunca completa', () => {
+    const c = base({ naoEncontrados: { quantos: 1, de: 2 } })
+    const t = secaoDeCobertura(c)
+    expect(t).toContain('- Pares sem dado: 1 de 2 (canal não encontrado); a comparação não cobre esses canais.')
+    expect(t).toContain('Você viu só uma parte')
+    expect(coberturaCompleta(c)).toBe(false)
+    expect(secaoDeCobertura(base({ naoEncontrados: { quantos: 0, de: 2 } }))).not.toContain('Pares sem dado')
+    expect(coberturaCompleta(base({ naoEncontrados: { quantos: 0, de: 2 } }))).toBe(true)
+  })
+  it('I1: a linha de pares sem dado sobrevive ao corte do rodapé no pior caso', () => {
+    const c = base({
+      naoEncontrados: { quantos: 2, de: 5 },
+      lista: { titulo: 'L'.repeat(200), de: 1, ate: 25, total: 34, concorrentes: true },
+      serie: { pontos: 400, total: 1000, de: '2025-01-01', ate: '2026-11-09', grao: 'semana' },
+      apoio: { inteiras: 2, total: 5, cortadas: [1, 2, 3].map((i) => ({ titulo: 'T'.repeat(200) + i, saiu: 0, de: 411 })) },
+      foraDoPacote: { mostrados: 123456, total: 234567 },
+      cortesDeTamanho: Array.from({ length: 8 }, (_, i) => `rótulo de corte número ${i + 1} bem comprido`),
+      marcaMudou: true, lidaAs: '14:05', proximas: [1, 2, 3].map(chamada),
+    })
+    const t = secaoDeCobertura(c)
+    expect(t.length).toBeLessThanOrEqual(RODAPE_MAX)
+    expect(t).toContain('Pares sem dado: 2 de 5')
+  })
+  it('M3: números contados antes do corte do fim: a linha avisa', () => {
+    expect(secaoDeCobertura(base({ numerosAntesDoCorte: true }))).toContain('(contados antes do corte do fim)')
+    expect(secaoDeCobertura(base())).not.toContain('contados antes')
+  })
+  it('M6: três rótulos de corte de 700 caracteres: o rodapé nunca passa de RODAPE_MAX', () => {
+    const c = base({ cortesDeTamanho: [1, 2, 3].map((i) => `${i}`.repeat(700)), proximas: [1, 2, 3].map(chamada) })
+    const t = secaoDeCobertura(c)
+    expect(t.length).toBeLessThanOrEqual(RODAPE_MAX)
+    expect(t).toContain('Cortado por tamanho: mais 3.')
+    expect(t).toContain('Você viu só uma parte')
+  })
+  it('M7: a frase de série que não veio é só da série; a da lista continua a mesma', () => {
+    const t = secaoDeCobertura(base({ lista: undefined, vazio: true, serieAusente: true }))
+    expect(t).toContain('A série não veio neste recorte; ausência não é zero.')
+    expect(t).not.toContain('A lista está vazia')
+    expect(secaoDeCobertura(base({ vazio: true }))).toContain('A lista está vazia neste recorte; vazio não é zero.')
+  })
 })

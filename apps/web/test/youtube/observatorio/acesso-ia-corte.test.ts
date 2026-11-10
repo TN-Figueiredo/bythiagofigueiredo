@@ -343,3 +343,38 @@ describe('A7d T4 (6): com a Cobertura reservada, a principal sai inteira', () =>
     expect(JSON.stringify(m.captured)).not.toContain('principal_cortada')
   })
 })
+
+describe('A7d Fatia 2 conserto: a linha de apoio e as próximas sobre o empacotador real (ids de forma válida)', () => {
+  const dobra = (tela: TelaId, modelo: PacoteModelo) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => ({ modelo, recente: '13/10/2026 09:10', estado: {} }))
+  beforeEach(() => { m.captured.length = 0; m.empacotar.canais = vi.fn(async () => null) })
+  /** Os ids da coluna "Id" da principal viram uuids determinísticos (em produção o id é o uuid do banco, não o slug da fixture). */
+  const uuid = (i: number): string => `c0000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`
+  function comUuids(mod: PacoteModelo): PacoteModelo {
+    return {
+      ...mod,
+      tabelas: mod.tabelas.map((t) => {
+        if (classeDa(mod.tela, t) !== 'principal') return t
+        const col = t.colunas.indexOf('Id')
+        return { ...t, linhas: t.linhas.map((l, i) => l.map((c, j) => (j === col ? { ...c, texto: uuid(i) } as typeof c : c))) }
+      }),
+    }
+  }
+  it('M5: 34 canais: a lista tem a chamada "canal" da linha 1 e nenhum proxima_invalida', async () => {
+    dobra('canais', comUuids(modeloDe(34)))
+    const r = await responder({ acao: 'listar_canais' }, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.texto).toContain('Próximas chamadas')
+    expect(r.texto).toContain(JSON.stringify({ acao: 'canal', canal_id: uuid(0) }))
+    expect(r.texto).toContain(JSON.stringify({ acao: 'comparar', canal_ids: [uuid(0), uuid(1)] }))
+    expect(JSON.stringify(m.captured)).not.toContain('proxima_invalida')
+  })
+  it('(d) 75 canais: o número "saiu" de "Notas de cada canal" em Tabelas de apoio é o que está no texto', async () => {
+    dobra('canais', comUuids(modeloDe(75)))
+    const r = await responder({ acao: 'listar_canais' }, ABRIDOR_DE_SESSAO, AGORA)
+    const secao = r.texto.slice(r.texto.lastIndexOf('\n## Cobertura'))
+    const achou = /"Notas de cada canal" \((\d+) de (\d+) linhas\)/.exec(secao)
+    expect(achou, 'a linha de apoio cita as notas').not.toBeNull()
+    const noTexto = linhasNoTexto(r.texto.slice(0, r.texto.lastIndexOf('\n## Cobertura')), 'Notas de cada canal')
+    expect(Number(achou![1])).toBe(noTexto)
+    expect(Number(achou![2])).toBeGreaterThan(noTexto)
+  })
+})

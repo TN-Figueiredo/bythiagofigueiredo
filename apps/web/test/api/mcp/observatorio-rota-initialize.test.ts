@@ -13,7 +13,6 @@ const h = vi.hoisted(() => ({
   banco: { atual: null as unknown },
   modo: { v: 'recusa' as 'recusa' | 'aviso' },
   pessoa: vi.fn(), apagamento: vi.fn(), vinculo: vi.fn(), privado: vi.fn(),
-  recusaLeituraFalha: { v: false },
 }))
 
 vi.mock('server-only', () => ({}))
@@ -38,20 +37,17 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave', () 
 
 import { POST } from '../../../src/app/api/mcp/route'
 import { INSTRUCOES } from '@/lib/pipeline/mcp/observatorio/servidor'
-import { INSTRUCOES } from '@/lib/pipeline/mcp/observatorio/servidor'
 
 const SITE = 'site-1'
 const PESSOA = 'user-1'
 const CHAVE = 'key-1'
-const SENTINELA = 'SENTINELA-PRIVADA-9f3a'
-const PREFIXO_HASH = '98599ffc' // sha256('chave-do-teste').slice(0, 8), conferido abaixo
 const ACESSO = { leitura: null, edita: false, negativa: 'sem_direito' as const }
 const diaFuturo = () => new Date(Date.now() + 30 * 86_400_000).toISOString()
 
 type Linha = Record<string, unknown>
-interface Banco { updates: number; inserts: Linha[]; chave: Linha | null; recusaLeitura: 'ok' | 'erro'; sb: unknown }
+interface Banco { updates: number; inserts: Linha[]; chave: Linha | null; sb: unknown }
 function novoBanco(chave: Linha | null): Banco {
-  const b: Banco = { updates: 0, inserts: [], chave, recusaLeitura: 'ok', sb: null }
+  const b: Banco = { updates: 0, inserts: [], chave, sb: null }
   b.sb = {
     from: (tabela: string) => {
       if (tabela === 'pipeline_api_keys') {
@@ -63,11 +59,7 @@ function novoBanco(chave: Linha | null): Banco {
       // obs_ai_access_log
       const consulta: Record<string, unknown> = {}
       for (const m of ['eq', 'gte', 'order', 'limit']) consulta[m] = () => consulta
-      consulta.abortSignal = () => Promise.resolve(
-        b.recusaLeitura === 'erro'
-          ? { data: null, error: { code: 'XX000' } }
-          : { data: b.inserts.filter((l) => l.result === 'recusado').slice(-1).map(() => ({ at: new Date().toISOString() })), error: null },
-      )
+      consulta.abortSignal = () => Promise.resolve({ data: b.inserts.filter((l) => l.result === 'recusado').slice(-1).map(() => ({ at: new Date().toISOString() })), error: null })
       return {
         select: () => consulta,
         insert: (linha: Linha) => ({ abortSignal: () => { b.inserts.push(linha); return Promise.resolve({ error: null }) } }),
@@ -87,7 +79,6 @@ const initialize = (auth = 'Bearer chave-do-teste') =>
 
 let banco: Banco
 const preparar = (chave: Linha | null) => { banco = novoBanco(chave); h.banco.atual = banco.sb }
-const tudoQueSaiu = () => JSON.stringify([h.captureMessage.mock.calls, h.captureException.mock.calls, h.log.mock.calls])
 
 beforeEach(() => {
   for (const f of [h.captureMessage, h.captureException, h.log, h.pessoa, h.apagamento, h.vinculo, h.privado]) f.mockReset()

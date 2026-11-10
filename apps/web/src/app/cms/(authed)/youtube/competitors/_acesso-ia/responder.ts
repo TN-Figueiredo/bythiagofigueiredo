@@ -131,7 +131,7 @@ function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
 
 /** `serie`: o que o recorte da série fez, para a Cobertura (números do próprio recorte). `convertida`: passou ao grão semana por tamanho. */
-interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean }
+interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number }
 interface Cortes { n: number; serie?: InfoSerie }
 
 export { degrausDoLimite }
@@ -228,9 +228,9 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     }
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
-    if (!cortes.serie || totalDaSerie > cortes.serie.total) {
+    if (!cortes.serie || totalDaSerie + semData > cortes.serie.total) {
       const dts = dentro.map((x) => x.dia).sort()
-      cortes.serie = { pontos: dentro.length, total: totalDaSerie, de: dts[0] ?? de, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida }
+      cortes.serie = { pontos: dentro.length, de: dts[0] ?? de, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData }
     }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou
@@ -388,6 +388,7 @@ function proximasDe(e: Entrada, modelo: PacoteModelo | null, agora: number, vist
 function comCobertura(corpo: string, cob: Cobertura, params: Params, t0: number, incluiuPrivado = false): Resposta {
   const proximas = validas(cob.proximas)
   const secao = secaoDeCobertura({ ...cob, proximas })
+  if (secao.length > RODAPE_MAX) avisar('rodape_estourou', { tamanho: secao.length })
   return resp('ok', `${corpo}\n\n${secao}`, {
     ...params, completa: coberturaCompleta(cob), ms: Math.max(0, Date.now() - t0),
     ...(cob.foraDoPacote ? { fora_do_pacote: Math.max(0, cob.foraDoPacote.total - cob.foraDoPacote.mostrados) } : {}),
@@ -451,8 +452,11 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       if (junto.length > tetoFinal) rotulos.push('o fim do texto')
       const texto = cabeEm(junto, tetoFinal)
       const cortado = parCortado >= 0 ? achados[parCortado]! : null
+      const faltaram = achados.filter((x) => x.montado === null).length
       const cob: Cobertura = {
         apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: rotulos, numeros, vazio: false,
+        ...(faltaram > 0 ? { naoEncontrados: { quantos: faltaram, de: pares } } : {}),
+        ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
         proximas: cortado ? [{ chamada: { acao: 'comparar', canal_ids: [cortado.a === 'próprio' ? 'proprio' : cortado.a, cortado.b] }, para: 'comparar só este par, com o texto inteiro para ele' }] : [],
       }
       return comCobertura(texto, cob, { ...params, privado, comentarios, cortes: cortes.n, pares }, t0, privado || comentarios)
@@ -508,6 +512,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const nomeDaTela = TELAS_IA[montado.modelo.tela]?.nome ?? montado.modelo.tela
       if (principal) lista = { titulo: principal.titulo, de: c.linhasDaPrincipal > 0 ? 1 : 0, ate: c.linhasDaPrincipal, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
       else if (vazio) lista = { titulo: nomeDaTela, de: 0, ate: 0, total: 0 }
+      if (principal && totalAntes === 0) vazio = true // vazio nunca é completo, mesmo que o empacotador não tenha dito o motivo
     } else {
       if (pedido.limite.tipo === 'pontos') {
         modelo = recortarSerie(modelo, pedido, agora, cortes)
@@ -523,8 +528,10 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const fora = montado.modelo.paginado
     const cob: Cobertura = {
       ...(lista ? { lista } : {}),
-      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao } } : {}),
+      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
+      ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
+      ...(vazio && pedido.limite.tipo === 'pontos' ? { serieAusente: true } : {}),
       proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie),
     }
     if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
