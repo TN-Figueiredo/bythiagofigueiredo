@@ -20,6 +20,8 @@ import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 import { comContextoDoObservatorio, contextoDoObservatorio, type ContextoDoObservatorio } from '@/lib/pipeline/mcp/observatorio/contexto'
 import { executarChamada, type Responder, type Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
+import { ACOES } from '@/lib/youtube/observatorio/acesso-ia/acoes'
+import { EXEMPLO_DA_ACAO } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { NOME_DA_FERRAMENTA, registrarServidorDoObservatorio, INSTRUCOES, ITENS_DE_INSTRUCAO, instrucoesDe, DESCRICAO } from '@/lib/pipeline/mcp/observatorio/servidor'
 import { ENTRADA } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { createPipelineMcpServer } from '@/lib/pipeline/mcp'
@@ -373,5 +375,20 @@ describe('A7d T5: as instructions do servidor e a frase na descrição', () => {
     const { client } = await conectar(respondeOk)
     const lista = await client.listTools()
     expect(lista.tools[0]!.description).toBe(DESCRICAO)
+  })
+})
+
+describe('A7e T7: pela ferramenta registrada, janela numérica chega ao responder', () => {
+  it('{acao:"destaques", janela: 90} não é barrado pelo SDK e chega com o número', async () => {
+    const responder = vi.fn(respondeOk)
+    const { client } = await conectar(responder)
+    const r = await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'destaques', janela: 90 } }))
+    expect(r.isError).not.toBe(true)
+    expect(responder).toHaveBeenCalled()
+    expect(responder.mock.calls[0]![0]).toMatchObject({ acao: 'destaques', janela: 90 })
+  })
+  it('a descrição traz os dez exemplos, um por linha, e cabe em 2.000', async () => {
+    for (const a of ACOES) expect(DESCRICAO.split('\n'), a).toContain(`- ${EXEMPLO_DA_ACAO[a]}`)
+    expect(DESCRICAO.length).toBeLessThanOrEqual(2_000)
   })
 })

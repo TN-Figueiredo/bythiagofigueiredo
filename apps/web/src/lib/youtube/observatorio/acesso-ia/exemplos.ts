@@ -6,7 +6,7 @@ import { ACOES, ENTRADA, type Acao } from './acoes'
 export const CAMPOS_DA_ACAO: Readonly<Record<Acao, readonly string[]>> = Object.freeze(
   Object.fromEntries(
     ENTRADA.options.map((o) => [o.shape.acao.value, Object.keys(o.shape).filter((k) => k !== 'acao').sort()]),
-  ) as Record<Acao, readonly string[]>,
+  ) as unknown as Record<Acao, readonly string[]>,
 )
 /** Todos os campos que algum pedido aceita (mais `acao`), na ordem do esquema. */
 export const TODOS_OS_CAMPOS: readonly string[] = Object.freeze(['acao', ...new Set(ENTRADA.options.flatMap((o) => Object.keys(o.shape).filter((k) => k !== 'acao')))])

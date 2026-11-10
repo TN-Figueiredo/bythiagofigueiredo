@@ -315,3 +315,14 @@ describe('definicoes', () => {
     for (const t of p.telas) expect(TELAS_IA[t.tela as keyof typeof TELAS_IA].pedeId).toBe(false)
   })
 })
+
+describe('A7e T7: janela aceita número', () => {
+  it.each(['destaques', 'listar_canais', 'canal', 'mudancas'] as const)('%s: janela 90 (número) vale como "90"; 45 é recusada', (acao) => {
+    const base = acao === 'canal' ? { canal_id: C1 } : {}
+    const ok = ENTRADA.safeParse({ acao, ...base, janela: 90 })
+    expect(ok.success).toBe(true)
+    expect((ok as { data: { janela: string } }).data.janela).toBe('90')
+    expect(ENTRADA.safeParse({ acao, ...base, janela: '90' }).success).toBe(true)
+    expect(ENTRADA.safeParse({ acao, ...base, janela: 45 }).success).toBe(false)
+  })
+})

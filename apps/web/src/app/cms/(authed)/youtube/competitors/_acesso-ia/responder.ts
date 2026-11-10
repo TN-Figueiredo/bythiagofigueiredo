@@ -42,6 +42,17 @@ const acaoConhecida = (e: unknown): Acao | null => {
   return typeof a === 'string' && (ACOES as readonly string[]).includes(a) ? (a as Acao) : null
 }
 
+/** Quais campos o esquema apontou (só nomes do esquema; campo inventado vira `(desconhecido)`); `undefined` se nenhum issue diz qual. */
+function camposInvalidos(erro: z.ZodError): string[] | undefined {
+  const c = new Set<string>()
+  for (const i of erro.issues) {
+    if (i.code === 'unrecognized_keys') c.add('(desconhecido)')
+    else if (ehCampo(i.path[0])) c.add(String(i.path[0]))
+    else if (i.code === 'invalid_union_discriminator') c.add('acao')
+  }
+  return c.size === 0 ? undefined : [...c].sort().slice(0, 6)
+}
+
 /** A frase do esquema, sem o que a pessoa escreveu: só mensagens nossas (`custom`) ou o nome de um campo conhecido. */
 function fraseDoEsquema(erro: z.ZodError): string {
   const frases = new Set<string>()
@@ -408,7 +419,10 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
   const t0 = Date.now()
   try {
     const lida = ENTRADA.safeParse(entradaCrua)
-    if (!lida.success) return resp('pedido_invalido', fraseDeRecusa(acaoConhecida(entradaCrua), fraseDoEsquema(lida.error)))
+    if (!lida.success) {
+      const campos = camposInvalidos(lida.error)
+      return resp('pedido_invalido', fraseDeRecusa(acaoConhecida(entradaCrua), fraseDoEsquema(lida.error)), campos ? { campos_invalidos: campos } : {})
+    }
     const entrada = lida.data
     params = paramsDaEntrada(entrada)
     const t = traduzir(entrada)

@@ -38,7 +38,8 @@ const VIDEO_YT = /^[A-Za-z0-9_-]{11}$/
 
 const id = z.string().max(64).refine((s) => UUID.test(s) || CANAL_YT.test(s) || VIDEO_YT.test(s), 'id fora de forma: use o uuid ou o id do YouTube')
 const nicho = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/, 'nicho fora de forma')
-const janela = z.enum(['7', '30', '90', 'todas'])
+// a IA manda `90` como número com frequência (registro de 09/11): vale como "90"; 45 continua recusado
+const janela = z.preprocess((v) => (typeof v === 'number' ? String(v) : v), z.enum(['7', '30', '90', 'todas']))
 const formato = z.enum(['todos', 'longos', 'shorts'])
 
 const dataReal = (s: string): boolean => {
