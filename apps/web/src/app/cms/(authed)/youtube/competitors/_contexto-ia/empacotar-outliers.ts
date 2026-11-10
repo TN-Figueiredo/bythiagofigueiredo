@@ -95,6 +95,7 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'groups[].cards[].phase.id': ID, 'groups[].cards[].phase.label': 'rotulo', 'groups[].cards[].phase.tone': APAR, 'groups[].cards[].showPhase': CTRL, 'groups[].cards[].phaseWhy': 'base',
   'groups[].cards[].reuse.month': 'base', 'groups[].cards[].reuse.vpd7': 'numero', 'groups[].cards[].reuse.median': 'numero',
   'groups[].cards[].ruler*': APAR,
+  'paginado.mostrados': CTRL, 'paginado.total': CTRL,
   more: CTRL, 'more.href': END, 'more.label': CTRL, 'more.note': 'base',
   empty: CTRL, 'empty.title': 'base', 'empty.text': 'base', 'empty.actions[].label': 'rotulo', 'empty.actions[].href': END, 'empty.actions[].n': REP,
   'empty.actions[].primary': APAR, 'empty.actions[].dest': ID,
@@ -304,5 +305,6 @@ export function empacotarOutliers(modelo: ModeloOutliers): PacoteModelo {
     vazio: modelo.empty ? `${modelo.empty.title}. ${modelo.empty.text}` : null,
     motivoDoMagro: null,
     listasCompletas: false,
+    ...(modelo.paginado.mostrados < modelo.paginado.total ? { paginado: modelo.paginado } : {}),
   }
 }

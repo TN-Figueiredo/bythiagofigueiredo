@@ -102,6 +102,10 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   // A7a: linhas da principal entregues e total da principal antes de qualquer corte (nomes da A4/A5; contador, nunca texto)
   linhas: (v) => (contador(v) ? v : undefined),
   total: (v) => (contador(v) ? v : undefined),
+  // A7d: a resposta era completa (booleano), quanto demorou (ms) e quantos outliers a tela deixou fora do pacote (contadores)
+  completa: (v) => (typeof v === 'boolean' ? v : undefined),
+  ms: (v) => (contador(v) ? v : undefined),
+  fora_do_pacote: (v) => (contador(v) ? v : undefined),
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }

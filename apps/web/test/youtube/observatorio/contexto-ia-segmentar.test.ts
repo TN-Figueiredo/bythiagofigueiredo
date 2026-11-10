@@ -468,8 +468,8 @@ describe('frases.ts e o mockup versionado', () => {
     'Horários em São Paulo.',
     '). Não foi possível conferir o direito agora.',
     '). A leitura falhou agora.',
-    // A7a: a 2ª linha de "Por tamanho" do modo ia, por tela (a T4 troca por RESTO_NA_COBERTURA)
-    F.fraseForaFatia1('canais'), F.fraseForaFatia1('outliers'), F.fraseForaFatia1('mudancas'),
+    // A7d: a 2ª linha de "Por tamanho" do modo ia manda para a seção Cobertura
+    F.RESTO_NA_COBERTURA,
   ]
 
   it('as frases marcadas como texto novo NÃO existem no pi.js, e a lista de novos é exatamente a declarada', () => {

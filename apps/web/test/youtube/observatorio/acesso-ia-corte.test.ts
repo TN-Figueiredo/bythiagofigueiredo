@@ -75,9 +75,9 @@ const sintetico = (tela: TelaId, tabelas: Tabela[]): PacoteModelo => ({ ...model
 describe('A7a T2 passo 1: o medido (34, 60 e 75 canais, empacotador real; ia, 200 por janela)', () => {
   // Medido em 09/11 com `console.info('medido'…)` neste arquivo. Por canal: principal ~160 caracteres, colunas ~205 (5 tabelas), texto (notas + dicas) 1.100 a 1.130.
   const MEDIDO = {
-    34: { fixoMaisFixas: 5_174, principal: 5_542, coluna: 6_948, texto: 38_042, por_nome: 6_300, escolha: { estagio: 'E1', chars: 55_677, degrau: 200 } },
-    60: { fixoMaisFixas: 5_176, principal: 9_639, coluna: 12_263, texto: 67_591, por_nome: 11_246, escolha: { estagio: 'E1', chars: 55_904, degrau: 100 } },
-    75: { fixoMaisFixas: 5_177, principal: 11_929, coluna: 15_392, texto: 84_768, por_nome: 14_083, escolha: { estagio: 'E1', chars: 55_906, degrau: 50 } },
+    34: { fixoMaisFixas: 5_174, principal: 5_542, coluna: 6_948, texto: 38_042, por_nome: 6_300, escolha: { estagio: 'E1', chars: 55_631, degrau: 200 } },
+    60: { fixoMaisFixas: 5_176, principal: 9_639, coluna: 12_263, texto: 67_591, por_nome: 11_246, escolha: { estagio: 'E1', chars: 55_858, degrau: 100 } },
+    75: { fixoMaisFixas: 5_177, principal: 11_929, coluna: 15_392, texto: 84_768, por_nome: 14_083, escolha: { estagio: 'E1', chars: 55_860, degrau: 50 } },
   } as const
   it.each([34, 60, 75] as const)('%i canais: os tamanhos por classe e a escolha, com e sem reserva', (n) => {
     const mod = modeloDe(n)
@@ -181,7 +181,7 @@ describe('A7a T2: escolherCorte', () => {
       expect(linhasNoTexto(c.texto.texto, 'Principal')).toBe(10)
     })
     it('E2 (canais): o texto sai inteiro, com um aviso por tabela; o por_nome segue nos degraus', () => {
-      const c = escolherCorte(sintetico('canais', [lista('canais', 'Principal', 10, 100), lista('canais-dicas', 'Dicas', 50, 100), lista('canais-referencias', 'Referências', 30, 300)]), CONTEXTO, 200, 12_000)
+      const c = escolherCorte(sintetico('canais', [lista('canais', 'Principal', 10, 100), lista('canais-dicas', 'Dicas', 50, 100), lista('canais-referencias', 'Referências', 30, 300)]), CONTEXTO, 200, 11_900)
       expect(c.estagio).toBe('E2')
       expect(c.avisos).toEqual(['tabela "Dicas": 50 linhas não couberam; peça a ação canal com o Id para as de um item'])
       expect(c.texto.texto).not.toContain('### Dicas')
@@ -196,7 +196,7 @@ describe('A7a T2: escolherCorte', () => {
       expect(c.principalCortada).toBe(false)
     })
     it('E2 (outliers): o aviso manda para a tela Destaques, sem ação nem id', () => {
-      const c = escolherCorte(sintetico('outliers', [lista('outliers', 'Vídeos', 10, 100), lista('outliers-avisos', 'Avisos da tela', 100, 100), lista('outliers-reuso', 'Reuso', 30, 300)]), CONTEXTO, 50, 12_000)
+      const c = escolherCorte(sintetico('outliers', [lista('outliers', 'Vídeos', 10, 100), lista('outliers-avisos', 'Avisos da tela', 100, 100), lista('outliers-reuso', 'Reuso', 30, 300)]), CONTEXTO, 50, 11_900)
       expect(c.estagio).toBe('E2')
       expect(c.avisos).toEqual(['tabela "Avisos da tela": 100 linhas não couberam; o detalhe aparece na tela Destaques'])
     })
@@ -300,7 +300,8 @@ describe('A7a Fatia 1, conserto do parecer (I1, I2, I3, M1, M2), sempre pelo res
     const mod = (tam: number) => sintetico('canais', [lista('canais', 'Os canais acompanhados', 10, tam), lista('canais-dicas', 'Dicas', 50, 100), lista('canais-referencias', 'Refs', 3, 10)])
     // varre o tamanho das linhas da principal: em toda a faixa em que a tabela inteira sai (E2), o texto tem de dizer o que cortou e o registro tem de contar
     let achou = 0
-    for (let tam = 5_700; tam <= 6_000; tam += 1) {
+    // a Cobertura reserva 1.802 do teto (180 por linha de 10), então a faixa do E2 desceu
+    for (let tam = 5_000; tam <= 6_100; tam += 2) {
       dobra('canais', mod(tam))
       const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
       if (!r.texto.includes('tabela "Dicas": 50 linhas não couberam')) continue
@@ -325,5 +326,20 @@ describe('A7a Fatia 1, conserto do parecer (I1, I2, I3, M1, M2), sempre pelo res
         if (c.estagio === 'E1' && noTexto < 300) expect(Number(achou?.[1])).toBe(300 - noTexto)
       }
     }
+  })
+})
+
+describe('A7d T4 (6): com a Cobertura reservada, a principal sai inteira', () => {
+  const dobra = (tela: TelaId, modelo: PacoteModelo) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => ({ modelo, recente: '13/10/2026 09:10', estado: {} }))
+  beforeEach(() => { m.captured.length = 0; m.empacotar.canais = vi.fn(async () => null) })
+  it('34 canais da fixture: 34 linhas, a seção diz 1–34 de 34 e o texto fica no teto', async () => {
+    dobra('canais', modeloDe(34))
+    const r = await responder({ acao: 'listar_canais' }, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.params.linhas).toBe(34)
+    expect(r.params.total).toBe(34)
+    expect(r.texto.length).toBeLessThanOrEqual(TETO)
+    expect(r.texto).toContain('linhas 1–34 de 34')
+    expect(r.texto.slice(r.texto.lastIndexOf('\n## Cobertura'))).toContain('Os canais acompanhados')
+    expect(JSON.stringify(m.captured)).not.toContain('principal_cortada')
   })
 })

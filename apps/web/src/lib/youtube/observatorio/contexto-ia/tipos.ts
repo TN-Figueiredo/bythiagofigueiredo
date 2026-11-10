@@ -70,6 +70,8 @@ export interface PacoteModelo {
   motivoDoMagro: string | null
   /** Liga a linha do cabeçalho "Listas completas do período; a tela mostra em páginas.". */
   listasCompletas: boolean
+  /** A7d: só quando a tela pagina (mostra menos do que o recorte tem); números do modelo, nunca extraídos de frase. */
+  paginado?: { mostrados: number; total: number }
 }
 
 export interface ContextoDoPacote {
