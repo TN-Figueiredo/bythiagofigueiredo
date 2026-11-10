@@ -321,7 +321,7 @@ describe('Canais: vazio, zero e definições', () => {
 describe('Canais: nenhuma frase longa com acento digitada fora das constantes de "não mede"', () => {
   it('o empacotador só tem frases longas nas constantes permitidas', () => {
     const fonte = readFileSync(resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais.ts'), 'utf8')
-    const permitidas = ['o que só o dono', 'por que um canal sobe']
+    const permitidas = ['o que só o dono', 'por que um canal sobe', 'Quantos canais sobem']
     const codigo = fonte.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && !/\b(titulo|nomeNoCorte):/.test(l)).map((l) => l.replace(/\s\/\/.*$/, ''))
     const literais = [...codigo.join('\n').matchAll(/(['`])((?:\\.|(?!\1).)*)\1/g)].map((x) => x[2]!).filter((s) => s.replace(/\$\{[^}]*\}/g, '').trim().split(/\s+/).length >= 10 && /[áàâãéêíóôõúç]/i.test(s))
     expect(literais.filter((s) => !permitidas.some((p) => s.startsWith(p)))).toEqual([])

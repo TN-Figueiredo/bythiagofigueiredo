@@ -68,7 +68,7 @@ export const INVENTARIO_MUDANCAS: Inventario = {
 
   // cada troca
   'heroes[].id': ID, 'heroes[].type': ID, 'heroes[].typeLabel': 'rotulo',
-  'heroes[].video.id': ID, 'heroes[].video.title': 'terceiros', 'heroes[].video.channel': 'terceiros', 'heroes[].video.ago': REP,
+  'heroes[].video.id': 'base', 'heroes[].video.title': 'terceiros', 'heroes[].video.channel': 'terceiros', 'heroes[].video.ago': REP,
   'heroes[].video.historyHref': END, 'heroes[].video.url': END, 'heroes[].video.channelHref': END,
   'heroes[].video.color': APAR, 'heroes[].video.ini': APAR, 'heroes[].video.avatar': IMG, 'heroes[].video.ink': APAR,
   'heroes[].video.niche': ID, 'heroes[].video.nicheLabel': 'rotulo', 'heroes[].video.meta[]': 'base', 'heroes[].video.syncNote': 'base',
@@ -168,7 +168,7 @@ function celulaDoNumero(texto: string | number | null, origem: string, motivo: s
 
 /** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
 const CHAVES: Record<string, string[]> = {
-  'trocas': ['video', 'canal', 'nicho', 'tipo', 'quando', 'visto'],
+  'trocas': ['video', 'id', 'canal', 'nicho', 'tipo', 'quando', 'visto'],
   'trocas-efeito': ['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'],
   'trocas-esperado': ['video', 'esperado_sem_a_troca_pct', 'efeito_pp'],
   'trocas-faixa': ['video', 'limite_da_faixa_pct'],
@@ -190,11 +190,11 @@ const doEfeito = (h: Hero): boolean => h.video.observed
 
 function tabelaDeTrocas(m: ModeloMudancas): Tabela[] {
   if (m.heroes.length === 0) return []
-  return [tabelaLista('trocas', 'As trocas da tela, na ordem da tela', 'tabela de trocas', ['Vídeo', 'Canal', 'Nicho', 'Tipo', 'Quando', 'Visto'],
+  return [tabelaLista('trocas', 'As trocas da tela, na ordem da tela', 'tabela de trocas', ['Vídeo', 'Id', 'Canal', 'Nicho', 'Tipo', 'Quando', 'Visto'],
     trocas(m).map(({ i, h }) => {
       const p = `modelo.heroes[${i}]`
       return [
-        terceiros(h.video.title, `${p}.video.title`), terceiros(h.video.channel, `${p}.video.channel`),
+        terceiros(h.video.title, `${p}.video.title`), base(h.video.id, `${p}.video.id`), terceiros(h.video.channel, `${p}.video.channel`),
         h.video.nicheLabel === null ? celulaDoNumero(null, `${p}.video.nicheLabel`) : rotulo(h.video.nicheLabel, `${p}.video.nicheLabel`),
         rotulo(h.typeLabel, `${p}.typeLabel`), base(h.when.text, `${p}.when.text`), base(h.when.rel, `${p}.when.rel`),
       ]

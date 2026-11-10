@@ -153,6 +153,7 @@ describe('mudanças: chaves (4)', () => {
         ],
         "trocas": [
           "video",
+          "id",
           "canal",
           "nicho",
           "tipo",
@@ -207,7 +208,7 @@ describe('mudanças: chaves (4)', () => {
   })
   it('as chaves de `trocas` e `trocas-efeito` são as do plano', () => {
     const p = CASOS.find((c) => c.nome === '90 dias')!.pacote
-    expect(p.tabelas.find((x) => x.id === 'trocas')!.chaves).toEqual(['video', 'canal', 'nicho', 'tipo', 'quando', 'visto'])
+    expect(p.tabelas.find((x) => x.id === 'trocas')!.chaves).toEqual(['video', 'id', 'canal', 'nicho', 'tipo', 'quando', 'visto'])
     expect(p.tabelas.find((x) => x.id === 'trocas-efeito')!.chaves).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'])
   })
 })

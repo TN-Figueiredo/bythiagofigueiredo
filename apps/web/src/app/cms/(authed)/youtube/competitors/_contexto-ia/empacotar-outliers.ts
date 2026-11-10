@@ -80,7 +80,7 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   // os grupos e os cartões
   'groups[].id': ID, 'groups[].label': 'rotulo', 'groups[].tone': APAR, 'groups[].why': 'base', 'groups[].count': 'numero', 'groups[].weakCount': REP,
   'groups[].countText': 'base', 'groups[].onlyWeakText': 'base', 'groups[].pageNote': 'base',
-  'groups[].cards[].id': ID, 'groups[].cards[].main': CTRL, 'groups[].cards[].title': 'terceiros', 'groups[].cards[].channel': 'terceiros', 'groups[].cards[].channelFull': REP,
+  'groups[].cards[].id': 'base', 'groups[].cards[].main': CTRL, 'groups[].cards[].title': 'terceiros', 'groups[].cards[].channel': 'terceiros', 'groups[].cards[].channelFull': REP,
   'groups[].cards[].channelHref': END, 'groups[].cards[].niche': ID, 'groups[].cards[].nicheLabel': 'rotulo',
   'groups[].cards[].age': 'base', 'groups[].cards[].ageTitle': REP, 'groups[].cards[].ageShort': REP,
   'groups[].cards[].mult': 'numero', 'groups[].cards[].multN': REP, 'groups[].cards[].viewsN': REP, 'groups[].cards[].vpdShortN': REP, 'groups[].cards[].multLabel': 'base', 'groups[].cards[].method': REP, 'groups[].cards[].tier': APAR,
@@ -159,7 +159,7 @@ const CHAVES: Record<string, string[]> = {
   'idades': ['faixa_de_idade', 'outliers'],
   'grupos': ['grupo', 'outliers'],
   'grupos-notas': ['grupo', 'nota'],
-  'outliers': ['grupo', 'video', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'],
+  'outliers': ['grupo', 'video', 'id', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'],
   'outliers-avisos': ['video', 'aviso'],
   'outliers-reuso': ['video', 'mes_do_assunto', 'views_dia_7d', 'mediana_do_canal_views_dia'],
   'canais-com-problema': ['canal', 'situacao'],
@@ -167,7 +167,7 @@ const CHAVES: Record<string, string[]> = {
   'forja-do-site': ['leitura', 'do_site'],
 }
 /** A5: gráfico sugerido (D1). Faixas de idade se sobrepõem (nenhum); a pizza dos grupos só entra com a prova da T5. */
-const GRAFICO: Record<string, Tabela['grafico']> = { idades: 'nenhum', outliers: 'barra' }
+const GRAFICO: Record<string, Tabela['grafico']> = { idades: 'nenhum', outliers: 'barra', grupos: 'pizza' }
 const comChaves = (t: Tabela): Tabela => ({ ...t, chaves: CHAVES[t.id], ...(GRAFICO[t.id] ? { grafico: GRAFICO[t.id] } : {}) })
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
@@ -206,7 +206,11 @@ function tabelaDeGrupos(m: ModeloOutliers): Tabela[] {
 /** Views/dia do cartão: o número do modelo (`vpdShortN`); quando a tela escreve palavras ("sem views/dia recentes", "menos de 1 dia no ar"), medido sem `x` e com o motivo. */
 function vpdDoCartao(c: OutlierCardView, p: string): Celula {
   const origem = `${p}.vpdShort`
-  if (c.vpdShortN !== null || c.vpdShort === '—') return celulaDoNumero(c.vpdShort, origem, undefined, c.vpdShortN)
+  if (c.vpdShortN !== null || c.vpdShort === '—') {
+    const cel = celulaDoNumero(c.vpdShort, origem, undefined, c.vpdShortN)
+    // M3 (A5 F1b): com menos de 7 dias de série o número é a média desde a publicação; a nota viaja na célula e o CSV a leva na coluna `motivos`
+    return c.vpdShortNote !== null && (cel.papel === 'numero' && (cel.estado === 'medido' || cel.estado === 'zero_medido') && cel.x !== undefined) ? { ...cel, nota: c.vpdShortNote } : cel
+  }
   return medidoSemX(c.vpdShort, origem, `a tela escreve "${c.vpdShort}" no lugar do número`)
 }
 
@@ -215,11 +219,11 @@ function tabelaDeOutliers(m: ModeloOutliers): Tabela[] {
   if (todos.length === 0) return []
   const o = 'modelo.groups'
   const saida: Tabela[] = [tabelaLista('outliers', 'Os outliers da tela, na ordem da tela', 'tabela de outliers',
-    ['Grupo', 'Vídeo', 'Canal', 'Nicho', 'Múltiplo', 'Base do múltiplo', 'Views', 'Views/dia (7 dias)', 'Publicado', 'Duração'],
+    ['Grupo', 'Vídeo', 'Id', 'Canal', 'Nicho', 'Múltiplo', 'Base do múltiplo', 'Views', 'Views/dia (7 dias)', 'Publicado', 'Duração'],
     todos.map(({ g, i, c, grupo }) => {
       const p = `${o}[${g}].cards[${i}]`
       return [
-        rotulo(grupo.label, `${o}[${g}].label`), terceiros(c.title, `${p}.title`), terceiros(c.channel, `${p}.channel`),
+        rotulo(grupo.label, `${o}[${g}].label`), terceiros(c.title, `${p}.title`), base(c.id, `${p}.id`), terceiros(c.channel, `${p}.channel`),
         c.nicheLabel === null ? celulaDoNumero(null, `${p}.nicheLabel`) : rotulo(c.nicheLabel, `${p}.nicheLabel`),
         celulaDoNumero(c.mult, `${p}.mult`, undefined, c.multN), base(c.multLabel, `${p}.multLabel`), celulaDoNumero(c.views, `${p}.views`, undefined, c.viewsN), vpdDoCartao(c, p),
         base(c.age, `${p}.age`), baseOuNaoMedido(c.dur, `${p}.dur`),

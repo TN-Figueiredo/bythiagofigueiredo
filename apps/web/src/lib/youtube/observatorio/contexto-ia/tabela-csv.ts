@@ -7,8 +7,11 @@ import type { Celula, Tabela } from './tipos'
 
 export type Grafico = 'linha' | 'barra' | 'pizza' | 'nenhum'
 
-/** Ids de tabela provados (D2): a soma das partes medidas é o todo da tela. Começa vazio; cada id entra com o seu teste (F1b). */
-export const PIZZA_PERMITIDA: ReadonlySet<string> = new Set<string>()
+/**
+ * Ids de tabela provados (D2): a soma das partes medidas é o todo da tela. Cada id entra com o seu teste (`acesso-ia-tabela.test.ts`, (11)):
+ * `canais-resumo-direcao` (subindo + sem mudança + descendo = canais da principal com direção medida) e `grupos` de Destaques (soma dos grupos = cartões).
+ */
+export const PIZZA_PERMITIDA: ReadonlySet<string> = new Set<string>(['canais-resumo-direcao', 'grupos'])
 export const FRASE_DO_GRAFICO: Record<Grafico, string> = F.FRASE_DO_GRAFICO
 
 const CONTROLES_E_BIDI = /[\u0000-\u0008\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g
@@ -82,10 +85,12 @@ function graficoDaTabela(t: Tabela, avisos: string[]): { grafico: Grafico; frase
   let g: Grafico = t.grafico ?? (t.tipo === 'dia_a_dia' ? 'linha' : t.tipo === 'lista' && t.linhas.some((l) => l.some(ehNumero)) ? 'barra' : 'nenhum')
   let k = 0
   if (g === 'pizza') {
-    k = t.linhas.reduce((s, l) => s + l.filter(vazioNoCsv).length, 0)
+    // parte sem número (célula vazia no CSV, ou linha que não tem a célula numérica das outras, como a do grupo de base fraca) não é parte medida
+    const largura = Math.max(0, ...t.linhas.map((l) => l.filter(ehNumero).length))
+    k = t.linhas.reduce((s, l) => s + l.filter(vazioNoCsv).length + (l.filter(ehNumero).length < largura ? 1 : 0), 0)
     if (!PIZZA_PERMITIDA.has(t.id) || k > 0) { g = 'barra'; avisos.push('pizza_nao_fecha') }
   }
-  return { grafico: g, frase: F.FRASE_DO_GRAFICO[g].replace('{k}', String(k)) }
+  return { grafico: g, frase: F.FRASE_DO_GRAFICO[g] }
 }
 
 /** CSV largo de uma tabela. `null` se a tabela não declara `chaves` (ou elas não casam com as colunas e as linhas): quem chama avisa e manda para o modo texto. */
@@ -111,6 +116,7 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
   const motivosNovos: string[][] = []
   t.linhas.forEach((linha, n) => {
     const refs: string[] = []
+    const notas: string[] = []
     const campos: string[] = extras.map((e) => campoCsv(e.valor(n) ?? ''))
     for (let i = 0; i < colunasDeDados; i++) {
       const c = linha[i]!
@@ -118,7 +124,11 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
       if (c.papel !== 'numero') { campos.push(campoCsv(c.texto)); continue }
       if (c.estado !== 'nao_medido' && c.estado !== 'falhou' && c.estado !== 'restrito') {
         if (c.semXMotivo !== undefined) { refs.push(`${chave}:${legenda.idDe('nao_medido', c.semXMotivo)}`); campos.push(''); continue }
-        if (c.x !== undefined && c.x !== null && Number.isFinite(c.x)) { campos.push(numeroCsv(c.x)); continue }
+        if (c.x !== undefined && c.x !== null && Number.isFinite(c.x)) {
+          if (c.nota !== undefined && c.nota !== '') notas.push(`${chave}: ${c.nota}`) // M3: ressalva sobre um número medido; não é id de legenda
+          campos.push(numeroCsv(c.x))
+          continue
+        }
         semX += 1
         refs.push(`${chave}:${legenda.idDe('falhou', F.MOTIVO_SEM_NUMERO_DE_MAQUINA)}`)
         campos.push('')
@@ -129,7 +139,7 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
     }
     const doModelo = temMotivos ? linha[chaves.length - 1]! : null
     const textoDaA4 = doModelo && doModelo.papel !== 'numero' ? doModelo.texto : ''
-    campos.push(campoCsv([...refs, ...(textoDaA4 === '' ? [] : [textoDaA4])].join('; ')))
+    campos.push(campoCsv([...refs, ...notas, ...(textoDaA4 === '' ? [] : [textoDaA4])].join('; ')))
     linhas.push(campos.join(','))
     motivosNovos.push(refs)
   })

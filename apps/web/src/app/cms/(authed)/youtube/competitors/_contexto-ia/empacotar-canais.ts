@@ -348,7 +348,8 @@ function chavesDe(id: string, colunas: string[]): string[] {
   return ch.map((k) => (k === '<views_dia>' ? (colunas.includes(VPD_POR_MIL) ? 'views_dia_por_mil' : 'views_dia_mediana') : k))
 }
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
-const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
+/** A5 F1b (D2): só `canais-resumo-direcao` declara pizza; o gerador a rebaixa a barra se alguma parte não for medida (e `PIZZA_PERMITIDA` guarda a lista provada). */
+const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), ...(id === 'canais-resumo-direcao' ? { grafico: 'pizza' as const } : {}), linhas })
 
 // ───────────────────────── a lista de canais
 type Linha = { r: CanaisRow; p: string; dl: DerivadoLinha; dp: string }
@@ -471,7 +472,7 @@ function tabelasDoResumo(m: ModeloCanais): Tabela[] {
   const out: Tabela[] = []
   const { casas, filtros } = m.resumo
   const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem, n))
-  if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
+  if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem, sem o seu canal', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
     casas.map((c, i) => [rotulo(c.palavra, `modelo.resumo.casas[${i}].palavra`), num(c.n, `modelo.resumo.casas[${i}].n`)])))
   if (filtros.length) out.push(tabelaFixa('canais-resumo-estado', 'Quantos canais em cada estado', nome0('tabela do resumo do estado'), ['Estado', 'Canais'],
     filtros.map((f, i) => {

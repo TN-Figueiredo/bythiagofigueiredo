@@ -63,7 +63,7 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   grupos: { Grupo: '.label', Outliers: ['.count', '.onlyWeakText'] },
   'grupos-notas': { Grupo: '.label', Nota: ['.why', '.countText', '.pageNote'] },
   outliers: {
-    Grupo: '.label', Vídeo: '.title', Canal: '.channel', Nicho: '.nicheLabel', Múltiplo: '.mult', 'Base do múltiplo': '.multLabel', Views: '.views',
+    Grupo: '.label', Vídeo: '.title', Id: '.id', Canal: '.channel', Nicho: '.nicheLabel', Múltiplo: '.mult', 'Base do múltiplo': '.multLabel', Views: '.views',
     'Views/dia (7 dias)': '.vpdShort', Publicado: '.age', Duração: '.dur',
   },
   'outliers-avisos': { Vídeo: '.title', Aviso: ['.vpdShortNote', '.phaseWhy', '.why', ...FLAGS] },
@@ -73,7 +73,7 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'forja-do-site': { Leitura: '.niche', 'Do site': ['.sentText', '.since.text', '.siteNotes[0]', '.siteNotes[1]', '.siteNotes[2]'] },
 }
 const paridade = (m: Montado) => provarParidade({
-  modelo: m.modelo, inventario: INVENTARIO_OUTLIERS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [],
+  modelo: m.modelo, inventario: INVENTARIO_OUTLIERS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [], soNoPacote: ['outliers'],
 })
 
 // ───────────────────────── a matriz de estados
@@ -192,9 +192,9 @@ describe('Outliers: o que acontece quando o dado não existe', () => {
     alterado.groups[0]!.cards[0]!.nicheLabel = null
     alterado.groups[0]!.cards[0]!.vpdShort = '—'
     const linha = empacotarOutliers(alterado).tabelas.find((t) => t.id === 'outliers')!.linhas[0]!
-    expect(linha[3]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: A_TELA_NAO_INFORMA_O_MOTIVO })
-    expect(linha[7]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: A_TELA_NAO_INFORMA_O_MOTIVO })
-    expect(linha[4]).toMatchObject({ papel: 'numero', estado: 'medido' })
+    expect(linha[4]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: A_TELA_NAO_INFORMA_O_MOTIVO })
+    expect(linha[8]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: A_TELA_NAO_INFORMA_O_MOTIVO })
+    expect(linha[5]).toMatchObject({ papel: 'numero', estado: 'medido' })
   })
 
   it('canais sem base e com problema: a tabela de problemas leva todos (os que a tela mostra e os de "+N canais"), e a cauda vai nos avisos', async () => {
@@ -227,7 +227,7 @@ describe('Outliers: o que o site escreve não leva endereço', () => {
     const m = await montar({ age: 'all', min: '0' }, false)
     const t = m.pacote.tabelas.find((x) => x.id === 'outliers')!
     expect(new Set(t.linhas.map((l) => l[1]!.papel))).toEqual(new Set(['terceiros']))
-    expect(new Set(t.linhas.map((l) => l[2]!.papel))).toEqual(new Set(['terceiros']))
+    expect(new Set(t.linhas.map((l) => l[3]!.papel))).toEqual(new Set(['terceiros']))
   })
 })
 
@@ -274,16 +274,16 @@ describe('Outliers: provas por mutação (a paridade cai)', () => {
   it('trocar o vídeo de uma linha por outro derruba a regra (d2)', async () => {
     const m = await montar({})
     const t = m.pacote.tabelas.find((x) => x.id === 'outliers')!
-    const c = t.linhas[0]![4]!
-    t.linhas[0]![4] = { ...c, origem: c.origem.replace(/cards\[(\d+)\]/, 'cards[1]') }
+    const c = t.linhas[0]![5]!
+    t.linhas[0]![5] = { ...c, origem: c.origem.replace(/cards\[(\d+)\]/, 'cards[1]') }
     expect(() => paridade(m)).toThrow(/\(d2\)/)
   })
 
   it('copiar o campo vizinho de mesmo texto (views no lugar de views/dia) derruba a regra (d3)', async () => {
     const m = await montar({})
     const t = m.pacote.tabelas.find((x) => x.id === 'outliers')!
-    const c = t.linhas[0]![7]!
-    t.linhas[0]![7] = { ...c, origem: c.origem.replace('vpdShort', 'views') }
+    const c = t.linhas[0]![8]!
+    t.linhas[0]![8] = { ...c, origem: c.origem.replace('vpdShort', 'views') }
     expect(() => paridade(m)).toThrow(/\(d3\)|\(d2\)/)
   })
 
@@ -299,7 +299,7 @@ describe('Outliers: provas por mutação (a paridade cai)', () => {
     const m = await montar({}, false)
     const alterado: ModeloOutliers = structuredClone(m.modelo)
     alterado.groups[0]!.cards[0]!.nicheLabel = null
-    const c = empacotarOutliers(alterado).tabelas.find((t) => t.id === 'outliers')!.linhas[0]![3]!
+    const c = empacotarOutliers(alterado).tabelas.find((t) => t.id === 'outliers')!.linhas[0]![4]!
     expect(c.papel === 'numero' && c.estado).toBe('nao_medido')
   })
 })

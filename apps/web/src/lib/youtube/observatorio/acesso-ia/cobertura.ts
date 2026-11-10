@@ -17,6 +17,8 @@ export interface Cobertura {
   lidaAs?: string
   /** A7b: tabelas de texto (notas, dicas) fora de toda janela de lista: `linhas` = as que a janela teria; `comoVer` = a chamada em palavras. Informação, não torna a lista incompleta. */
   textoFora?: { rotulo: string; linhas: number; comoVer: string }
+  /** A5 F1b (modo tabela): tabelas que só existem no modo texto (de texto ou sem `chaves`), pelo nome que a tela lhes dá. Torna a lista incompleta. */
+  soNoTexto?: string[]
   /** A7b: linhas de apoio sem dona na lista principal, entregues na janela 1. */
   semDona?: number
   marcaMudou?: boolean
@@ -38,6 +40,7 @@ export function coberturaCompleta(c: Cobertura): boolean {
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) return false
   if (c.apoio.cortadas.length > 0 || c.apoio.inteiras < c.apoio.total) return false
   if (c.cortesDeTamanho.length > 0) return false
+  if (c.soNoTexto && c.soNoTexto.length > 0) return false
   if (c.foraDoPacote) return false
   return true
 }
@@ -96,6 +99,10 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.textoFora && c.textoFora.linhas > 0) {
     const t = c.textoFora
     L.push(n.cortesEmContagem ? `- ${t.rotulo}: 0 de ${t.linhas} linhas.` : `- ${t.rotulo}: 0 de ${t.linhas} linhas; ${t.comoVer}.`)
+  }
+  if (c.soNoTexto && c.soNoTexto.length > 0) {
+    const t = c.soNoTexto
+    L.push(n.cortesEmContagem ? `- Só no modo texto: ${t.length} tabelas.` : `- Só no modo texto (peça sem saida tabela): ${t.slice(0, 3).join('; ')}${t.length > 3 ? `, mais ${t.length - 3}` : ''}.`)
   }
   if (c.foraDoPacote) L.push(`- A tela mostra ${c.foraDoPacote.mostrados} de ${c.foraDoPacote.total} outliers (cada grupo é paginado na tela); os outros não estão neste pacote.`)
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) L.push(`- Pares sem dado: ${c.naoEncontrados.quantos} de ${c.naoEncontrados.de} (canal não encontrado); a comparação não cobre esses canais.`)

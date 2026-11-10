@@ -191,14 +191,22 @@ describe('gráfico sugerido (f)', () => {
     try {
       const ok = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza' }), novaLegenda())!
       expect(ok.grafico).toBe('pizza'); expect(ok.avisos).toEqual([])
-      expect(ok.dicionario).toContain('Gráfico sugerido: pizza (as partes somam o todo da tela; 0 sem medida ficam fora)')
+      expect(ok.dicionario).toContain('Gráfico sugerido: pizza (as partes somam o todo da tela; toda parte foi medida nesta resposta)')
       const ruim = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza', linhas: [[rot('A'), nm(), num(1)], [rot('B'), num(2), num(1)]] }), novaLegenda())!
       expect(ruim.grafico).toBe('barra'); expect(ruim.avisos).toEqual(['pizza_nao_fecha'])
       const semX = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza', linhas: [[rot('A'), num(null), num(1)]] }), novaLegenda())!
       expect(semX.grafico).toBe('barra')
     } finally { mut.delete('pz') }
   })
-  it('a lista branca de produção começa vazia (cada id entra com o seu teste)', () => { expect(PIZZA_PERMITIDA.size).toBe(0) })
+  it('a lista branca de produção tem só os dois ids provados em acesso-ia-tabela.test.ts (11)', () => { expect([...PIZZA_PERMITIDA].sort()).toEqual(['canais-resumo-direcao', 'grupos']) })
+  it('pizza com uma linha sem a célula numérica das outras (grupo de base fraca) vira barra e avisa', () => {
+    const mut = PIZZA_PERMITIDA as Set<string>
+    mut.add('pz2')
+    try {
+      const c = csvDaTabela(tabela({ id: 'pz2', grafico: 'pizza', colunas: ['Canal', 'Canais'], chaves: ['canal', 'canais'], linhas: [[rot('A'), num(3)], [rot('B'), rot('base fraca')]] }), novaLegenda())!
+      expect(c.grafico).toBe('barra'); expect(c.avisos).toEqual(['pizza_nao_fecha'])
+    } finally { mut.delete('pz2') }
+  })
   it('padrões: dia_a_dia vira linha; lista com número vira barra; lista sem coluna numérica vira nenhum; fixa vira nenhum; declarado vale', () => {
     expect(csvDaTabela(tabela({ tipo: 'dia_a_dia' }), novaLegenda())!.grafico).toBe('linha')
     expect(csvDaTabela(tabela(), novaLegenda())!.grafico).toBe('barra')
@@ -293,5 +301,27 @@ describe('blocoDaTabela (g)', () => {
     const c = csvDaTabela(tabela({ linhas: [[ter('```\nfim'), num(1), num(2)]] }), novaLegenda())!
     const b = blocoDaTabela(c, c.linhas)
     expect(b.split('```').length - 1).toBe(2)
+  })
+})
+
+describe('nota da célula medida (A5 F1b, M3)', () => {
+  const comNota = (nota: string): Celula => ({ papel: 'numero', estado: 'medido', texto: '1,2 mil', x: 1200, origem: 'o', nota })
+  const t = tabela({ colunas: ['Canal', 'Views/dia (7 dias)'], chaves: ['canal', 'views_dia_7d'], linhas: [[rot('Ana'), comNota('média de 4 dias')], [rot('Bia'), num(900)]] })
+  it('a nota vai para `motivos` como `chave: nota`; o número continua na coluna; a linha sem nota fica vazia; a nota não vira id nem conta em semX', () => {
+    const c = csvDaTabela(t, novaLegenda())!
+    const l = parse(`${c.cabecalho}\n${c.linhas.join('\n')}\n`)
+    expect(l[1]).toEqual(['Ana', '1200', 'views_dia_7d: média de 4 dias'])
+    expect(l[2]).toEqual(['Bia', '900', ''])
+    expect(c.semX).toBe(0)
+    expect(c.motivosNovos).toEqual([[], []])
+  })
+  it('convive com refs e com o texto da A4 na mesma coluna, nessa ordem', () => {
+    const tt = tabela({ colunas: ['Canal', 'Views', 'Motivos'], chaves: ['canal', 'views', 'motivos'], linhas: [[rot('Ana'), comNota('média de 4 dias'), rot('texto da A4')]] })
+    const c = csvDaTabela(tt, novaLegenda())!
+    expect(parse(`${c.cabecalho}\n${c.linhas.join('\n')}\n`)[1]).toEqual(['Ana', '1200', 'views: média de 4 dias; texto da A4'])
+  })
+  it('a nota é neutralizada (fórmula e quebra de linha)', () => {
+    const c = csvDaTabela(tabela({ colunas: ['Canal', 'V'], chaves: ['canal', 'v'], linhas: [[rot('Ana'), comNota('=1+1\noutra')]] }), novaLegenda())!
+    expect(parse(`${c.cabecalho}\n${c.linhas.join('\n')}\n`)[1]![2]).toBe("v: =1+1 outra")
   })
 })

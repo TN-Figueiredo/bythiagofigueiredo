@@ -203,7 +203,7 @@ function segmentosDaTabela(t: Tabela, citados: readonly BlocoCitado[]): Segmento
   return saida
 }
 
-function textoDoPrivadoExcluido(p: Extract<PacoteModelo['privado'], { estado: 'excluido' }>): string {
+export function textoDoPrivadoExcluido(p: Extract<PacoteModelo['privado'], { estado: 'excluido' }>): string {
   const itens = naCelula(p.itens)
   if (p.motivo === 'sem_direito') return F.NAO_INCLUIDO_SEM_DIREITO(itens)
   if (p.motivo === 'nao_conferido') return F.NAO_INCLUIDO_NAO_CONFERIDO(itens)

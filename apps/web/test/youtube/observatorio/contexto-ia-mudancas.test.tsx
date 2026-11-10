@@ -52,7 +52,7 @@ async function montar(params: Params, desenhar = true): Promise<Montado> {
 // ───────────────────────── o mapa de colunas da regra (d3), escrito aqui
 const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'quadro-de-efeito': { Tipo: '.typeLabel', 'Trocas do nicho na janela': '.poolN', 'Com veredito (n)': '.n', 'Mediana do efeito': ['.median', '.semMediana'], Resultado: '.text' },
-  trocas: { Vídeo: '.video.title', Canal: '.video.channel', Nicho: '.video.nicheLabel', Tipo: '.typeLabel', Quando: '.when.text', Visto: '.when.rel' },
+  trocas: { Vídeo: '.video.title', Id: '.video.id', Canal: '.video.channel', Nicho: '.video.nicheLabel', Tipo: '.typeLabel', Quando: '.when.text', Visto: '.when.rel' },
   'trocas-efeito': { Vídeo: '.video.title', Tipo: '.typeLabel', Veredito: '.effect.label', Observado: '.rows.observed', 'Antes (views/dia)': '.rows.observedFrom', 'Depois (views/dia)': '.rows.observedTo' },
   'trocas-esperado': { Vídeo: '.video.title', 'Esperado sem a troca': '.rows.expected', Efeito: '.effect.pp' },
   'trocas-faixa': { Vídeo: '.video.title', 'Limite da faixa': ['.iqr[0]', '.iqr[1]'] },
@@ -64,7 +64,7 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'forja-do-site': { Nicho: '.label', 'Do site': ['.reading.when', '.reading.countText', '.reading.sentText', '.reading.since.text', '.reading.siteNotes[0]', '.reading.siteNotes[1]', '.reading.siteNotes[2]', '.reading.evidenceLinks[0].text', '.reading.evidenceLinks[1].text', '.reading.evidenceLinks[2].text', '.reading.evidenceLinks[3].text'] },
 }
 const paridade = (m: Montado) => provarParidade({
-  modelo: m.modelo, inventario: INVENTARIO_MUDANCAS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [],
+  modelo: m.modelo, inventario: INVENTARIO_MUDANCAS, pacote: m.pacote, textoDaTela: m.textoDaTela, textoDoPacote: m.textoDoPacote, colunas: COLUNAS, cruas: [], soNoPacote: ['trocas'],
 })
 
 // ───────────────────────── a matriz de estados

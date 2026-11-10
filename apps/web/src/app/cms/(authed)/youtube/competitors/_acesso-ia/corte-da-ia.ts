@@ -212,10 +212,41 @@ export interface JanelaDaLista {
   linhaNaoCabe: boolean
   /** O resumo do todo (janela 1) passou de `RESUMO_MAX` só com as contagens: o texto sai inteiro e quem chama avisa. */
   resumoPassou: boolean
+  /** O dado privado está de fato nesta janela (a tabela privada entrou); na janela 2 em diante é falso. */
+  incluiuPrivado: boolean
 }
 
 const chaveDeOrigem = (l: readonly Celula[]): string | null => l.find((c) => c.papel === 'terceiros')?.origem ?? null
 const nomeDaLinha = (l: readonly Celula[]): string | null => { const c = l.find((x) => x.papel === 'terceiros'); return c && c.papel === 'terceiros' ? c.texto : null }
+
+/**
+ * A dona de cada linha de apoio (tabelas de classe coluna, texto e por-nome): posição 0-based na principal, ou -1 (sem dona; nome repetido também).
+ * Casa pela `origem` da 1ª célula `terceiros` (coluna, texto) ou pelo nome (por-nome). Fonte única da janela do texto e do modo tabela (A5 F1b).
+ */
+export function donosDasLinhas(modelo: PacoteModelo): Map<string, number[]> {
+  const classe = (t: Tabela): ClasseNaIa => classeDa(modelo.tela, t)
+  const principal = modelo.tabelas.find((t) => classe(t) === 'principal')
+  const donos = new Map<string, number[]>()
+  if (!principal) return donos
+  const posDaChave = new Map<string, number>()
+  const posDoNome = new Map<string, number[]>()
+  principal.linhas.forEach((l, i) => {
+    const k = chaveDeOrigem(l)
+    if (k !== null && !posDaChave.has(k)) posDaChave.set(k, i)
+    const nome = nomeDaLinha(l)
+    if (nome !== null) posDoNome.set(nome, [...(posDoNome.get(nome) ?? []), i])
+  })
+  for (const t of modelo.tabelas) {
+    const c = classe(t)
+    if (t.tipo !== 'lista' || c === 'principal' || c === 'geral') continue
+    donos.set(t.id, t.linhas.map((l) => {
+      if (c === 'por_nome') { const nome = nomeDaLinha(l); const ps = nome === null ? undefined : posDoNome.get(nome); return ps && ps.length === 1 ? ps[0]! : -1 }
+      const k = chaveDeOrigem(l)
+      return k === null ? -1 : (posDaChave.get(k) ?? -1)
+    }))
+  }
+  return donos
+}
 
 /** A chave de cada linha da principal: a célula da coluna Id (se há), senão o texto da 1ª célula `terceiros`. */
 export function marcaDaPrincipal(t: Tabela): string {
@@ -225,6 +256,14 @@ export function marcaDaPrincipal(t: Tabela): string {
 }
 
 /** Reserva fixa, por tabela de texto que sai da janela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
+/** Janela sem tabela privada (janela 2 em diante): o dado privado não está nela, então o modelo dela não o declara. Uma só função para os dois modos (texto e tabela). */
+export function semPrivadoForaDaJanela(m: PacoteModelo): PacoteModelo {
+  if (m.privado.estado !== 'incluido' || m.tabelas.some((t) => t.privada)) return m
+  const r: PacoteModelo = { ...m, citados: m.citados.filter((b) => !b.privado), privado: { estado: 'na' }, comentarios: { estado: 'na' }, foco: m.foco.filter((f) => !f.privado), definicoes: m.definicoes.filter((d) => !d.privado) }
+  delete r.avisosPrivados
+  return r
+}
+
 export const RESERVA_POR_TABELA_DE_TEXTO = 450
 /** Mudanças: a linha "descrições de N mudanças não couberam" (só quando as descrições saem). */
 export const RESERVA_DAS_DESCRICOES = 300
@@ -248,25 +287,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
   const marca = marcaDaPrincipal(principal)
   const degraus = degrausDoLimite(n)
 
-  // quem é a dona de cada linha de apoio: posição (0-based) na principal, ou -1 (sem dona; nome repetido também)
-  const posDaChave = new Map<string, number>()
-  const posDoNome = new Map<string, number[]>()
-  principal.linhas.forEach((l, i) => {
-    const k = chaveDeOrigem(l)
-    if (k !== null && !posDaChave.has(k)) posDaChave.set(k, i)
-    const nome = nomeDaLinha(l)
-    if (nome !== null) posDoNome.set(nome, [...(posDoNome.get(nome) ?? []), i])
-  })
-  const donos = new Map<string, number[]>()
-  for (const t of modelo.tabelas) {
-    const c = classe(t)
-    if (t.tipo !== 'lista' || c === 'principal' || c === 'geral') continue
-    donos.set(t.id, t.linhas.map((l) => {
-      if (c === 'por_nome') { const nome = nomeDaLinha(l); const ps = nome === null ? undefined : posDoNome.get(nome); return ps && ps.length === 1 ? ps[0]! : -1 }
-      const k = chaveDeOrigem(l)
-      return k === null ? -1 : (posDaChave.get(k) ?? -1)
-    }))
-  }
+  const donos = donosDasLinhas(modelo)
   const soltos = modelo.citados.filter((b) => !b.linha)
   // A7c1: o resumo do todo, uma vez, sobre a principal inteira e as tabelas coluna inteiras (antes de qualquer janela); a janela só o carrega
   const categoriasDoResumo = (CATEGORIAS_NO_RESUMO[tela as TelaComLista] ?? []).filter((c) => !(c === 'Tipo' && modelo.tabelas.some((t) => t.id === 'quadro-de-efeito')))
@@ -373,7 +394,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
       apoio.push({ titulo: 'Descrições das linhas', saiu: 0, de: descricoes })
       if (comTexto) avisos.push(`descrições de ${descricoes} ${SUBSTANTIVO[tela]} não couberam; peça a ação canal com o Id do canal para ver as de um item`)
     }
-    return { modelo: { ...modelo, tabelas, citados, avisos, ...(resumo ? { resumoDoTodo: resumo } : {}) }, antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
+    return { modelo: semPrivadoForaDaJanela({ ...modelo, tabelas, citados, avisos, ...(resumo ? { resumoDoTodo: resumo } : {}) }), antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
   }
   const rodar = (k: number, estagio: Estagio, comTexto: boolean, tetoDaBusca: number) => {
     const m = montar(k, estagio, comTexto)
@@ -419,7 +440,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
         texto: r.t, estagio, avisos: r.m.avisos.slice(modelo.avisos.length), linhasDaPrincipal: k, totalDaPrincipal: total, principalCortada: false,
         primeiraLinhaDeAviso: r.p.primeiraLinhaDeAviso, apoio: r.m.apoio,
       },
-      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio),
+      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio), incluiuPrivado: r.m.modelo.privado.estado === 'incluido',
     }
   }
   throw new Error('corte-da-ia: janela sem estágio')
