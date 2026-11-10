@@ -352,22 +352,22 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
   if (nicho.length) out.push(tabelaLista(`${pre}canais-nicho`, `O nicho de cada canal${suf}`, nome('tabela de nichos'), ['Canal', 'Nicho'], nicho.map(({ r, p, dl, dp }) => [terceiros(r.name, `${p}.name`), rotulo(dl.nicho!, `${dp}.nicho`)]), privada))
 
   const dirN = ls.filter(({ r }) => r.direcaoNumeros)
-  if (dirN.length) out.push(tabelaLista(`${pre}canais-direcao-numeros`, `Views da direção: ${JANELA} dias contra os ${JANELA} anteriores${suf}`, nome('tabela dos números da direção'), ['Canal', `Views nos últimos ${JANELA} dias`, `Views nos ${JANELA} dias anteriores`],
+  out.push(tabelaLista(`${pre}canais-direcao-numeros`, `Views da direção: ${JANELA} dias contra os ${JANELA} anteriores${suf}`, nome('tabela dos números da direção'), ['Canal', `Views nos últimos ${JANELA} dias`, `Views nos ${JANELA} dias anteriores`],
     dirN.map(({ r, p }) => [terceiros(r.name, `${p}.name`), medido(r.direcaoNumeros!.recente, `${p}.direcaoNumeros.recente`), medido(r.direcaoNumeros!.anterior, `${p}.direcaoNumeros.anterior`)]), privada))
 
   const vpdN = ls.filter(({ r }) => r.cells.vpd.kind === 'ok' && r.cells.vpd.abs !== null)
-  if (vpdN.length) out.push(tabelaLista(`${pre}canais-views-por-dia`, `A base das views por dia${suf}`, nome('tabela da base das views por dia'), ['Canal', 'Views por dia, valor absoluto', 'Vídeos na base'],
+  out.push(tabelaLista(`${pre}canais-views-por-dia`, `A base das views por dia${suf}`, nome('tabela da base das views por dia'), ['Canal', 'Views por dia, valor absoluto', 'Vídeos na base'],
     vpdN.map(({ r, p }) => { const v = r.cells.vpd; return v.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd.abs`), medido(String(v.n), `${p}.cells.vpd.n`)] : [] }), privada))
 
   const outN = ls.filter(({ r }) => r.cells.out.kind === 'ok')
-  if (outN.length && modelo.fmt !== 'todos') out.push(tabelaLista(`${pre}canais-maior-outlier`, `O maior outlier de cada canal${suf}`, nome('tabela do maior outlier'), ['Canal', 'Vídeo', 'Vídeos comparados', 'Publicado', 'Contagem'],
+  if (modelo.fmt !== 'todos') out.push(tabelaLista(`${pre}canais-maior-outlier`, `O maior outlier de cada canal${suf}`, nome('tabela do maior outlier'), ['Canal', 'Vídeo', 'Vídeos comparados', 'Publicado', 'Contagem'],
     outN.map(({ r, p }) => { const o = r.cells.out; return o.kind === 'ok' ? [terceiros(r.name, `${p}.name`), terceiros(o.videoTitle, `${p}.cells.out.videoTitle`), medido(String(o.n), `${p}.cells.out.n`), base(o.published, `${p}.cells.out.published`), base(o.count, `${p}.cells.out.count`)] : [] }), privada))
-  if (outN.length && modelo.fmt === 'todos') out.push(tabelaLista(`${pre}canais-outliers-contagem`, `Quantos outliers tem cada canal${suf}`, nome('tabela da contagem de outliers'), ['Canal', 'Contagem'],
+  if (modelo.fmt === 'todos') out.push(tabelaLista(`${pre}canais-outliers-contagem`, `Quantos outliers tem cada canal${suf}`, nome('tabela da contagem de outliers'), ['Canal', 'Contagem'],
     outN.map(({ r, p }) => { const o = r.cells.out; return o.kind === 'ok' ? [terceiros(r.name, `${p}.name`), base(o.count, `${p}.cells.out.count`)] : [] }), privada))
 
   if (modelo.fmt === 'todos') {
     const sh = ls.filter(({ r }) => r.cells.cadence2 && r.cells.vpd2 && r.cells.out2)
-    if (sh.length) out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', 'Ritmo dos Shorts', 'Views por dia dos Shorts', 'Outliers dos Shorts'],
+    out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', 'Ritmo dos Shorts', 'Views por dia dos Shorts', 'Outliers dos Shorts'],
       sh.map(({ r, p }) => {
         const k = r.cells.cadence2!, v = r.cells.vpd2!, o = r.cells.out2!
         return [terceiros(r.name, `${p}.name`),
@@ -376,7 +376,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
           o.kind === 'ok' ? medido(o.mult, `${p}.cells.out2.mult`) : naoMedido(o.text, `${p}.cells.out2.text`)]
       }), privada))
     const shV = ls.filter(({ r }) => r.cells.vpd2?.kind === 'ok' && r.cells.vpd2.abs !== null)
-    if (shV.length) out.push(tabelaLista(`${pre}canais-shorts-views-por-dia`, `A base das views por dia dos Shorts${suf}`, nome('tabela da base dos Shorts'), ['Canal', 'Views por dia dos Shorts, valor absoluto', 'Vídeos na base dos Shorts'],
+    out.push(tabelaLista(`${pre}canais-shorts-views-por-dia`, `A base das views por dia dos Shorts${suf}`, nome('tabela da base dos Shorts'), ['Canal', 'Views por dia dos Shorts, valor absoluto', 'Vídeos na base dos Shorts'],
       shV.map(({ r, p }) => { const v = r.cells.vpd2; return v?.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd2.abs`), medido(String(v.n), `${p}.cells.vpd2.n`)] : [] }), privada))
   }
 

@@ -11,13 +11,14 @@ import { medidasDoOraculo } from './canais-e5a-fixture'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { buildRiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-model'
 import { empacotarCanais, modeloDeCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
+import { RESUMO_MAX } from '@/lib/youtube/observatorio/acesso-ia/resumo'
 import { janela } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
 import { medidaConfere } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { CONTEXTO, base, medido, modeloCheio, naoMedido, rotulo, terceiros } from './contexto-ia-fixture'
 
-function modeloDe(n: number): PacoteModelo {
+function modeloDe(n: number, fmt: 'longos' | 'todos' = 'longos', semDirecao = false): PacoteModelo {
   const { obs } = a3World((ds: Dataset) => {
     const concorrentes = ds.channels.filter((c) => !c.own)
     let i = 0
@@ -30,9 +31,11 @@ function modeloDe(n: number): PacoteModelo {
     }
     ds.channels = ds.channels.slice(0, Math.max(n, ds.channels.filter((c) => c.own).length))
   })
-  const view = buildCanaisView(obs, { niche: 'todos', limit: 200, fmt: 'longos', medidas: medidasDoOraculo(obs) }, undefined)
+  const view = buildCanaisView(obs, { niche: 'todos', limit: 200, fmt, medidas: medidasDoOraculo(obs) }, undefined)
   const ri = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
-  return empacotarCanais(modeloDeCanais(view, ri), { acessoPorCanal: {}, negativa: null })
+  const modelo = modeloDeCanais(view, ri)
+  if (semDirecao) for (const r of [...modelo.list.ranked, ...modelo.list.unranked]) r.direcaoNumeros = null
+  return empacotarCanais(modelo, { acessoPorCanal: {}, negativa: null })
 }
 
 const bloco = (texto: string): string => { const i = texto.indexOf('## Resumo do todo'); return i < 0 ? '' : texto.slice(i, texto.indexOf('\n\n', i)) }
@@ -53,15 +56,15 @@ describe('A7c1 T10: o resumo na janela', () => {
     expect(bloco(t.texto).length).toBeLessThanOrEqual(2_500)
   })
 
-  it('o resumo de 200 canais é o mesmo texto na janela 1 e na janela 2, e a janela de 20 linhas não o muda', () => {
+  it('janela 1 leva o resumo cheio; a janela 2 leva só a linha que aponta para ele (com a marca da lista); a de 20 linhas não muda o cheio', () => {
     const mod = modeloDe(200)
     const a = janela(mod, CONTEXTO, 1, 200, 45_000)
     const b = janela(mod, CONTEXTO, a.k + 1, 200, 45_000)
     const c = janela(mod, CONTEXTO, 1, 20, 45_000)
     expect(a.k).toBeLessThan(200)
-    expect(bloco(a.corte.texto.texto)).not.toBe('')
-    expect(bloco(b.corte.texto.texto)).toBe(bloco(a.corte.texto.texto))
+    expect(bloco(a.corte.texto.texto)).toContain('| Coluna | Medidos |')
     expect(bloco(c.corte.texto.texto)).toBe(bloco(a.corte.texto.texto))
+    expect(bloco(b.corte.texto.texto)).toBe(`## Resumo do todo: o da janela 1 (mesma lista de 200 linhas, marca ${a.marca})`)
     expect(a.corte.texto.caracteres).toBeLessThanOrEqual(45_000)
     expect(medidaConfere(b.corte.texto)).toBe(true)
   })
@@ -123,5 +126,51 @@ describe('A7c1 T10: o resumo na janela', () => {
     expect(b).not.toContain('Por Grupo')
     expect(b).toContain('Por Nicho: Viagem 60')
     expect(b.split('\n')[0]).toContain('; a tela mostra 40 de 60)')
+  })
+
+  // rodada 2, achado 1: a tabela coluna ausente não some do resumo
+  it('empacotador real, 60 canais sem o dado da direção: as duas colunas saem com Sem linha = 60, nunca somem', () => {
+    const mod = modeloDe(60, 'longos', true)
+    expect(mod.tabelas.map((t) => t.id)).toContain('canais-direcao-numeros')
+    expect(mod.tabelas.find((t) => t.id === 'canais-direcao-numeros')!.linhas).toHaveLength(0)
+    const b = bloco(janela(mod, CONTEXTO, 1, 200, 45_000).corte.texto.texto)
+    expect(b).toContain('| Views nos últimos 28 dias | 0 | 0 | 0 | 0 | 0 | 60 |')
+    expect(b).toContain('| Views nos 28 dias anteriores | 0 | 0 | 0 | 0 | 0 | 60 |')
+  })
+
+  it('o texto da tela não muda com a tabela vazia: igual ao do modelo sem as listas vazias, byte a byte', () => {
+    for (const fmt of ['longos', 'todos'] as const) {
+      const mod = modeloDe(60, fmt, true)
+      const sem: PacoteModelo = { ...mod, tabelas: mod.tabelas.filter((t) => !(t.tipo === 'lista' && t.linhas.length === 0)) }
+      expect(mod.tabelas.length).toBeGreaterThan(sem.tabelas.length)
+      const a = segmentar(mod, CONTEXTO), b = segmentar(sem, CONTEXTO)
+      expect(a.segmentos.map((x) => x.texto)).toEqual(b.segmentos.map((x) => x.texto))
+      expect(a.tabelas.map((t) => t.id)).toEqual(b.tabelas.map((t) => t.id))
+    }
+  })
+
+  it('só listas vazias: a frase "nenhuma tabela" continua saindo', () => {
+    const vazia: Tabela = { id: 'canais-x', titulo: 'X', tipo: 'lista', nomeNoCorte: 'x', privada: false, colunas: ['Canal', 'N'], linhas: [] }
+    const t = segmentar({ ...modeloCheio(), tabelas: [vazia], citados: [] }, CONTEXTO).segmentos.map((x) => x.texto).join('\n')
+    expect(t).not.toContain('### X')
+    expect(segmentar({ ...modeloCheio(), tabelas: [], citados: [] }, CONTEXTO).segmentos.map((x) => x.texto).join('\n')).toBe(t)
+  })
+
+  // rodada 2, achado 2: o alarme de quando o resumo encostar no teto
+  it('Canais real com fmt todos e todas as tabelas coluna: o resumo cabe em RESUMO_MAX e não dispara o aviso', () => {
+    const j = janela(modeloDe(200, 'todos'), CONTEXTO, 1, 200, 45_000)
+    const b = bloco(j.corte.texto.texto)
+    expect(b.length).toBeLessThanOrEqual(RESUMO_MAX)
+    expect(j.resumoPassou).toBe(false)
+    expect(b).toContain('| Views nos últimos 28 dias |')
+  })
+
+  // rodada 2, achado 5
+  it('janela 2 não carrega o resumo cheio (ponteiro) e não dispara resumoPassou', () => {
+    const mod = modeloDe(200)
+    const a = janela(mod, CONTEXTO, 1, 200, 45_000)
+    const b = janela(mod, CONTEXTO, a.k + 1, 200, 45_000)
+    expect(b.corte.texto.texto).not.toContain('| Coluna | Medidos |')
+    expect(b.resumoPassou).toBe(false)
   })
 })

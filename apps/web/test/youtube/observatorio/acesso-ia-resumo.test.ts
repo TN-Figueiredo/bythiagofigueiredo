@@ -4,7 +4,7 @@
  * Os estados são disjuntos e somam M em toda coluna; "não medido", "falhou" e "restrito" nunca viram zero.
  */
 import { describe, expect, it } from 'vitest'
-import { CATEGORIAS_NO_RESUMO, RESUMO_MAX, resumoDoTodo } from '@/lib/youtube/observatorio/acesso-ia/resumo'
+import { CATEGORIAS_NO_RESUMO, RESUMO_MAX, resumoDoTodo, resumoPassou } from '@/lib/youtube/observatorio/acesso-ia/resumo'
 import type { Celula, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { medido, naoMedido, rotulo, terceiros, zero } from './contexto-ia-fixture'
 
@@ -48,9 +48,20 @@ describe('A7c1 T10: resumoDoTodo', () => {
     expect(linhaDe(t, 'Direção')[5]).toBe('15')
   })
 
-  it('tabela coluna presente e sem nenhuma linha: sai uma linha com Sem linha = M, nunca some', () => {
-    const t = resumoDoTodo(mil(), [{ tabela: tabela('canais-views-por-dia', ['Canal', 'Views/dia'], []), donos: [] }], [])
-    expect(t).toContain('| canais-views-por-dia (sem nenhuma linha) | 0 | 0 | 0 | 0 | 0 | 1000 |')
+  it('tabela coluna presente e sem nenhuma linha: cada coluna (menos a chave) sai com Sem linha = M, nunca some', () => {
+    const t = resumoDoTodo(mil(), [{ tabela: tabela('canais-views-por-dia', ['Canal', 'Views/dia', 'Vídeos na base'], []), donos: [] }], [])
+    expect(linhaDe(t, 'Views/dia')).toEqual(['0', '0', '0', '0', '0', '1000'])
+    expect(linhaDe(t, 'Vídeos na base')).toEqual(['0', '0', '0', '0', '0', '1000'])
+    expect(t).not.toContain('| Canal |')
+  })
+
+  it('tabela com linhas, mas nenhuma com dona (ou só a repetida tem número): a coluna aparece com Sem linha = M', () => {
+    const principal = tabela('canais', ['Canal', 'A'], [[terceiros('X', 'a'), medido('1', 1, 'a1')], [terceiros('Y', 'b'), medido('1', 1, 'b1')]])
+    const semDona = tabela('canais-estado', ['Canal', 'B'], [[terceiros('Z', 'c'), medido('1', 1, 'c1')], [terceiros('W', 'd'), medido('1', 1, 'd1')]])
+    expect(linhaDe(resumoDoTodo(principal, [{ tabela: semDona, donos: [-1, -1] }], []), 'B')).toEqual(['0', '0', '0', '0', '0', '2'])
+    const sobrando = tabela('canais-estado', ['Canal', 'B'], [[terceiros('X', 'c'), naoMedido('m', 'c1')], [terceiros('X', 'd'), medido('1', 1, 'd1')]])
+    // a 2ª linha (repetida) é descartada; a coluna aparece pelo conjunto todo e conta só a linha usada
+    expect(linhaDe(resumoDoTodo(principal, [{ tabela: sobrando, donos: [0, 0] }], []), 'B')).toEqual(['0', '0', '1', '0', '0', '1'])
   })
 
   it('linha de apoio sem dona ou repetida não entra na conta (a soma nunca passa de M)', () => {
@@ -102,13 +113,69 @@ describe('A7c1 T10: resumoDoTodo', () => {
     expect(t).toContain('Medida de apoio 7-2')
   })
 
-  it('pior caso acima do teto: as categorias caem primeiro e a frase diz; as contagens nunca somem', () => {
-    const M = 5
-    const cols = Array.from({ length: 30 }, (_, i) => `Coluna numérica comprida ${i}`)
-    const p = tabela('canais', ['Canal', 'Nicho', ...cols], Array.from({ length: M }, (_, i): Celula[] => [terceiros(`C${i}`, `p${i}`), rotulo(`Nicho ${i}`, `n${i}`), ...cols.map((_, j) => medido('1', 1, `p${i}.${j}`))]))
-    const t = resumoDoTodo(p, [], ['Nicho'])
-    expect(t.length).toBeLessThanOrEqual(RESUMO_MAX)
-    for (const c of cols) expect(t).toContain(`| ${c} |`)
+  const cols = (n: number): string[] => Array.from({ length: n }, (_, i) => `Coluna numérica comprida ${i}`)
+  const comNichos = (nCols: number, M: number, nichos: number): Tabela => {
+    const c = cols(nCols)
+    return tabela('canais', ['Canal', 'Nicho', ...c], Array.from({ length: M }, (_, i): Celula[] => [terceiros(`C${i}`, `p${i}`), rotulo(`Nicho de nome bem comprido número ${String(i % nichos).padStart(2, '0')}`, `n${i}`), ...c.map((_, j) => medido('1', 1, `p${i}.${j}`))]))
+  }
+
+  it('pior caso acima do teto de verdade: 8 valores não cabem, 3 cabem; "mais N valores" com 3 itens antes dele', () => {
+    // acha o número de colunas em que 8 valores passam do teto e 3 cabem
+    let achou = false
+    for (let n = 10; n < 40 && !achou; n += 1) {
+      const t = resumoDoTodo(comNichos(n, 40, 20), [], ['Nicho'])
+      const sem = resumoDoTodo(comNichos(n, 40, 20), [], [])
+      const l = t.split('\n').find((x) => x.startsWith('Por Nicho:'))
+      if (l && l.split(';').length === 4) {
+        expect(sem.length).toBeLessThan(RESUMO_MAX)
+        expect(l).toMatch(/mais 17 valores$/)
+        expect(t.length).toBeLessThanOrEqual(RESUMO_MAX)
+        expect(t).not.toContain('As contagens por categoria não couberam no resumo.')
+        achou = true
+      }
+    }
+    expect(achou).toBe(true)
+  })
+
+  it('degrau 0: as contagens sozinhas cabem mas nem 3 valores cabem: a linha "Por Nicho" sai e a frase diz', () => {
+    let achou = false
+    for (let n = 10; n < 40 && !achou; n += 1) {
+      const t = resumoDoTodo(comNichos(n, 40, 20), [], ['Nicho'])
+      const sem = resumoDoTodo(comNichos(n, 40, 20), [], [])
+      if (!t.includes('Por Nicho:') && sem.length <= RESUMO_MAX) {
+        expect(t).toContain('As contagens por categoria não couberam no resumo.')
+        expect(t.length).toBeLessThanOrEqual(RESUMO_MAX)
+        achou = true
+      }
+    }
+    expect(achou).toBe(true)
+  })
+
+  it('sem categoria que não coube não há frase (8 valores cabem: nada a dizer)', () => {
+    const t = resumoDoTodo(comNichos(3, 12, 12), [], ['Nicho'])
+    expect(t).toContain('Por Nicho:')
+    expect(t).not.toContain('não couberam')
+  })
+
+  it('42 colunas × 12 linhas: só as contagens passam do teto; o resumo sai inteiro (nunca corte calado), sem categorias, com a frase, e resumoPassou diz', () => {
+    const t = resumoDoTodo(comNichos(42, 12, 12), [], ['Nicho'])
+    expect(t.length).toBeGreaterThan(RESUMO_MAX)
+    expect(resumoPassou(t)).toBe(true)
+    for (const c of cols(42)) expect(t).toContain(`| ${c} |`)
+    expect(t).toContain('As contagens por categoria não couberam no resumo.')
+    expect(t).not.toContain('Por Nicho:')
+    expect(resumoPassou(resumoDoTodo(comNichos(3, 12, 12), [], ['Nicho']))).toBe(false)
+  })
+
+  it('categoria com "|" ou ";" sai sem barra invertida; emoji não é partido ao meio', () => {
+    const emojis = '😀'.repeat(60)
+    const linhas = [['a|b;c', 1], [emojis, 2]].flatMap(([v, n]) => Array.from({ length: n as number }, (_, i): Celula[] => [terceiros(`V${v}${i}`, `v${v}${i}`), rotulo(v as string, `n${v}${i}`), medido('1', 1, `m${v}${i}`)]))
+    const t = resumoDoTodo(tabela('outliers', ['Vídeo', 'Nicho', 'Views'], linhas), [], ['Nicho'])
+    const l = t.split('\n').find((x) => x.startsWith('Por Nicho:'))!
+    expect(l).not.toContain('\\')
+    expect(l).toContain('a,b,c 1')
+    expect(l).toContain(`${'😀'.repeat(39)}… 2`)
+    expect(l).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
   })
 
   it('categorias por tela', () => {

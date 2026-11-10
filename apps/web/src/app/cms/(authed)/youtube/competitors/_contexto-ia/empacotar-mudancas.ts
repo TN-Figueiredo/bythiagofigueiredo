@@ -186,10 +186,12 @@ function tabelaDeTrocas(m: ModeloMudancas): Tabela[] {
 }
 
 function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
+  if (m.heroes.length === 0) return []
   const saida: Tabela[] = []
   const real = (x: string | number | null): boolean => x !== null && x !== '—'
+  // A7c1: as tabelas coluna do efeito saem mesmo vazias (o resumo conta "Sem linha"); o texto da tela não as mostra sem linha
   const medidas = trocas(m).filter(({ h }) => doEfeito(h) && h.effect.rows !== null && [h.effect.rows.observed, h.effect.rows.observedFrom, h.effect.rows.observedTo].every(real))
-  if (medidas.length) {
+  {
     saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', 'Observado', 'Antes (views/dia)', 'Depois (views/dia)'],
       medidas.map(({ i, h }) => {
         const p = `modelo.heroes[${i}]`, r = h.effect.rows!
@@ -199,7 +201,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
         ]
       })))
     const comEsperado = medidas.filter(({ h }) => real(h.effect.rows!.expected) && real(h.effect.pp))
-    if (comEsperado.length) {
+    {
       saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', 'Esperado sem a troca', 'Efeito'],
         comEsperado.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
@@ -207,7 +209,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
         })))
     }
     const comFaixa = medidas.filter(({ h }) => h.effect.rows!.iqr !== null)
-    if (comFaixa.length) {
+    {
       saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', 'Limite da faixa'],
         comFaixa.flatMap(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
@@ -215,7 +217,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
         })))
     }
     const comBase = medidas.filter(({ i }) => m.derivado.heroes[i]?.effect.noBase == null)
-    if (comBase.length) {
+    {
       saida.push(tabelaLista('trocas-base', 'A base do esperado de cada troca', 'tabela de bases do esperado', ['Vídeo', 'Vídeos na base (n)', 'Faixa de idade', 'Método'],
         comBase.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`, r = h.effect.rows!

@@ -3,7 +3,7 @@
 // rede de segurança até a janela da T9). Puro: sem relógio, sem banco, sem Sentry (quem avisa é o `responder`, com as flags que daqui saem).
 import { createHash } from 'node:crypto'
 import { montarTexto, type TextoMontado } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
-import { CATEGORIAS_NO_RESUMO, resumoDoTodo } from '@/lib/youtube/observatorio/acesso-ia/resumo'
+import { CATEGORIAS_NO_RESUMO, resumoDoTodo, resumoPassou } from '@/lib/youtube/observatorio/acesso-ia/resumo'
 import { segmentar, type PacoteSerializado } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { BlocoCitado, Celula, ContextoDoPacote, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
@@ -210,6 +210,8 @@ export interface JanelaDaLista {
   textoFora: { tabelas: number; linhas: number }
   /** Nem a janela de 1 linha coube: o fim do texto é cortado e quem chama avisa. */
   linhaNaoCabe: boolean
+  /** O resumo do todo (janela 1) passou de `RESUMO_MAX` só com as contagens: o texto sai inteiro e quem chama avisa. */
+  resumoPassou: boolean
 }
 
 const chaveDeOrigem = (l: readonly Celula[]): string | null => l.find((c) => c.papel === 'terceiros')?.origem ?? null
@@ -268,12 +270,17 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
   const soltos = modelo.citados.filter((b) => !b.linha)
   // A7c1: o resumo do todo, uma vez, sobre a principal inteira e as tabelas coluna inteiras (antes de qualquer janela); a janela só o carrega
   const categoriasDoResumo = (CATEGORIAS_NO_RESUMO[tela as TelaComLista] ?? []).filter((c) => !(c === 'Tipo' && modelo.tabelas.some((t) => t.id === 'quadro-de-efeito')))
-  const resumo = resumoDoTodo(
-    principal,
-    modelo.tabelas.filter((t) => t.tipo === 'lista' && classe(t) === 'coluna').map((t) => ({ tabela: t, donos: donos.get(t.id) ?? [] })),
-    categoriasDoResumo,
-    modelo.paginado,
-  )
+  // O resumo completo só na janela 1; nas outras, uma linha que aponta para ele (o `k` das janelas seguintes não paga ~2.000 caracteres a cada chamada).
+  // Risco aceito: a marca só cobre os Ids, então uma sincronização entre duas chamadas deixa as contagens da janela 1 velhas, como as linhas já correm.
+  const resumoCheio = inicio === 1
+    ? resumoDoTodo(
+      principal,
+      modelo.tabelas.filter((t) => t.tipo === 'lista' && classe(t) === 'coluna').map((t) => ({ tabela: t, donos: donos.get(t.id) ?? [] })),
+      categoriasDoResumo,
+      modelo.paginado,
+    )
+    : ''
+  const resumo = inicio === 1 ? resumoCheio : `## Resumo do todo: o da janela 1 (mesma lista de ${total} linhas, marca ${marca})`
   // quanto ocupa uma tabela retirada: o pacote só com ela, menos o pacote sem tabelas (com o mesmo estado do dado privado, que o `segmentar` confere)
   const tamanhoSo = (ts: readonly Tabela[], cit: readonly BlocoCitado[]): number => {
     const priv = ts.some((t) => t.privada)
@@ -412,7 +419,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
         texto: r.t, estagio, avisos: r.m.avisos.slice(modelo.avisos.length), linhasDaPrincipal: k, totalDaPrincipal: total, principalCortada: false,
         primeiraLinhaDeAviso: r.p.primeiraLinhaDeAviso, apoio: r.m.apoio,
       },
-      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou,
+      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio),
     }
   }
   throw new Error('corte-da-ia: janela sem estágio')
