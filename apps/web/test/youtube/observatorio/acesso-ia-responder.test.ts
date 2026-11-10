@@ -204,15 +204,20 @@ describe('responder: o limite próprio de cada ação', () => {
     expect(linhasDe(r.texto, 'Item')).toBe(k)
     expect(r.texto.length).toBeLessThanOrEqual(ACESSO_IA_RULES.tetoPorAcao)
   })
-  it('bloco citado ligado a uma linha da principal é texto: fora da janela, com o aviso (o pacote continua válido)', async () => {
+  it('bloco citado ligado a uma linha da principal acompanha a janela da linha (rodada 2): o da linha 100 fica, os de 101 e 105 esperam a janela 2', async () => {
     const modelo = lista('trocas', 105, 'mudancas')
     modelo.citados = [1, 100, 101, 105].map((p) => ({ rotulo: `bloco ${p}`, texto: `texto ${p}`, origem: `p.c[${p}]`, linha: { tabela: 'trocas', posicao: p } }))
     dobra('mudancas', modelo)
     const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
     expect(r.desfecho).toBe('ok')
-    expect(r.texto).not.toContain('texto 100')
+    expect(r.texto).toContain('texto 100')
     expect(r.texto).not.toContain('texto 101')
-    expect(r.texto).toContain('descrições de 2 mudanças não couberam')
+    expect(r.texto).not.toContain('texto 105')
+    expect(r.texto).not.toContain('não couberam')
+    dobra('mudancas', modelo)
+    const r2 = await responder({ acao: 'mudancas', a_partir_da_linha: 101 }, abrir, AGORA)
+    expect(r2.texto).toContain('texto 101')
+    expect(r2.texto).toContain('texto 105')
   })
 })
 

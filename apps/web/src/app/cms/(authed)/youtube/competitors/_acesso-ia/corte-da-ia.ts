@@ -27,6 +27,9 @@ export const CLASSES_NA_IA: Record<TelaComLista, Record<string, ClasseNaIa>> = {
   },
 }
 
+/** Tabelas de texto que ficam fora de toda janela de lista (notas e dicas de Canais; R2 do plano). As outras tabelas de texto seguem as linhas da janela pela origem. */
+export const TEXTO_SEMPRE_FORA: ReadonlySet<string> = new Set(['canais-notas', 'canais-dicas'])
+
 export function classeDa(tela: TelaId, tabela: { id: string; tipo: 'lista' | 'fixa' | string }): ClasseNaIa {
   if (tabela.tipo === 'fixa') return 'resumo-da-tela'
   if (tabela.id.startsWith('privado-')) return 'geral'
@@ -43,7 +46,7 @@ export function fixarLinhas(p: PacoteSerializado, ids: ReadonlySet<string>): Pac
 
 export interface Corte {
   texto: TextoMontado
-  estagio: 'E0' | 'E1' | 'E2' | 'E2b' | 'E2c' | 'E3'
+  estagio: 'E0' | 'E1' | 'E2' | 'E2t' | 'E2b' | 'E2c' | 'E3'
   /** Os avisos que o corte pôs no pacote (parte 6). */
   avisos: string[]
   linhasDaPrincipal: number
@@ -202,7 +205,7 @@ export interface JanelaDaLista {
   marca: string
   /** Linhas de apoio (coluna, por nome) sem dona na principal: vão para a janela 1 e contam aqui. */
   semDona: number
-  /** Tabelas de texto (notas, dicas) que ficam fora de toda janela de lista: linhas que a janela teria e que se pedem por item. */
+  /** Tabelas de texto que ficam sempre fora (notas, dicas de Canais): linhas que a janela teria e que se pedem por item. */
   textoFora: { tabelas: number; linhas: number }
   /** Nem a janela de 1 linha coube: o fim do texto é cortado e quem chama avisa. */
   linhaNaoCabe: boolean
@@ -218,18 +221,22 @@ export function marcaDaPrincipal(t: Tabela): string {
   return createHash('sha256').update(chaves.join('\n')).digest('hex').slice(0, 8)
 }
 
-/** Reserva fixa, por tabela de texto da tela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
-const RESERVA_POR_TABELA_DE_TEXTO = 450
-/** Mudanças: a linha "descrições de N mudanças não couberam". */
-const RESERVA_DAS_DESCRICOES = 300
+/** Reserva fixa, por tabela de texto que sai da janela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
+export const RESERVA_POR_TABELA_DE_TEXTO = 450
+/** Mudanças: a linha "descrições de N mudanças não couberam" (só quando as descrições saem). */
+export const RESERVA_DAS_DESCRICOES = 300
+
+/** O aviso de uma tabela de texto que saiu da janela, com um apontador que a IA consegue seguir. */
+const avisoDeTextoFora = (tela: TelaId, titulo: string, quantas: number): string =>
+  tela === 'canais' ? avisoDeLinhas(tela, titulo, quantas) : `tabela "${titulo}": ${quantas} linhas não couberam; peça a ação canal com o Id do canal para ver as de um item`
 
 /**
  * A janela `inicio … inicio + k − 1` da principal, com as linhas de apoio dessas linhas. `k` exato por busca binária: `cabe(k)` = o texto do modo `ia` (principal em `k`
- * linhas, colunas dessas linhas, tabelas fixas, resumo, partes fixas) cabe em `teto`. Notas e dicas ficam sempre fora (estágio E2 fixo): o texto nunca entra no predicado.
- * Estágios (o 1º cujo `k` = 1 cabe): E2 colunas dentro; E2b colunas fora; E2c também o geral e o por-nome fora. Dentro de um estágio `cabe` é monótono em `k`.
+ * linhas, colunas dessas linhas, tabelas fixas, resumo, partes fixas) cabe em `teto`. Notas e dicas de Canais ficam sempre fora; as outras tabelas de texto (títulos, descrições, avisos) seguem as linhas da janela e entram no predicado.
+ * Estágios (o 1º cujo `k` = 1 cabe): E2 tudo da janela dentro; E2t o texto fora; E2b também as colunas fora; E2c também o geral e o por-nome fora. Dentro de um estágio `cabe` é monótono em `k`.
  * `totais`: linhas de cada lista antes do limite da ação (só o `geral` é cortado nele). Chamar só com a principal presente e `1 <= inicio <= total`.
  */
-export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: number, n: number, teto: number, totais?: ReadonlyMap<string, number>): JanelaDaLista {
+export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: number, n: number, teto: number, totais?: ReadonlyMap<string, number>, opcoes: { reservaPorTexto?: number } = {}): JanelaDaLista {
   const tela = modelo.tela
   const classe = (t: Tabela): ClasseNaIa => classeDa(tela, t)
   const principal = modelo.tabelas.find((t) => classe(t) === 'principal')!
@@ -275,20 +282,22 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
   }
   const pesoDaRetirada = (t: Tabela, linhas: Celula[][], cit: readonly BlocoCitado[]): number => Math.max(0, tamanhoSo([{ ...t, linhas }], [...soltos, ...cit]) - baseVazia(t.privada))
 
+  type Estagio = 'E2' | 'E2t' | 'E2b' | 'E2c'
   interface Montagem { modelo: PacoteModelo; antes: Array<{ rotulo: string; caracteres: number }>; avisos: string[]; apoio: Corte['apoio']; semDona: number; textoFora: { tabelas: number; linhas: number } }
-  const montar = (k: number, estagio: 'E2' | 'E2b' | 'E2c', comTexto: boolean): Montagem => {
+  const montar = (k: number, estagio: Estagio, comTexto: boolean): Montagem => {
     const s = inicio - 1, e = s + k
     const dentro = (pos: number): boolean => (pos >= s && pos < e) || (pos < 0 && inicio === 1)
     const avisos: string[] = [...modelo.avisos]
     const antes: Montagem['antes'] = []
     const apoio: Corte['apoio'] = []
-    const mantidas = new Map<string, Set<number>>()
+    const mantidas = new Map<string, Map<number, number>>() // posição 0-based original -> posição 1-based na tabela da janela
     let semDona = 0
     let textoLinhas = 0
     let textoTabelas = 0
     const tabelas: Tabela[] = []
     const tiraDoTexto = (t: Tabela, linhas: Celula[][], idx: number[]): void => {
-      antes.push({ rotulo: `a tabela "${t.titulo}"`, caracteres: pesoDaRetirada(t, linhas, modelo.citados.filter((b) => b.linha?.tabela === t.id && idx.includes(b.linha.posicao - 1))) })
+      const conjunto = new Set(idx)
+      antes.push({ rotulo: `a tabela "${t.titulo}"`, caracteres: pesoDaRetirada(t, linhas, modelo.citados.filter((b) => b.linha?.tabela === t.id && conjunto.has(b.linha.posicao - 1))) })
     }
     for (const t of modelo.tabelas) {
       if (t.tipo !== 'lista') { tabelas.push(t); continue }
@@ -307,8 +316,14 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
       semDona += inicio === 1 && c !== 'texto' ? ds.filter((p) => p < 0).length : 0
       const linhas = idx.map((i) => t.linhas[i]!)
       if (c === 'texto') {
-        if (linhas.length > 0) { textoTabelas += 1; textoLinhas += linhas.length; if (comTexto) avisos.push(avisoDeLinhas(tela, t.titulo, linhas.length)) }
-        continue
+        const sempre = TEXTO_SEMPRE_FORA.has(t.id)
+        if (sempre || estagio !== 'E2') {
+          if (linhas.length > 0) {
+            if (sempre) { textoTabelas += 1; textoLinhas += linhas.length } else apoio.push({ titulo: t.titulo, saiu: 0, de: linhas.length })
+            if (comTexto) { avisos.push(avisoDeTextoFora(tela, t.titulo, linhas.length)); tiraDoTexto(t, linhas, idx) }
+          }
+          continue
+        }
       }
       const fora = estagio === 'E2c' || (estagio === 'E2b' && c === 'coluna')
       if (linhas.length === 0) continue
@@ -318,29 +333,33 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
         apoio.push({ titulo: t.titulo, saiu: 0, de: linhas.length })
         continue
       }
-      mantidas.set(t.id, new Set(idx))
+      mantidas.set(t.id, new Map(idx.map((o, novo) => [o, novo + 1])))
       tabelas.push({ ...t, linhas })
       apoio.push({ titulo: t.titulo, saiu: linhas.length, de: linhas.length })
     }
-    // textos penduradas na principal (descrições das trocas) saem com o texto; os de outras tabelas seguem as linhas que ficaram
+    // as descrições penduradas na principal seguem as linhas da janela no E2 e saem no E2t em diante; os de outras tabelas seguem as linhas que ficaram
     let descricoes = 0
-    const citados: BlocoCitado[] = modelo.citados.filter((b) => {
-      if (!b.linha) return true
-      if (b.linha.tabela === principal.id) { if (b.linha.posicao - 1 >= s && b.linha.posicao - 1 < e) descricoes += 1; return false }
+    // a posição do bloco é na tabela da janela (que tem só as linhas dela): refaz a conta para não apontar para linha que não existe
+    const citados: BlocoCitado[] = modelo.citados.flatMap((b): BlocoCitado[] => {
+      if (!b.linha) return [b]
+      if (b.linha.tabela === principal.id) {
+        const naJanela = b.linha.posicao - 1 >= s && b.linha.posicao - 1 < e
+        if (naJanela && estagio === 'E2') return [{ ...b, linha: { tabela: b.linha.tabela, posicao: b.linha.posicao - s } }]
+        if (naJanela) descricoes += 1
+        return []
+      }
       const m = mantidas.get(b.linha.tabela)
-      return m ? m.has(b.linha.posicao - 1) : !modelo.tabelas.some((t) => t.id === b.linha!.tabela && t.tipo === 'lista')
+      const novo = m?.get(b.linha.posicao - 1)
+      if (novo !== undefined) return [{ ...b, linha: { tabela: b.linha.tabela, posicao: novo } }]
+      return m || modelo.tabelas.some((t) => t.id === b.linha!.tabela && t.tipo === 'lista') ? [] : [b]
     })
-    if (comTexto && descricoes > 0 && ehTelaComLista(tela)) avisos.push(`descrições de ${descricoes} ${SUBSTANTIVO[tela]} não couberam; o detalhe aparece na tela ${TELA_DO_DETALHE[tela] || 'da lista'}`)
-    // os textos retirados entram em `antes` (o `montarTexto` diz que saíram)
-    for (const t of modelo.tabelas) {
-      if (!comTexto || t.tipo !== 'lista' || classe(t) !== 'texto') continue
-      const ds = donos.get(t.id) ?? []
-      const idx = ds.flatMap((p, i) => (dentro(p) ? [i] : []))
-      if (idx.length > 0) tiraDoTexto(t, idx.map((i) => t.linhas[i]!), idx)
+    if (descricoes > 0 && ehTelaComLista(tela)) {
+      apoio.push({ titulo: 'Descrições das linhas', saiu: 0, de: descricoes })
+      if (comTexto) avisos.push(`descrições de ${descricoes} ${SUBSTANTIVO[tela]} não couberam; peça a ação canal com o Id do canal para ver as de um item`)
     }
     return { modelo: { ...modelo, tabelas, citados, avisos }, antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
   }
-  const rodar = (k: number, estagio: 'E2' | 'E2b' | 'E2c', comTexto: boolean) => {
+  const rodar = (k: number, estagio: Estagio, comTexto: boolean, tetoDaBusca: number) => {
     const m = montar(k, estagio, comTexto)
     const fixos = new Set(m.modelo.tabelas.filter((t) => t.tipo === 'lista').map((t) => t.id))
     const p = fixarLinhas(segmentar(m.modelo, ctx), fixos)
@@ -348,26 +367,37 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
     return { m, p, t }
   }
 
-  // O que as tabelas de texto deixam no texto (o aviso de cada uma e a linha "Por tamanho") é uma reserva FIXA por tela, não o que elas ocupam de fato:
-  // assim `k` é o mesmo com e sem notas e dicas. Se a reserva não bastar (o texto real passa do teto), `k` desce até caber.
-  const idsDeTexto = Object.values(CLASSES_NA_IA[tela as TelaComLista] ?? {}).filter((c) => c === 'texto').length
-  const tetoDaBusca = teto - idsDeTexto * RESERVA_POR_TABELA_DE_TEXTO - (tela === 'mudancas' ? RESERVA_DAS_DESCRICOES : 0)
+  // O que os avisos das tabelas de texto que saem deixam no texto (o aviso de cada uma e a linha "Por tamanho") é uma reserva FIXA, não o que elas ocupam de fato:
+  // assim `k` é o mesmo com e sem notas e dicas. Se a reserva não bastar (o texto real passa do teto), uma 2ª busca binária desce `k` até caber.
+  const reserva = opcoes.reservaPorTexto ?? RESERVA_POR_TABELA_DE_TEXTO
+  const tabelasDeTexto = Object.keys(CLASSES_NA_IA[tela as TelaComLista] ?? {}).filter((id) => CLASSES_NA_IA[tela as TelaComLista][id] === 'texto')
   const alvoMax = Math.max(1, Math.min(n, total - inicio + 1))
-  for (const estagio of ['E2', 'E2b', 'E2c'] as const) {
-    const cache = new Map<number, ReturnType<typeof rodar>>()
-    const cabe = (k: number): boolean => { const r = rodar(k, estagio, false); cache.set(k, r); return !r.t.pisoPassou }
-    let lo = 0, hi = alvoMax
+  const buscar = (cabe: (k: number) => boolean, teto: number): number => {
+    let lo = 0, hi = teto
     while (lo < hi) {
       const mid = Math.ceil((lo + hi) / 2)
       if (cabe(mid)) lo = mid
       else hi = mid - 1
     }
+    return lo
+  }
+  for (const estagio of ['E2', 'E2t', 'E2b', 'E2c'] as const) {
     const ultimo = estagio === 'E2c'
+    const nTextos = estagio === 'E2' ? tabelasDeTexto.filter((id) => TEXTO_SEMPRE_FORA.has(id)).length : tabelasDeTexto.length
+    const tetoDaBusca = teto - nTextos * reserva - (tela === 'mudancas' && estagio !== 'E2' ? RESERVA_DAS_DESCRICOES : 0)
+    const cabe = (k: number): boolean => !rodar(k, estagio, false, tetoDaBusca).t.pisoPassou
+    const lo = buscar(cabe, alvoMax)
     if (lo === 0 && !ultimo) continue
-    let k = Math.max(1, lo)
     // o texto de verdade (com os avisos das tabelas de texto); a reserva quase sempre basta
-    let r = rodar(k, estagio, true)
-    for (let volta = 0; r.t.pisoPassou && k > 1 && volta < 50; volta += 1) { k -= 1; r = rodar(k, estagio, true) }
+    const completos = new Map<number, ReturnType<typeof rodar>>()
+    const completo = (k: number): ReturnType<typeof rodar> => { let r = completos.get(k); if (!r) { r = rodar(k, estagio, true, tetoDaBusca); completos.set(k, r) } return r }
+    const cheio = (k: number): boolean => !completo(k).t.pisoPassou
+    let k = Math.max(1, lo)
+    if (!cheio(k)) {
+      k = k > 1 ? buscar(cheio, k) : 0
+      if (k === 0) { if (!ultimo) continue; k = 1 }
+    }
+    const r = completo(k)
     return {
       corte: {
         texto: r.t, estagio, avisos: r.m.avisos.slice(modelo.avisos.length), linhasDaPrincipal: k, totalDaPrincipal: total, principalCortada: false,

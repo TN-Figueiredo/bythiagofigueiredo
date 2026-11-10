@@ -20,6 +20,8 @@ export interface Cobertura {
   /** A7b: linhas de apoio sem dona na lista principal, entregues na janela 1. */
   semDona?: number
   marcaMudou?: boolean
+  /** Uma janela anterior da lista perdeu geral, colunas ou texto: a última não pode dizer que a tela foi vista toda. */
+  janelasAnterioresPerderam?: boolean
   vazio: boolean
   proximas: Array<{ chamada: Record<string, unknown>; para: string }>
 }
@@ -30,7 +32,7 @@ const encurta = (s: string, n: number): string => (s.length <= n ? s : `${s.slic
 
 /** Completa = sem lista ou `ate == total`, sem série parcial, apoio todo inteiro, sem corte de tamanho e sem grupo paginado pela tela. Vazia nunca é completa. */
 export function coberturaCompleta(c: Cobertura): boolean {
-  if (c.vazio || c.marcaMudou) return false
+  if (c.vazio || c.marcaMudou || c.janelasAnterioresPerderam) return false
   if (c.lista && c.lista.ate !== c.lista.total) return false
   if (c.serie && (c.serie.pontos < c.serie.total || (c.serie.semData ?? 0) > 0)) return false
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) return false
@@ -69,6 +71,7 @@ const NIVEIS: Nivel[] = [
 function montar(c: Cobertura, n: Nivel): string {
   const L: string[] = ['## Cobertura']
   if (c.marcaMudou) L.push('- A lista mudou desde a janela anterior: linhas podem repetir ou faltar; refaça da linha 1.')
+  if (c.janelasAnterioresPerderam) L.push('- Uma janela anterior desta lista deixou parte do conteúdo de fora (o geral, colunas ou texto); a Cobertura dela diz o quê.')
   if (c.lista) {
     const l = c.lista
     const trecho = l.total === 0 ? '0 de 0 linhas' : `linhas ${l.de}–${l.ate} de ${l.total}`

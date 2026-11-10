@@ -26,7 +26,7 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AGORA, CONTEXTO, base, medido, modeloCheio, modeloEstresseMudancas, rotulo, terceiros } from './contexto-ia-fixture'
-import { CLASSES_NA_IA, classeDa, escolherCorte, fixarLinhas } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
+import { CLASSES_NA_IA, classeDa, escolherCorte, fixarLinhas, janela } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { ABRIDOR_DE_SESSAO } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
 import type { Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -287,13 +287,15 @@ describe('A7a Fatia 1, conserto do parecer (I1, I2, I3, M1, M2), sempre pelo res
     expect(r.texto).toContain(`tabela "Dicas": ${300 - noTexto} linhas não couberam`)
   })
 
-  it('I2: Mudanças com 40 trocas de 5.000 caracteres: a principal fica inteira, as descrições é que saem', async () => {
+  it('I2: Mudanças com 40 trocas de 5.000 caracteres: a janela leva as linhas com as descrições delas, nada de principal_cortada', async () => {
     dobra('mudancas', modeloEstresseMudancas())
     const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
-    expect(linhasNoTexto(r.texto, 'Trocas de descrição')).toBe(40)
+    expect(linhasNoTexto(r.texto, 'Trocas de descrição')).toBe(Number(r.params.linhas))
+    expect(Number(r.params.linhas)).toBe(40)
+    expect(r.params.completa).toBe(false)
     expect(JSON.stringify(m.captured)).not.toContain('principal_cortada')
-    expect(r.texto).toContain('descrições')
-    expect(r.texto.length).toBeLessThanOrEqual(TETO)
+    expect(r.texto).toContain('descrição nova do vídeo 1')
+    expect(r.texto.length).toBeLessThanOrEqual(45_000)
   })
 
   it('I2 (direto): escolherCorte não passa de E2b e a principal não é cortada', () => {
@@ -428,7 +430,7 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
   }
   const ks = (rs: Resp[]): number[] => rs.map((r) => Number(r.params.linhas))
 
-  it.each([[34, [34]], [60, [60]], [75, [75]], [200, [93, 91, 16]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
+  it.each([[34, [34]], [60, [60]], [75, [69, 6]], [200, [69, 68, 63]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
     dobra('canais', modeloDe(n))
     const rs = await lerTudo({ acao: 'listar_canais' })
     expect(ks(rs)).toEqual(esperado)
@@ -447,11 +449,14 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     expect(rs.map((r) => r.params.total)).toEqual([212, 212, 212, 212, 212])
   })
 
-  it('k medido: mudanças (40 trocas de 5.000 caracteres) cabem numa janela; as descrições ficam fora e a janela diz', async () => {
+  it('k medido: mudanças (40 trocas de 5.000 caracteres): a janela leva as descrições das suas linhas e encadeia até o fim', async () => {
     dobra('mudancas', modeloEstresseMudancas())
     const rs = await lerTudo({ acao: 'mudancas' })
+    // as 40 linhas cabem; as descrições (blocos cortáveis) são aparadas pelo degrau, e a Cobertura diz "cortado por tamanho"
     expect(ks(rs)).toEqual([40])
-    expect(rs[0]!.texto).toContain('descrições de 40 mudanças não couberam')
+    expect(rs[0]!.texto).toContain('descrição nova do vídeo 1')
+    expect(secaoDe(rs[0]!.texto)).toContain('Cortado por tamanho')
+    expect(rs[0]!.texto.length).toBeLessThanOrEqual(45_000)
     expect(rs[0]!.params.sem_dona).toBe(0)
   })
 
@@ -475,12 +480,12 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
   it('(b) 60 canais da fixture: cada linha da janela leva as suas colunas e nenhuma coluna de canal de fora', async () => {
     const mod = modeloDe(200)
     dobra('canais', mod)
-    const r = await responder({ acao: 'listar_canais', a_partir_da_linha: 94 }, abrir, AGORA)
+    const r = await responder({ acao: 'listar_canais', a_partir_da_linha: 70 }, abrir, AGORA)
     const nomes = (t: Tabela): string[] => t.linhas.map((l) => (l.find((c) => c.papel === 'terceiros') as { texto: string }).texto)
     const principal = mod.tabelas.find((t) => t.id === 'canais')!
     const k = Number(r.params.linhas)
-    const daJanela = new Set(nomes({ ...principal, linhas: principal.linhas.slice(93, 93 + k) }))
-    const antes = new Set(nomes({ ...principal, linhas: principal.linhas.slice(0, 93) }))
+    const daJanela = new Set(nomes({ ...principal, linhas: principal.linhas.slice(69, 69 + k) }))
+    const antes = new Set(nomes({ ...principal, linhas: principal.linhas.slice(0, 69) }))
     const corpo = r.texto.slice(0, r.texto.lastIndexOf('\n## Cobertura'))
     const linhasDe = (titulo: string): string[] => { const l = corpo.split('\n'); const i = l.findIndex((x) => x.startsWith(`### ${titulo}`)); if (i < 0) return []; const o: string[] = []; for (let j = i + 3; l[j]?.startsWith('| '); j += 1) o.push(l[j]!); return o }
     const colunas = linhasDe('O nicho de cada canal')
@@ -490,7 +495,7 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
       expect(nome, l.slice(0, 80)).toBeDefined()
       for (const a of antes) expect(l.includes(a) && !daJanela.has(a) && !l.includes([...daJanela].find((x) => l.includes(x))!)).toBe(false)
     }
-    expect(k).toBe(91)
+    expect(k).toBe(68)
   }, 60_000)
 
   it('(c) linha de apoio sem dona: só na janela 1 e contada em sem_dona', async () => {
@@ -571,12 +576,12 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
   it('(k) por nome: na janela 2 saem as referências e inscritos dos canais dela e só deles; nome repetido vai à janela 1 em sem_dona', async () => {
     const mod = modeloDe(200)
     dobra('canais', mod)
-    const r2 = await responder({ acao: 'listar_canais', a_partir_da_linha: 94 }, abrir, AGORA)
+    const r2 = await responder({ acao: 'listar_canais', a_partir_da_linha: 70 }, abrir, AGORA)
     const principal = mod.tabelas.find((t) => t.id === 'canais')!
     const nome = (l: readonly { papel: string; texto?: string }[]): string => (l.find((c) => c.papel === 'terceiros') as { texto: string }).texto
     const k = Number(r2.params.linhas)
-    const dela = principal.linhas.slice(93, 93 + k).map(nome)
-    const antes = principal.linhas.slice(0, 93).map(nome)
+    const dela = principal.linhas.slice(69, 69 + k).map(nome)
+    const antes = principal.linhas.slice(0, 69).map(nome)
     const corpo = r2.texto.slice(0, r2.texto.lastIndexOf('\n## Cobertura'))
     const l = corpo.split('\n')
     const i = l.findIndex((x) => x.startsWith('### Referências: o vídeo típico'))
@@ -604,11 +609,128 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     const a = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     dobra('canais', com)
     const b = await responder({ acao: 'listar_canais' }, abrir, AGORA)
-    expect(a.params.linhas).toBe(93)
-    expect(b.params.linhas).toBe(93)
+    expect(a.params.linhas).toBe(69)
+    expect(b.params.linhas).toBe(69)
     expect(a.texto).not.toContain('### A dica de cada medida')
     expect(b.texto).not.toContain('### A dica de cada medida')
     expect(secaoDe(a.texto)).not.toContain('Notas e dicas')
     expect(secaoDe(b.texto)).toMatch(/Notas e dicas: 0 de \d+ linhas; para um canal, peça canal com o Id/)
   }, 60_000)
+})
+
+/* ------------------------------------------------------------------ A7b Fatia 4, rodada 2 (parecer do Yannis: B1, I1, I2, I3) */
+
+describe('A7b Fatia 4 rodada 2: o texto das tabelas acompanha a janela; só notas e dicas de Canais ficam fora', () => {
+  const abrir = ABRIDOR_DE_SESSAO
+  type Resp = Awaited<ReturnType<typeof responder>>
+  const dobra = (tela: TelaId, modelo: PacoteModelo) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => ({ modelo, recente: '13/10/2026 09:10', estado: {} }))
+  beforeEach(() => { m.captured.length = 0; m.montar.n = 0; for (const t of ['canais', 'outliers', 'mudancas']) m.empacotar[t] = vi.fn(async () => null) })
+  const PROX = /^- (\{.*\}) : ver a próxima janela/m
+  const secaoDe = (t: string): string => t.slice(t.lastIndexOf('\n## Cobertura'))
+  const proximaDe = (t: string): Record<string, unknown> | null => { const x = PROX.exec(secaoDe(t)); return x ? (JSON.parse(x[1]!) as Record<string, unknown>) : null }
+  async function lerTudo(entrada: Record<string, unknown>, max = 60): Promise<Resp[]> {
+    const out: Resp[] = []
+    let e: Record<string, unknown> | null = entrada
+    for (let i = 0; i < max && e; i += 1) { const r = await responder(e, abrir, AGORA); out.push(r); e = proximaDe(r.texto) }
+    return out
+  }
+  const trocas = (n: number, tamanho: number): PacoteModelo => {
+    const principal: Tabela = {
+      id: 'trocas', titulo: 'Trocas', tipo: 'lista', nomeNoCorte: 'tabela de trocas', privada: false, colunas: ['Vídeo', 'Quando'],
+      linhas: Array.from({ length: n }, (_, i) => [terceiros(`Vídeo ${i}`, `pack.t[${i}].titulo`), medido(`${i}`, i, `pack.t[${i}].quando`)]),
+    }
+    const titulos: Tabela = {
+      id: 'trocas-titulos', titulo: 'Títulos de antes e de depois', tipo: 'lista', nomeNoCorte: 'tabela de títulos', privada: false, colunas: ['Vídeo', 'Depois'],
+      linhas: Array.from({ length: n }, (_, i) => [terceiros(`Vídeo ${i}`, `pack.t[${i}].titulo`), terceiros(`DEPOIS-${i}-F ${'d'.repeat(tamanho)}`, `pack.t[${i}].depois`)]),
+    }
+    return sintetico('mudancas', [principal, titulos])
+  }
+
+  it('B1 (a): 3 trocas com títulos: os títulos estão no texto, completa e sem "não couberam"', async () => {
+    dobra('mudancas', trocas(3, 200))
+    const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
+    for (let i = 0; i < 3; i += 1) expect(r.texto).toContain(`DEPOIS-${i}-F`)
+    expect(r.params.completa).toBe(true)
+    expect(r.texto).not.toContain('não couberam')
+  })
+
+  it('B1 (b): 40 trocas de 5.000 caracteres: encadeando, cada título aparece uma vez e cada texto cabe no teto', async () => {
+    dobra('mudancas', trocas(40, 5_000))
+    const rs = await lerTudo({ acao: 'mudancas' })
+    expect(rs.length).toBeGreaterThan(1)
+    const todos = rs.map((r) => r.texto).join('\n')
+    for (let i = 0; i < 40; i += 1) expect(todos.split(`DEPOIS-${i}-F `).length - 1, `título ${i}`).toBe(1)
+    for (const r of rs) expect(r.texto.length).toBeLessThanOrEqual(45_000)
+    expect(rs.map((r) => Number(r.params.linhas))).toEqual([8, 8, 8, 8, 8])
+    expect(rs.map((r) => r.params.completa)).toEqual([false, false, false, false, true])
+  })
+
+  it('B1 (c): Destaques com avisos casando pela origem: o aviso do vídeo 51 só na janela 2', async () => {
+    dobra('outliers', destaquesDe(120))
+    const rs = await lerTudo({ acao: 'destaques' })
+    expect(rs.length).toBe(3)
+    expect(rs[0]!.texto).toContain('aviso 0 ')
+    expect(rs[0]!.texto).not.toContain('aviso 100 ')
+    expect(rs[1]!.texto).toContain('aviso 100 ')
+    expect(rs[2]!.texto).not.toContain('aviso 100 ')
+  })
+
+  it('B1: quando o texto não cabe, sai antes das colunas (E2t), com aviso verdadeiro e a Cobertura incompleta', async () => {
+    dobra('mudancas', trocas(5, 50_000))
+    const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
+    expect(r.texto).not.toContain('DEPOIS-0-F')
+    expect(r.texto).toMatch(/tabela "Títulos de antes e de depois": \d+ linhas não couberam/)
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+  })
+
+  it('I1: o geral não coube na janela 1 (E2c): a última janela não diz que viu tudo', async () => {
+    dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 300, 500), lista('tabela-geral', 'Tabela geral', 1, 70_000)]))
+    const rs = await lerTudo({ acao: 'listar_canais' })
+    expect(rs.length).toBeGreaterThan(2)
+    expect(rs[0]!.texto).not.toContain('### Tabela geral')
+    const ult = rs[rs.length - 1]!
+    expect(ult.params.completa).toBe(false)
+    expect(secaoDe(ult.texto)).not.toContain('Você viu tudo')
+  })
+
+  it('I1: sem perda em nenhuma janela, a última diz que viu tudo', async () => {
+    dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 300, 500)]))
+    const rs = await lerTudo({ acao: 'listar_canais' })
+    expect(rs.at(-1)!.params.completa).toBe(true)
+  })
+
+  it('I2: o teto da janela é um só, 45.000, mesmo com 60.000 de teto da ação', async () => {
+    dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 1_000, 500)]))
+    const rs = await lerTudo({ acao: 'listar_canais' })
+    for (const r of rs) expect(r.texto.length).toBeLessThanOrEqual(45_000)
+    expect(Number(rs[0]!.params.linhas)).toBeGreaterThan(60)
+  })
+
+  it('I3: reserva errada (zerada): a busca de k termina em O(log n) montagens e não desce de 1 em 1', async () => {
+    // o título da tabela de notas (3.000 caracteres) vai no aviso, que nunca é cortado: o texto real passa do que a reserva zerada previu
+    const mod = sintetico('canais', [lista('canais', 'Os canais', 200, 8), lista('canais-notas', 'N'.repeat(3_000), 200, 8), lista('canais-dicas', 'Dicas', 200, 8)])
+    const alto = janela(mod, CONTEXTO, 1, 200, 1_000_000, undefined, { reservaPorTexto: 0 })
+    const teto = alto.corte.texto.texto.length - 2_000
+    m.montar.n = 0
+    const j = janela(mod, CONTEXTO, 1, 200, teto, undefined, { reservaPorTexto: 0 })
+    expect(j.k).toBeLessThan(200)
+    expect(j.k).toBeGreaterThan(100)
+    expect(j.corte.texto.pisoPassou).toBe(false)
+    expect(m.montar.n).toBeLessThanOrEqual(2 * (Math.ceil(Math.log2(200)) + 1))
+  })
+
+  it('I3: se nem k = 1 cabe com o texto real, tenta o estágio seguinte (E2b: colunas fora) em vez de cortar o fim', async () => {
+    const principal = lista('canais', 'Os canais', 5, 10)
+    const coluna = lista('canais-nicho', 'O nicho de cada canal', 1, 6_000)
+    const notas = lista('canais-notas', 'N'.repeat(1_000), 5, 10)
+    const sem = janela(sintetico('canais', [principal, coluna]), CONTEXTO, 1, 1, 1_000_000)
+    expect(sem.corte.estagio).toBe('E2')
+    const x = sem.corte.texto.texto.length // k = 1, colunas dentro, sem o aviso das notas
+    // a reserva (2 x 450) prevê o aviso das notas e a busca acha k = 1; o aviso real (título de 1.000 caracteres, nunca cortado) estoura o teto
+    const j = janela(sintetico('canais', [principal, coluna, notas]), CONTEXTO, 1, 1, x + 1_000)
+    expect(j.corte.estagio).toBe('E2b')
+    expect(j.linhaNaoCabe).toBe(false)
+    expect(j.corte.texto.pisoPassou).toBe(false)
+  })
 })

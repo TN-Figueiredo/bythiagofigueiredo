@@ -7,6 +7,7 @@ import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import type { z } from 'zod'
 import { ACOES, ENTRADA, traduzir, type Acao, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
+import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
@@ -148,11 +149,12 @@ function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>
 
 /* ------------------------------------------------------------------ limites próprios */
 
-/** A7b: a linha da Cobertura para as tabelas de texto que ficam fora de toda janela de lista. */
+/** 9º caractere da `marca`: alguma janela anterior perdeu parte do conteúdo. */
+const MARCA_PERDEU = 'p'
+
+/** A7b: a linha da Cobertura para as tabelas de texto que ficam fora de toda janela de lista (só notas e dicas de Canais). */
 const TEXTO_FORA = {
   canais: { rotulo: 'Notas e dicas', comoVer: 'para um canal, peça canal com o Id' },
-  outliers: { rotulo: 'Avisos de cada outlier', comoVer: 'o detalhe aparece na tela Destaques' },
-  mudancas: { rotulo: 'Notas, títulos, imagens e descrições das trocas', comoVer: 'o detalhe aparece na tela Mudanças' },
 } as const
 
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
@@ -534,6 +536,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     let marcaMudou = false
     let semDona = 0
     let janelaDeLista = false
+    let janelasAnterioresPerderam = false
     let textoFora: Cobertura['textoFora']
     if (pedido.limite.tipo === 'linhas') {
       const n = pedido.limite.n
@@ -548,14 +551,17 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         }
         janelaDeLista = true
         const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, new Set<ClasseNaIa>(['geral']))
-        const j = janela(lim.modelo, ctx, pedido.inicio, n, tetoDoTexto, lim.totais)
+        const j = janela(lim.modelo, ctx, pedido.inicio, n, Math.min(tetoDoTexto, ACESSO_IA_RULES.tetoDaJanela), lim.totais)
         modelo = lim.modelo
         const c = j.corte
         if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
         inicioDaJanela = pedido.inicio
-        marcaMudou = pedido.marca !== undefined && pedido.marca !== j.marca
+        marcaMudou = pedido.marca !== undefined && pedido.marca.slice(0, 8) !== j.marca
         semDona = j.semDona
-        if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca }
+        // o que uma janela perdeu (geral, colunas, texto, linha que não coube) viaja no 9º caractere da marca, para a última janela não dizer "viu tudo"
+        const perdeuAqui = c.estagio !== 'E2' || c.apoio.some((x) => x.saiu < x.de) || j.linhaNaoCabe
+        janelasAnterioresPerderam = pedido.inicio > 1 && pedido.marca?.endsWith(MARCA_PERDEU) === true
+        if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca + (perdeuAqui || janelasAnterioresPerderam ? MARCA_PERDEU : '') }
         cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
         feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
         doCorte = { linhas: j.k, total: totalAntes }
@@ -605,7 +611,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       ...(lista ? { lista } : {}),
       ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
-      ...(textoFora ? { textoFora } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}),
+      ...(textoFora ? { textoFora } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}), ...(janelasAnterioresPerderam ? { janelasAnterioresPerderam: true } : {}),
       ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
       ...(vazio && pedido.limite.tipo === 'pontos' ? { serieAusente: true } : {}),
       proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie, inicioDaJanela, proxima),

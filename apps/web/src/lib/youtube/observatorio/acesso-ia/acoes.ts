@@ -30,7 +30,7 @@ export interface Pedido {
   janelaUsada?: string
   /** A7b: a 1ª linha da janela da lista principal (1-based; padrão 1). Só `listar_canais`, `destaques` e `mudancas` a aceitam. */
   inicio: number
-  /** A7b: a `marca` que a Cobertura devolveu na janela anterior (8 hex); vem só quando a IA a repete. */
+  /** A7b: a `marca` que a Cobertura devolveu na janela anterior (8 hex, mais `p` se uma janela anterior perdeu conteúdo); vem só quando a IA a repete. */
   marca?: string
 }
 
@@ -47,7 +47,8 @@ const janela = z.preprocess((v) => (typeof v === 'number' ? String(v) : v), z.en
 const formato = z.enum(['todos', 'longos', 'shorts'])
 // A7b: a janela da lista. A IA às vezes manda "41" (texto); número inteiro de 1 a 100.000
 const aPartirDaLinha = z.preprocess((v) => (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(100_000)).optional()
-const marca = z.string().regex(/^[0-9a-f]{8}$/).optional()
+/** 8 hex da lista; o 9º caractere `p` diz que uma janela anterior perdeu parte do conteúdo (a IA o repete como veio). */
+const marca = z.string().regex(/^[0-9a-f]{8}p?$/).optional()
 
 const dataReal = (s: string): boolean => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
