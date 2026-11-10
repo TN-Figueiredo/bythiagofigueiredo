@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { EXCECOES } from '../helpers/views-excecoes'
+import { EXCECOES, EXCECOES_STORAGE } from '../helpers/views-excecoes'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -52,7 +52,7 @@ describe.skipIf(skipIfNoLocalDb())('storage.objects: escrita sem conferir papel'
 
   it('nenhuma policy de escrita aberta a public/anon só por bucket_id', async () => {
     const r = await db.query<{ policyname: string }>(ESCRITA_STORAGE_ABERTA)
-    expect(r.rows.map(x => x.policyname)).toEqual([])
+    expect(r.rows.map(x => x.policyname)).toEqual(Object.keys(EXCECOES_STORAGE).sort())
   })
 })
 

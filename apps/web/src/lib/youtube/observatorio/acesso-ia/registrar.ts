@@ -9,6 +9,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACOES } from './acoes'
+import { TODOS_OS_CAMPOS } from './exemplos'
 import { ACESSO_IA_RULES } from './regras'
 import { telaExiste } from '../contexto-ia/telas'
 import type { ChaveDoPerfilProvada } from './prova'
@@ -69,6 +70,8 @@ function paresDeParametros(v: unknown): { ok: string[]; fora: number } | null {
   return { ok: [...ok].sort().slice(0, 12), fora: new Set(pares).size - ok.size }
 }
 
+const CAMPOS_DE_RECUSA: readonly string[] = [...TODOS_OS_CAMPOS, '(desconhecido)']
+
 /** A chave aceita? Se sim, o valor (cortado/ajustado) que vai para a linha; se não, `undefined` e a chave sai. */
 const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | undefined>> = {
   acao: (v) => (daLista(ACOES)(v) ? v : undefined),
@@ -106,6 +109,12 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   completa: (v) => (typeof v === 'boolean' ? v : undefined),
   ms: (v) => (contador(v) ? v : undefined),
   fora_do_pacote: (v) => (contador(v) ? v : undefined),
+  // A7e: qual(is) campo(s) o esquema recusou (só NOMES de campo do esquema ou "(desconhecido)"; nunca o valor), até 6
+  campos_invalidos: (v) => {
+    if (!Array.isArray(v)) return undefined
+    const ok = [...new Set(v.filter((x): x is string => typeof x === 'string' && CAMPOS_DE_RECUSA.includes(x)))].sort().slice(0, 6)
+    return ok.length > 0 ? ok : undefined
+  },
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }

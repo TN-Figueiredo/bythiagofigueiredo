@@ -27,9 +27,15 @@ export function violacoes(dir: string): string[] {
     if (dropado) continue
     const ate = texto.indexOf(';', pos)
     const proprio = /security_invoker\s*=\s*(on|true)/.test(texto.slice(pos, ate < 0 ? undefined : ate))
-    const alter = [...texto.matchAll(/alter\s+view\s+(?:if\s+exists\s+)?(?:public\.)?(\w+)\s+set\s*\(\s*security_invoker\s*=?\s*(on|true)?/g)]
-      .some(a => a[1] === nome && a.index! > pos)
-    if (!proprio && !alter) out.push(nome)
+    // só on/true/yes/1 (ou forma sem valor) conserta; off/false/reset posterior desfaz
+    const ALTER = /alter\s+view\s+(?:if\s+exists\s+)?(?:public\.)?(\w+)\s+(set|reset)\s*\(\s*security_invoker\s*(=\s*\w+)?/g
+    let ligadoFinal = proprio
+    for (const a of texto.matchAll(ALTER)) {
+      if (a[1] !== nome || a.index! <= pos) continue
+      const ligado = a[2] === 'set' && (a[3] === undefined || /=\s*(on|true|yes|1)$/.test(a[3]))
+      ligadoFinal = ligado
+    }
+    if (!ligadoFinal) out.push(nome)
   }
 
   for (const [nome, pos] of mvs) {
@@ -40,7 +46,11 @@ export function violacoes(dir: string): string[] {
       if (/\banon\b/.test(r[2]!)) anon = true
       if (/\bauthenticated\b/.test(r[2]!)) auth = true
     }
-    if (!(anon && auth)) out.push(nome)
+    // grant posterior ao último revoke reabre a leitura
+    const grantAberto = [...resto.matchAll(/grant\s+[^;]*?\s+on\s+(?:table\s+)?([^;]*?)\s+to\s+([^;]*)/g)]
+      .some(g => new RegExp(`(?:^|[\\s,])public\\.${nome}(?=[\\s,]|$)`).test(g[1]!) && /\b(anon|authenticated|public)\b/.test(g[2]!)
+        && !/^\s*revoke/.test(g[0]))
+    if (!(anon && auth) || grantAberto) out.push(nome)
   }
   return out.sort()
 }
@@ -75,6 +85,27 @@ describe('supabase/migrations: views com security_invoker, mvs sem grant a anon/
     try {
       writeFileSync(join(t, '1_a.sql'), 'create view public.a with (security_invoker = on) as select 1;\ncreate view public.b as select 1;\nalter view public.b set (security_invoker = on);\ncreate materialized view public.m as select 1;\nrevoke all on public.m from anon, authenticated;')
       expect(violacoes(t)).toEqual([])
+    } finally { rmSync(t, { recursive: true, force: true }) }
+  })
+  it('negativo (m1): alter com security_invoker = off', () => {
+    const t = mkdtempSync(join(tmpdir(), 'mig-vw-'))
+    try {
+      writeFileSync(join(t, '1_a.sql'), 'create view public.v as select 1;\nalter view public.v set (security_invoker = off);')
+      expect(violacoes(t)).toEqual(['v'])
+    } finally { rmSync(t, { recursive: true, force: true }) }
+  })
+  it('negativo (m1): reset do invoker depois de ligado', () => {
+    const t = mkdtempSync(join(tmpdir(), 'mig-vw-'))
+    try {
+      writeFileSync(join(t, '1_a.sql'), 'create view public.v with (security_invoker = on) as select 1;\nalter view public.v reset (security_invoker);')
+      expect(violacoes(t)).toEqual(['v'])
+    } finally { rmSync(t, { recursive: true, force: true }) }
+  })
+  it('negativo (m2): grant a anon depois do revoke da mv', () => {
+    const t = mkdtempSync(join(tmpdir(), 'mig-vw-'))
+    try {
+      writeFileSync(join(t, '1_a.sql'), 'create materialized view public.m as select 1;\nrevoke all on public.m from anon, authenticated;\ngrant select on public.m to anon;')
+      expect(violacoes(t)).toEqual(['m'])
     } finally { rmSync(t, { recursive: true, force: true }) }
   })
 })

@@ -6,7 +6,7 @@
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import type { z } from 'zod'
-import { ENTRADA, traduzir, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
+import { ACOES, ENTRADA, traduzir, type Acao, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
@@ -17,6 +17,7 @@ import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
+import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte } from './corte-da-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
@@ -32,8 +33,25 @@ const avisar = (passo: string, extra?: Record<string, number | string>): void =>
 
 /* ------------------------------------------------------------------ pedido inválido, sem eco de texto livre */
 
-const CAMPOS = ['acao', 'canal_id', 'video_id', 'canal_ids', 'janela', 'formato', 'nicho', 'de', 'ate', 'grao', 'desde', 'tela', 'id', 'parametros'] as const
-const ehCampo = (s: unknown): s is (typeof CAMPOS)[number] => typeof s === 'string' && (CAMPOS as readonly string[]).includes(s)
+const CAMPOS = TODOS_OS_CAMPOS
+const ehCampo = (s: unknown): s is string => typeof s === 'string' && CAMPOS.includes(s)
+
+/** A ação que a pessoa mandou, só se for uma das dez; qualquer outra coisa vira `null` (nunca se ecoa). */
+const acaoConhecida = (e: unknown): Acao | null => {
+  const a = typeof e === 'object' && e !== null ? (e as { acao?: unknown }).acao : undefined
+  return typeof a === 'string' && (ACOES as readonly string[]).includes(a) ? (a as Acao) : null
+}
+
+/** Quais campos o esquema apontou (só nomes do esquema; campo inventado vira `(desconhecido)`); `undefined` se nenhum issue diz qual. */
+function camposInvalidos(erro: z.ZodError): string[] | undefined {
+  const c = new Set<string>()
+  for (const i of erro.issues) {
+    if (i.code === 'unrecognized_keys') c.add('(desconhecido)')
+    else if (ehCampo(i.path[0])) c.add(String(i.path[0]))
+    else if (i.code === 'invalid_union_discriminator') c.add('acao')
+  }
+  return c.size === 0 ? undefined : [...c].sort().slice(0, 6)
+}
 
 /** A frase do esquema, sem o que a pessoa escreveu: só mensagens nossas (`custom`) ou o nome de um campo conhecido. */
 function fraseDoEsquema(erro: z.ZodError): string {
@@ -42,6 +60,7 @@ function fraseDoEsquema(erro: z.ZodError): string {
     const campo = ehCampo(i.path[0]) ? String(i.path[0]) : null
     if (i.code === 'custom') frases.add(campo ? `${campo}: ${i.message}` : i.message)
     else if (i.code === 'unrecognized_keys') frases.add('a ação não aceita um dos campos enviados')
+    else if (i.code === 'invalid_union_discriminator') frases.add('acao fora da lista')
     else if (i.code === 'invalid_union' || i.code === 'invalid_enum_value' || i.code === 'invalid_literal') frases.add(campo ? `${campo}: valor fora da lista` : 'ação desconhecida')
     else if (i.code === 'too_big' || i.code === 'too_small') frases.add(campo ? `${campo}: tamanho fora do permitido` : 'entrada fora do tamanho permitido')
     else frases.add(campo ? `${campo}: valor fora de forma` : 'entrada fora de forma')
@@ -112,7 +131,7 @@ const dmy = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice
 /** Uma semana (segunda a domingo) vira UMA linha: o rótulo da semana e, por coluna numérica, a soma dos 7 dias só quando os 7 estão medidos (com `x`); senão "não medido" com `N de 7 dias medidos`. `soma=false`: tipo não declarado, nunca soma. */
 function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>, soma: boolean): Celula[] {
   const ref = linhas[0]!
-  const medidas = (j: number): number[] => linhas.map((l) => l[j]).flatMap((c) => (c && c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && c.x !== null ? [c.x] : []))
+  const medidas = (j: number): number[] => linhas.map((l) => l[j]).flatMap((c) => (c && c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && typeof c.x === 'number' && Number.isFinite(c.x) ? [c.x] : []))
   const quantos = Math.max(0, ...ref.map((c, j) => (c.papel === 'numero' ? medidas(j).length : 0)))
   const faltou = `${quantos} de 7 dias medidos`
   return ref.map((c, j): Celula => {
@@ -400,11 +419,14 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
   const t0 = Date.now()
   try {
     const lida = ENTRADA.safeParse(entradaCrua)
-    if (!lida.success) return resp('pedido_invalido', fraseDoEsquema(lida.error))
+    if (!lida.success) {
+      const campos = camposInvalidos(lida.error)
+      return resp('pedido_invalido', fraseDeRecusa(acaoConhecida(entradaCrua), fraseDoEsquema(lida.error)), campos ? { campos_invalidos: campos } : {})
+    }
     const entrada = lida.data
     params = paramsDaEntrada(entrada)
     const t = traduzir(entrada)
-    if (!t.ok) return resp('pedido_invalido', t.frase, params)
+    if (!t.ok) return resp('pedido_invalido', fraseDeRecusa(entrada.acao, t.frase), { ...params, campos_invalidos: [...t.campos].sort() })
     const pedido = t.pedido
     const cortes: Cortes = { n: 0 }
     const topo = topoDe(pedido)

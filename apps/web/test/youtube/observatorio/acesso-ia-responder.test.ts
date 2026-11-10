@@ -149,7 +149,8 @@ describe('responder: entrada inválida', () => {
   })
   it('a frase do tradutor passa: comparar com 1 canal', async () => {
     const r = await responder({ acao: 'comparar', canal_ids: [C1] }, abrir, AGORA)
-    expect(r).toMatchObject({ desfecho: 'pedido_invalido', texto: 'comparar aceita de 2 a 6 canais; vieram 1' })
+    expect(r.desfecho).toBe('pedido_invalido')
+    expect(r.texto).toMatch(/^pedido recusado: comparar aceita de 2 a 6 canais; vieram 1\. Formato de comparar: /)
   })
 })
 
