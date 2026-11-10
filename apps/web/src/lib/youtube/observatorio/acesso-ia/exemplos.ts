@@ -3,10 +3,16 @@
 // Os exemplos levam `<...>` no lugar dos ids (a pessoa lê o que cada um é); `exemploValido` troca pelos valores de teste.
 import { ACOES, ENTRADA, type Acao } from './acoes'
 
+const CAMPOS_POR_ACAO = new Map<string, readonly string[]>(
+  ENTRADA.options.map((o) => [o.shape.acao.value, Object.keys(o.shape).filter((k) => k !== 'acao').sort()]),
+)
+const camposDe = (a: Acao): readonly string[] => {
+  const campos = CAMPOS_POR_ACAO.get(a)
+  if (!campos) throw new Error(`ação sem esquema em ENTRADA: ${a}`)
+  return campos
+}
 export const CAMPOS_DA_ACAO: Readonly<Record<Acao, readonly string[]>> = Object.freeze(
-  Object.fromEntries(
-    ENTRADA.options.map((o) => [o.shape.acao.value, Object.keys(o.shape).filter((k) => k !== 'acao').sort()]),
-  ) as unknown as Record<Acao, readonly string[]>,
+  ACOES.reduce<Partial<Record<Acao, readonly string[]>>>((acc, a) => ({ ...acc, [a]: camposDe(a) }), {}) as Record<Acao, readonly string[]>,
 )
 /** Todos os campos que algum pedido aceita (mais `acao`), na ordem do esquema. */
 export const TODOS_OS_CAMPOS: readonly string[] = Object.freeze(['acao', ...new Set(ENTRADA.options.flatMap((o) => Object.keys(o.shape).filter((k) => k !== 'acao')))])

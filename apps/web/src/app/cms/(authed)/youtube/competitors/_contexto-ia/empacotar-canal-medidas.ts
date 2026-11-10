@@ -87,7 +87,7 @@ export interface LinhaDoTempoIa {
   motivo: string | null
   nota: string | null
   corte: string | null
-  dias: Array<{ dia: string; views: string; situacao: string }>
+  dias: Array<{ dia: string; views: string; situacao: string; ganho: number | null }>
   /** Cada evento cita o título de um vídeo: texto de terceiros. */
   eventos: Array<{ dia: string; texto: string }>
   raiasNaoCarregou: Array<{ nome: string; motivo: string }>
@@ -199,11 +199,13 @@ const NOMES_DAS_RAIAS = { videos: 'Vídeos', campos: 'Campos', trocas: 'Trocas' 
 
 function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
   const b = t.barras
+  const ganhos = b.tipo === 'dias' ? b.dias.slice().reverse().map((d) => d.ganho) : []
   return {
     frase: `${t.frase.negrito}${t.frase.resto}`,
     motivo: b.tipo === 'dias' ? null : b.motivo, nota: b.tipo === 'dias' ? b.nota : null,
     corte: t.legenda.find((l) => l.chave === 'corte')?.texto ?? null,
-    dias: t.tabela.map(([dia, views, situacao]) => ({ dia, views, situacao })),
+    // `ganho` é o número de máquina do dia no modelo da tela (`DiaDaLinha.ganho`), na mesma ordem de `t.tabela` (mais recente primeiro); nunca parseado do texto
+    dias: t.tabela.map(([dia, views, situacao], i) => ({ dia, views, situacao, ganho: ganhos[i] ?? null })),
     eventos: t.tabela.flatMap(([dia, , , aconteceu]) => (aconteceu === '' ? [] : [{ dia, texto: aconteceu }])),
     raiasNaoCarregou: (['videos', 'campos', 'trocas'] as const).flatMap((r) => (t.raias[r].tipo === 'nao_carregou' ? [{ nome: NOMES_DAS_RAIAS[r], motivo: NAO_CARREGOU_TELA }] : [])),
   }
@@ -313,7 +315,7 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
 
   // Linha do tempo
   'derivado.medidas.tempo.frase': 'base', 'derivado.medidas.tempo.motivo': 'base', 'derivado.medidas.tempo.nota': 'base', 'derivado.medidas.tempo.corte': 'base',
-  'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].situacao': 'base',
+  'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].ganho': { descartado: 'repetido' }, 'derivado.medidas.tempo.dias[].situacao': 'base',
   'derivado.medidas.tempo.eventos[].dia': 'rotulo', 'derivado.medidas.tempo.eventos[].texto': 'terceiros', 'derivado.medidas.tempo.raiasNaoCarregou[].nome': 'rotulo', 'derivado.medidas.tempo.raiasNaoCarregou[].motivo': 'motivo',
 
   // O que o criador respondeu
@@ -340,7 +342,7 @@ const O = 'modelo.derivado.medidas'
 const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', texto, origem })
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
-const medido = (texto: string, origem: string, zero = false): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
+const medido = (texto: string, origem: string, zero = false, x: number | null = null): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x, origem })
 // Decisão 75: a projeção marca pelo TIPO do modelo (`nao_carregou`) o bloco que não chegou com NAO_CARREGOU_TELA; no pacote isso é a célula `falhou`, nunca "não medido".
 const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(motivo === NAO_CARREGOU_TELA ? 'falhou' : 'nao_medido', motivo, origem)
 
@@ -434,7 +436,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   const tem = m.tempo
   if (tem.dias.length) {
     tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, semana: 'soma', colunas: ['Dia', 'Views ganhas', 'Situação'],
-      linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? naoMedido(d.situacao !== 'sem registro' ? d.situacao : 'sem registro', `${T}.dias[${i}].views`) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0'), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
+      linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? naoMedido(d.situacao !== 'sem registro' ? d.situacao : 'sem registro', `${T}.dias[${i}].views`) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0', d.ganho), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
   }
   if (tem.eventos.length) {
     tabelas.push({ id: 'canal-linha-do-tempo-eventos', titulo: 'Linha do tempo: o que aconteceu em cada dia', tipo: 'lista', nomeNoCorte: 'o que aconteceu por dia', privada: false, colunas: ['Dia', 'O que aconteceu'],
