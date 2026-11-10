@@ -83,7 +83,7 @@ export interface Hero {
   /** key = the competitor_changes version key; null when this (legacy) change cannot be resolved to a row (R41). */
   swipe: { saved: boolean; label: string; key: string | null }
 }
-export interface LedgerRow { type: ChangeType; typeLabel: string; median: string | null; n: number; range: string | null; few: boolean; text: string }
+export interface LedgerRow { type: ChangeType; typeLabel: string; median: string | null; n: number; poolN: number; range: string | null; few: boolean; text: string }
 export interface MudancasView {
   filters: MudancasFilters
   heroes: Hero[]
@@ -486,6 +486,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   const decided = (c: ObsChange) => DECIDED.includes(eff(obs, c).status)
   const rangeTxt = (vals: number[]) => { const a = [...vals].sort((x, y) => x - y); return a.length === 1 ? F.pp(a[0]!) : 'de ' + F.pp(a[0]!).replace(' pp', '') + ' a ' + F.pp(a[a.length - 1]!) }
   const medians: LedgerRow[] = TYPES.map(([type, typeLabel]) => {
+    const poolN = pool.filter(c => c.type === type).length
     const m = pool.filter(c => c.type === type && !c.revertTo && !hasCav(c) && decided(c))
     const w = m.filter(c => eff(obs, c).status === 'ganhou').length, l = m.filter(c => eff(obs, c).status === 'perdeu').length, fl = m.length - w - l
     const vals = m.map(c => eff(obs, c).effectPp).filter((x): x is number => x != null)
@@ -494,7 +495,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     const range = vals.length ? rangeTxt(vals) : null
     const text = !m.length ? 'nada com veredito, pouco para concluir'
       : counts + (few ? '; ' + (m.length === 1 ? range + ', caso isolado, pouco para concluir' : 'faixa ' + range + ', pouco para concluir') : '')
-    return { type, typeLabel, median: med != null ? F.pp(med) : null, n: m.length, range, few, text }
+    return { type, typeLabel, median: med != null ? F.pp(med) : null, n: m.length, poolN, range, few, text }
   })
   const reverts = pool.filter(c => c.revertTo && decided(c))
   const withCav = pool.filter(c => !c.revertTo && hasCav(c) && decided(c))

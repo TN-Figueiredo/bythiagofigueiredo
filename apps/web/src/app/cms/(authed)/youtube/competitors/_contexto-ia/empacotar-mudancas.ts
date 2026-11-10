@@ -107,7 +107,7 @@ export const INVENTARIO_MUDANCAS: Inventario = {
   'derivado.heroes[].effect.noBase': 'base', 'derivado.heroes[].effect.fallback': 'base',
 
   // o quadro de efeito ajustado e o resumo
-  'ledger.medians[].type': ID, 'ledger.medians[].typeLabel': 'rotulo', 'ledger.medians[].median': 'numero', 'ledger.medians[].n': 'numero', 'ledger.medians[].range': REP,
+  'ledger.medians[].type': ID, 'ledger.medians[].typeLabel': 'rotulo', 'ledger.medians[].median': 'numero', 'ledger.medians[].n': 'numero', 'ledger.medians[].poolN': 'numero', 'ledger.medians[].range': REP,
   'ledger.medians[].few': CTRL, 'ledger.medians[].text': 'base', 'derivado.ledger.medians[].semMediana': 'motivo',
   'ledger.groups*': REP, 'ledger.total': REP, 'ledger.totalCheck': CTRL, 'ledger.minN': REP, 'ledger.winLabel': 'rotulo', 'ledger.out[]*': REP, 'ledger.totalLine[]*': REP,
   'ledger.note': 'base', 'ledger.emptyText': 'base',
@@ -283,11 +283,11 @@ function tabelaDeNotas(m: ModeloMudancas): Tabela[] {
 function tabelaDoQuadro(m: ModeloMudancas): Tabela[] {
   const L = m.ledger
   if (L.medians.length === 0) return []
-  return [tabelaFixa('quadro-de-efeito', `Efeito ajustado ${L.winLabel}`, 'quadro de efeito ajustado', ['Tipo', 'Trocas na janela', 'Com veredito (n)', 'Mediana do efeito', 'Resultado'],
+  return [tabelaFixa('quadro-de-efeito', `Efeito ajustado ${L.winLabel}`, 'quadro de efeito ajustado', ['Tipo', 'Trocas do nicho na janela', 'Com veredito (n)', 'Mediana do efeito', 'Resultado'],
     L.medians.map((x, i) => {
       const p = `modelo.ledger.medians[${i}]`
       return [
-        rotulo(x.typeLabel, `${p}.typeLabel`), celulaDoNumero(m.controls.typeCounts[x.type], `modelo.controls.typeCounts.${x.type}`), celulaDoNumero(x.n, `${p}.n`),
+        rotulo(x.typeLabel, `${p}.typeLabel`), celulaDoNumero(x.poolN, `${p}.poolN`), celulaDoNumero(x.n, `${p}.n`),
         x.median === null ? { papel: 'numero', estado: 'nao_medido', motivo: m.derivado.ledger.medians[i]?.semMediana ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `modelo.derivado.ledger.medians[${i}].semMediana` } : celulaDoNumero(x.median, `${p}.median`),
         base(x.text, `${p}.text`),
       ]
@@ -339,11 +339,15 @@ export function citadosDaForjaDe(forja: ForjaView, raiz: string): BlocoCitado[] 
 // ───────────────────────── avisos e definições (frases do próprio modelo)
 const presentes = (xs: ReadonlyArray<string | null | undefined>): string[] => xs.filter((x): x is string => typeof x === 'string' && x !== '')
 
+/** Com canal ou vídeo pedido, o quadro, o resumo de 7 dias e os avisos de topo seguem o nicho (a tela é assim); o pacote diz isso. */
+export const AVISO_DE_ESCOPO = 'O quadro, o resumo de 7 dias e estes avisos cobrem o nicho, não só o canal.'
+
 function avisosDe(m: ModeloMudancas): string[] {
   const out: string[] = [m.summary.weekWin, m.derivado.rico.digest, m.derivado.rico.weekLead, SEM_CAUSA]
   out.push(...presentes([m.nicheNote, m.ledger.note, m.ledger.emptyText]))
   if (m.ledger.total) out.push(m.derivado.rico.out, m.derivado.rico.totalLine)
   for (const c of m.controls.chips) out.push(c.text)
+  if (m.filters.channel !== 'all' || m.filters.video !== null) out.push(AVISO_DE_ESCOPO)
   const f = m.forja
   out.push(...presentes([f.card.stateLabel, f.card.statusText, f.card.sentNow, f.card.askNote, ...f.card.lines, m.forjaCard.outSummary, m.forjaCard.outText, m.forjaCard.shorts?.text]))
   for (const b of f.niches) out.push(...presentes([b.statusLine, b.reading === null ? b.emptyText : null]))
