@@ -77,6 +77,9 @@ describe('S1b: serie grão semana com o pacote do empacotador real', () => {
     const medidos = t.linhas.map((l) => l[1]!).filter((c) => c.papel === 'numero' && c.estado === 'medido')
     expect(medidos.length).toBeGreaterThan(0)
     expect(medidos.every((c) => c.papel === 'numero' && c.estado === 'medido' && typeof c.x === 'number')).toBe(true)
+    // x e texto vêm de campos diferentes (b.dias[].ganho x tabela[].views): qualquer deslocamento de ordem quebra aqui
+    for (const c of medidos) if (c.papel === 'numero' && c.estado === 'medido') expect(String(c.x)).toBe((c.texto ?? '').replace(/\./g, ''))
+    expect(new Set(medidos.map((c) => (c.papel === 'numero' && c.estado === 'medido' ? c.x : null))).size).toBeGreaterThan(3)
   })
 
   it('semana cheia: 7 de 7 e a soma dos 7 ganhos', async () => {
@@ -90,7 +93,7 @@ describe('S1b: serie grão semana com o pacote do empacotador real', () => {
   it('dia sem medida na semana: continua incompleta (6 de 7), sem soma', async () => {
     const pacote = (m.pacote as { modelo: PacoteModelo }).modelo
     const s = semanaCheia(pacote)
-        const t = pacote.tabelas.find((x) => x.id === 'canal-linha-do-tempo')!
+    const t = pacote.tabelas.find((x) => x.id === 'canal-linha-do-tempo')!
     const linhas = t.linhas.map((l) => (diaDaLinha(l, AGORA_CHEIA) === s.dias[3]
       ? [l[0]!, { papel: 'numero' as const, estado: 'nao_medido' as const, motivo: 'sem registro', origem: 'x' }, ...l.slice(2)] : l))
     m.pacote = { modelo: { ...pacote, tabelas: pacote.tabelas.map((x) => (x.id === t.id ? { ...x, linhas } : x)) }, recente: '13/10/2026 09:10', estado: {} }
@@ -98,5 +101,16 @@ describe('S1b: serie grão semana com o pacote do empacotador real', () => {
     expect(r.texto).toMatch(/6 de 7 dias medidos/)
     expect(r.texto).toMatch(/semana incompleta/)
     expect(r.texto).not.toContain(String(Math.round(s.soma * 100) / 100))
+  })
+  it('célula medida com x indefinido (pacote antigo): não soma NaN, fica incompleta', async () => {
+    const pacote = (m.pacote as { modelo: PacoteModelo }).modelo
+    const s = semanaCheia(pacote)
+    const t = pacote.tabelas.find((x) => x.id === 'canal-linha-do-tempo')!
+    const linhas = t.linhas.map((l) => (diaDaLinha(l, AGORA_CHEIA) === s.dias[2]
+      ? [l[0]!, { ...l[1]!, x: undefined } as unknown as typeof l[1] & object, ...l.slice(2)] : l))
+    m.pacote = { modelo: { ...pacote, tabelas: pacote.tabelas.map((x) => (x.id === t.id ? { ...x, linhas } : x)) }, recente: '13/10/2026 09:10', estado: {} }
+    const r = await responder({ acao: 'serie', canal_id: C1, de: s.de, ate: s.ate, grao: 'semana' }, ABRIDOR_DE_SESSAO, AGORA_CHEIA)
+    expect(r.texto).not.toContain('NaN')
+    expect(r.texto).toMatch(/6 de 7 dias medidos/)
   })
 })
