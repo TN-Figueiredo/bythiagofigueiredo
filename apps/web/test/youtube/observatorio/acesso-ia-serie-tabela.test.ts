@@ -548,3 +548,41 @@ describe('revisão Yannis: m-1, m-3, m-6 e m-7', () => {
     expect(csvDe(r.texto).every((l) => /^(dia|\d{4}-\d{2}-\d{2}),/.test(l))).toBe(true)
   })
 })
+
+/* ------------------------------------------------------------------ conserto N-1 (ate sem teto) */
+
+describe('conserto N-1: `ate` depois do fim da tabela', () => {
+  for (const ate of ['2026-12-31', '3000-01-01', '9999-12-31']) {
+    for (const grao of ['dia', 'semana'] as const) {
+      it(`ate ${ate}, grão ${grao}: < 1 s, dado real presente, sem conversão, 1 resumo, linhas: N de N`, async () => {
+        dobra('canal', modelo(tabela()))
+        const t0 = Date.now()
+        const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate, grao, saida: 'tabela' }, abrir, AGORA)
+        expect(Date.now() - t0).toBeLessThan(1000)
+        expect(r.params.convertida ?? false).toBe(false)
+        const csv = csvDe(r.texto)
+        expect(csv[0].startsWith(grao === 'dia' ? 'dia,' : 'semana_inicio,')).toBe(true)
+        const dados = csv.slice(1)
+        expect(dados.length).toBe(grao === 'dia' ? 10 : 4) // dia: 9 dias + 1 resumo; semana: segundas 26/10, 02/11, 09/11 + 1 resumo
+        expect(dados.filter((l) => l.includes(',medido,')).length).toBeGreaterThan(0)
+        expect(r.texto).toContain('a tela cobre de')
+        const m2 = /linhas: (\d+) de (\d+)/.exec(r.texto)!
+        expect(m2[1]).toBe(m2[2])
+      })
+    }
+  }
+  it('modo texto com ate 9999-12-31 termina em < 1 s', async () => {
+    dobra('canal', modelo(tabela()))
+    const t0 = Date.now()
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '9999-12-31' }, abrir, AGORA)
+    expect(Date.now() - t0).toBeLessThan(1000)
+    expect(r.desfecho).toBe('ok')
+  })
+  it('pedido inteiro depois do fim com ate 9999-12-31: < 1 s e linhas: 0 de N', async () => {
+    dobra('canal', modelo(tabela()))
+    const t0 = Date.now()
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-12-01', ate: '9999-12-31', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(Date.now() - t0).toBeLessThan(1000)
+    expect(r.texto).toMatch(/linhas: 0 de \d+/)
+  })
+})

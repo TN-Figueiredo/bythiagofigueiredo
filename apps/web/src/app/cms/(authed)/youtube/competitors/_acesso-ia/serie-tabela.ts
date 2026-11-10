@@ -44,6 +44,12 @@ export const dmy = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const entre = (a: string, b: string): number => Math.round((ms(b) - ms(a)) / DIA_MS)
 const maior = (a: string, b: string): string => (a > b ? a : b)
+/** Domingo da semana de `d`, sem passar de 9999-12-31 (o ano 10000 vira `+010000-...` e quebra a comparação de texto). */
+const domingoDe = (d: string): string => { const x = somaDias(segundaDe(d), 6); return x.startsWith('+') ? '9999-12-31' : x }
+const menor = (a: string, b: string): string => (a < b ? a : b)
+/** Quantas datas o pedido tem (aritmética; nunca percorre o intervalo, que pode chegar a 9999-12-31). */
+const quantasDatas = (de: string, ate: string, grao: 'dia' | 'semana'): number =>
+  ate < de ? 0 : grao === 'dia' ? entre(de, ate) + 1 : Math.round(entre(segundaDe(de), segundaDe(ate)) / 7) + 1
 
 export const diaValido = (a: number, m: number, d: number): boolean => m >= 1 && m <= 12 && d >= 1 && new Date(Date.UTC(a, m - 1, d)).getUTCMonth() === m - 1 && new Date(Date.UTC(a, m - 1, d)).getUTCDate() === d
 /** `AAAA-MM-DD` de um dia que existe no calendário. */
@@ -169,7 +175,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
   const semDia = p.grao === 'semana' ? 0 : undefined
 
   const de = p.grao === 'semana' ? segundaDe(p.de) : p.de
-  const ate = p.grao === 'semana' ? somaDias(segundaDe(p.ate), 6) : p.ate
+  const ate = p.grao === 'semana' ? domingoDe(p.ate) : p.ate
   // nenhuma data que valha: uma linha-resumo, nunca crash nem chave vazia
   if (todos.length === 0) return [ponto(de, null, 'nao_medido', F.SERIE_SEM_LEITURA_NENHUMA, semDia, true)]
   const tmin = todos[0]!
@@ -183,8 +189,13 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
 
   // o que está ANTES da tabela vira UMA linha-resumo (não uma linha por dia: de 0001-01-01 saíam 105 mil); a conversão para a semana também conta só o que a tabela tem
   const bordaDeTras = p.grao === 'semana' ? segundaDe(tmin) : tmin
-  const fora: PontoCsv[] = de < bordaDeTras ? [resumoDaTela(de)] : []
+  // o que está DEPOIS da tabela também (N-1): `ate` não tem teto; sem recorte, 9999-12-31 gerava milhares de linhas vazias e travava
+  const bordaDeFrente = p.grao === 'semana' ? domingoDe(tmax) : tmax
+  const fora: PontoCsv[] = de < bordaDeTras
+    ? [resumoDaTela(de)]
+    : ate > bordaDeFrente ? [resumoDaTela(p.grao === 'semana' ? somaDias(segundaDe(tmax), 7) : somaDias(tmax, 1))] : []
   const deDentro = maior(de, bordaDeTras)
+  const ateDentro = menor(ate, bordaDeFrente)
 
   const semLeitura = (d: string): string =>
     inicio === undefined || fimDaLeitura === undefined ? F.SERIE_SEM_LEITURA_NENHUMA
@@ -193,7 +204,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
           : F.SERIE_SEM_LEITURA
 
   if (p.grao === 'dia') {
-    return [...fora, ...datasDoPedido(deDentro, ate, 'dia').map((d): PontoCsv => {
+    return [...fora, ...datasDoPedido(deDentro, ateDentro, 'dia').map((d): PontoCsv => {
       const c = celulas.get(d)
       if (c === undefined) return ponto(d, null, 'nao_medido', semLeitura(d))
       if (c.papel !== 'numero') return ponto(d, null, 'nao_medido', semLeitura(d))
@@ -206,7 +217,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
       return ponto(d, null, 'nao_medido', semLeitura(d))
     })]
   }
-  return [...fora, ...datasDoPedido(deDentro, ate, 'semana').map((segunda): PontoCsv => {
+  return [...fora, ...datasDoPedido(deDentro, ateDentro, 'semana').map((segunda): PontoCsv => {
     const domingo = somaDias(segunda, 6)
     const nenhuma = (motivo: string): PontoCsv => ponto(segunda, null, 'nao_medido', motivo, 0)
     if (inicio === undefined || fimDaLeitura === undefined) return nenhuma(F.SERIE_SEM_LEITURA_NENHUMA)
@@ -237,8 +248,10 @@ export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string,
   const series = seriesDe(m, agora)
   const porSerie = series.map((s) => pontosDaSeriePorMedida(s, canalId, apelido, p, hoje))
   const negado = m.privado
+  // sem tabela para dar o fim, o teto é hoje (nunca um intervalo até 9999-12-31)
+  const ateRestrito = menor(p.ate, hoje)
   const restritos: PontoCsv[] = ehDoProprio(m) && negado.estado === 'excluido'
-    ? datasDoPedido(p.grao === 'semana' ? segundaDe(p.de) : p.de, p.grao === 'semana' ? segundaDe(p.ate) : p.ate, p.grao).map((data): PontoCsv => ({
+    ? datasDoPedido(p.grao === 'semana' ? segundaDe(p.de) : p.de, p.grao === 'semana' ? segundaDe(ateRestrito) : ateRestrito, p.grao).map((data): PontoCsv => ({
       data, canalId, apelido, medida: MEDIDA_RESTRITA, x: null, estado: 'restrito', motivo: textoDoPrivadoExcluido(negado), ...(p.grao === 'semana' ? { diasMedidos: 0 } : {}), privada: true,
     }))
     : []
@@ -335,12 +348,14 @@ export function respostaDaSerieEmTabela(
   // a conversão para a semana conta os dias que a tabela TEM dentro do pedido (como o modo texto), não os dias pedidos
   const menores = series.map(menorDia).filter((d): d is string => d !== null)
   const diasPedidos = entre(pedido.de, pedido.ate) + 1
-  const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), pedido.ate) + 1
+  const maiores = series.flatMap((s) => s.dias.filter((d): d is string => d !== null))
+  const tmaxGeral = maiores.reduce((a, b) => (a > b ? a : b), '')
+  const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), menor(pedido.ate, tmaxGeral)) + 1
   if (grao === 'dia' && diasDentro > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasDentro, n)) }
   const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, agora)
   const info = infoDaSerie(m, pedido.canalId, pedido.apelido, agora)
   const de = grao === 'semana' ? segundaDe(pedido.de) : pedido.de
-  const ate = grao === 'semana' ? somaDias(segundaDe(pedido.ate), 6) : pedido.ate
+  const ate = grao === 'semana' ? domingoDe(pedido.ate) : pedido.ate
   if (grao === 'semana') extras.push(F.SERIE_REGRA_DA_SEMANA)
 
   // a data que veio do texto (a tabela perdeu `dias`) avisa o Sentry, uma vez por tabela; a linha sem data que valha fica fora e é dita
@@ -362,7 +377,7 @@ export function respostaDaSerieEmTabela(
   const soResumo = tudo.length > 0 && tudo.every((p) => p.resumo === true)
   const semResumo = (ps: readonly PontoCsv[]): PontoCsv[] => ps.filter((p) => p.resumo !== true)
   // intervalo inteiro fora da tabela: "linhas: 0 de N" (N = datas pedidas); a linha-resumo não conta
-  const total = soResumo ? datasDoPedido(de, ate, grao).length : semResumo(tudo).length
+  const total = soResumo ? quantasDatas(de, ate, grao) : semResumo(tudo).length
   const vazioDoPacote = m.vazio !== null
 
   const montar = (ficam: number): { texto: string; pontos: PontoCsv[]; contados: number } => {
