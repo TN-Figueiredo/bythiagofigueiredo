@@ -33,7 +33,7 @@ const V1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 
 const TELAS: TelaId[] = ['canais', 'canal', 'video', 'comparar', 'outliers', 'insights', 'mudancas', 'fila', 'canal-proprio', 'video-proprio', 'ritmo', 'sugestoes']
 const pacote = (modelo: PacoteModelo) => ({ modelo, recente: RECENTE, estado: {} as Record<string, string> })
-const esperado = (modelo: PacoteModelo, teto = ACESSO_IA_RULES.tetoPorAcao): string => montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', teto, 'todos').texto
+const esperado = (modelo: PacoteModelo, teto = ACESSO_IA_RULES.tetoPorAcao): string => montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', teto, 'todos', undefined, { ia: true }).texto
 const dobra = (tela: TelaId, modelo: PacoteModelo | null) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => (modelo === null ? null : pacote(modelo)))
 
 beforeEach(() => {
@@ -576,7 +576,7 @@ describe('responder: A1c, revisão do Yannis', () => {
     const modelo = { ...g, tela: 'comparar' as TelaId, avisos: ['y'.repeat(70_000)] }
     dobra('comparar', modelo)
     const cab = `## Par 1: canal ${C1} contra canal ${C2}\n`
-    const t = montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', 59_999 - cab.length, 'todos')
+    const t = montarTexto(segmentar(modelo, { geradoEm: AGORA, recente: RECENTE }), '', 59_999 - cab.length, 'todos', undefined, { ia: true })
     expect(t.pisoPassou).toBe(true)
     expect(t.cortes.length).toBeGreaterThan(0)
     const r = await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)
@@ -597,7 +597,7 @@ function grande(alvo: number): PacoteModelo {
 describe('responder: o tamanho', () => {
   it('nenhuma resposta passa de 60.000 caracteres; pacote_da_tela, de 30.000 (fixture de 500.000)', async () => {
     const g = grande(500_000)
-    expect(esperado(g, 10_000_000).length).toBeGreaterThan(450_000)
+    expect(esperado(g, 10_000_000).length).toBeGreaterThan(400_000) // sem o bloco JSON (modo ia) o pacote de 500.000 tem ~409.000
     dobra('canal', g)
     const a = await responder({ acao: 'canal', canal_id: C1 }, abrir, AGORA)
     expect(a.texto.length).toBeLessThanOrEqual(60_000)
