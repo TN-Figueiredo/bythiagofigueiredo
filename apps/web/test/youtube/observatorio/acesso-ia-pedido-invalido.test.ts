@@ -42,8 +42,14 @@ describe('campos_invalidos no registro', () => {
     expect((await linhaGravada({ acao: 'xpto' })).params).toMatchObject({ campos_invalidos: ['acao'] })
     expect((await linhaGravada(null)).params).not.toHaveProperty('campos_invalidos')
   })
-  it('recusa do tradutor (comparar com 1 canal): sem campo do esquema, sem campos_invalidos', async () => {
-    expect((await linhaGravada({ acao: 'comparar', canal_ids: [C1] })).params).not.toHaveProperty('campos_invalidos')
+  it('recusa do tradutor (comparar com 1 canal): campos_invalidos = canal_ids', async () => {
+    expect((await linhaGravada({ acao: 'comparar', canal_ids: [C1] })).params).toMatchObject({ campos_invalidos: ['canal_ids'] })
+  })
+  it('recusa do tradutor (serie com de > ate): ["ate","de"]', async () => {
+    expect((await linhaGravada({ acao: 'serie', canal_id: C1, de: '2026-11-08', ate: '2026-10-05' })).params).toMatchObject({ campos_invalidos: ['ate', 'de'] })
+  })
+  it('recusa do tradutor (serie sem canal nem vídeo): ["canal_id","video_id"]', async () => {
+    expect((await linhaGravada({ acao: 'serie', de: '2026-10-05', ate: '2026-11-08' })).params).toMatchObject({ campos_invalidos: ['canal_id', 'video_id'] })
   })
   it('valor-isca (REDE, nasce verde: o registro nunca gravou valores; impede a regressão): o valor errado não aparece na linha', async () => {
     const linha = await linhaGravada({ acao: 'destaques', formato: 'SEGREDO-123' })

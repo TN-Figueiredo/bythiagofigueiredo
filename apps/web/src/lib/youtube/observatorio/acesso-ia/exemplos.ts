@@ -13,13 +13,13 @@ export const TODOS_OS_CAMPOS: readonly string[] = Object.freeze(['acao', ...new 
 
 export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   definicoes: 'sem campos além de acao',
-  listar_canais: 'formato (todos, longos ou shorts), nicho e janela (7, 30, 90 ou todas) opcionais',
-  canal: 'canal_id (uuid da coluna Id de listar_canais) obrigatório; janela (7, 30, 90 ou todas) e formato (todos, longos ou shorts) opcionais',
+  listar_canais: 'formato (todos, longos ou shorts) e nicho opcionais; janela é aceita, mas a tela Canais não a aplica',
+  canal: 'canal_id (uuid da coluna Id de listar_canais) obrigatório; formato (todos, longos ou shorts) opcional; janela é aceita, mas a tela Canal não a aplica',
   video: 'video_id (uuid ou id de 11 caracteres) obrigatório',
-  comparar: 'canal_ids (de 2 a 6; o 1º pode ser proprio) obrigatório; janela e formato opcionais',
+  comparar: 'canal_ids (de 2 a 6; o 1º pode ser proprio) obrigatório; janela e formato são aceitos, mas a tela Comparar não os aplica',
   destaques: 'janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais',
   serie: 'canal_id ou video_id (um dos dois), de e ate (AAAA-MM-DD, de ≤ ate) obrigatórios; grao (dia ou semana) opcional',
-  mudancas: 'canal_id, desde (AAAA-MM-DD), janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais',
+  mudancas: 'canal_id, janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais; desde (AAAA-MM-DD) é aceito, mas não filtra: use janela',
   sugestoes: 'sem campos além de acao',
   pacote_da_tela: 'tela obrigatória; id e parametros (pares chave:valor) opcionais',
 }
@@ -27,9 +27,9 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
 export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
   definicoes: '{"acao":"definicoes"}',
   listar_canais: '{"acao":"listar_canais","formato":"longos"}',
-  canal: '{"acao":"canal","canal_id":"<uuid da coluna Id>","janela":"30"}',
+  canal: '{"acao":"canal","canal_id":"<uuid da coluna Id>","formato":"longos"}',
   video: '{"acao":"video","video_id":"<id de 11 caracteres>"}',
-  comparar: '{"acao":"comparar","canal_ids":["proprio","<uuid>","<uuid>"]}',
+  comparar: '{"acao":"comparar","canal_ids":["proprio","<uuid 1>","<uuid 2>"]}',
   destaques: '{"acao":"destaques","janela":"90","formato":"longos"}',
   serie: '{"acao":"serie","canal_id":"<uuid>","de":"2026-10-05","ate":"2026-11-08","grao":"semana"}',
   mudancas: '{"acao":"mudancas","janela":"30","formato":"todos"}',

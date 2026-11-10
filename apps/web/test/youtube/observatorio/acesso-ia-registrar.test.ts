@@ -381,3 +381,23 @@ describe('registrar.ts é só de servidor', () => {
     expect(texto).toMatch(/^import 'server-only'$/m)
   })
 })
+
+describe('A7 F3 I4: campos_invalidos no registro é lista fechada (defesa do próprio registro)', () => {
+  const gravar = async (campos: unknown) => {
+    const s = simular({ error: null })
+    const r = await registrarAcessoDaChave(s.sb, { prova: fabricarProva('s', 'u', 'k', '2999-01-01T00:00:00Z'), acao: 'canal', params: { desfecho: 'pedido_invalido', campos_invalidos: campos } as never, incluiuPrivado: false, caracteres: null, resultado: 'ok' })
+    expect(r.ok).toBe(true)
+    return (s.insercoes[0]!.linha.params ?? {}) as Record<string, unknown>
+  }
+  it('só nomes de campo: o isca, o duplicado e o não-texto saem; ordenado', async () => {
+    const p = await gravar(['formato', 'SEGREDO-123', 'formato', 7, 'acao'])
+    expect(p.campos_invalidos).toEqual(['acao', 'formato'])
+    expect(JSON.stringify(p)).not.toContain('SEGREDO')
+  })
+  it('só isca: a chave some', async () => { expect(await gravar(['SEGREDO'])).not.toHaveProperty('campos_invalidos') })
+  it('8 nomes válidos: cortados em 6', async () => {
+    const p = await gravar(['acao', 'canal_id', 'video_id', 'canal_ids', 'janela', 'formato', 'nicho', 'de'])
+    expect((p.campos_invalidos as string[]).length).toBe(6)
+  })
+  it('não é lista: a chave some', async () => { expect(await gravar('x')).not.toHaveProperty('campos_invalidos') })
+})

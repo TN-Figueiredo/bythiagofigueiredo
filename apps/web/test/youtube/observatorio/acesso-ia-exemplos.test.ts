@@ -27,7 +27,10 @@ describe('inventário: toda ação tem exemplo, todo exemplo é válido', () => 
     expect(lida.success).toBe(true)
     if (!lida.success) return
     expect(lida.data.acao).toBe(a)
-    expect(traduzir(lida.data).ok).toBe(true)
+    const t = traduzir(lida.data)
+    expect(t.ok).toBe(true)
+    // nenhum exemplo pode ensinar um campo que a tela ignora ("Não aplicado")
+    expect((t as { pedido: { semEquivalente: unknown[] } }).pedido.semEquivalente).toEqual([])
   })
   it('o exemplo cru (com <...>) é JSON e é o que a recusa mostra', () => {
     for (const a of ACOES) expect(() => JSON.parse(EXEMPLO_DA_ACAO[a])).not.toThrow()

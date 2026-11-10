@@ -426,7 +426,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const entrada = lida.data
     params = paramsDaEntrada(entrada)
     const t = traduzir(entrada)
-    if (!t.ok) return resp('pedido_invalido', fraseDeRecusa(entrada.acao, t.frase), params)
+    if (!t.ok) return resp('pedido_invalido', fraseDeRecusa(entrada.acao, t.frase), { ...params, campos_invalidos: [...t.campos].sort() })
     const pedido = t.pedido
     const cortes: Cortes = { n: 0 }
     const topo = topoDe(pedido)

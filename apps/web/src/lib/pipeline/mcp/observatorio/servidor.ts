@@ -41,7 +41,8 @@ export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
 export const INSTRUCOES = instrucoesDe(FATIAS_LIGADAS)
 
 const FORMA = {
-  acao: z.enum(ACOES).describe('A ação.'),
+  // tolerante de propósito: a IA vê o enum (anyOf) mas quem recusa a ação errada é o `ENTRADA` (formato e exemplo, sem eco, e entra no registro)
+  acao: z.union([z.enum(ACOES), z.string()]).describe('A ação.'),
   canal_id: z.string().optional().describe('uuid do canal ou id do YouTube (canal, serie, mudancas).'),
   video_id: z.string().optional().describe('uuid ou id do YouTube do vídeo (video, serie).'),
   canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. Para comparar com o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
@@ -58,7 +59,8 @@ const FORMA = {
 }
 
 export function registrarServidorDoObservatorio(server: McpServer, responder: Responder): void {
-  server.tool(NOME_DA_FERRAMENTA, DESCRICAO, FORMA, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }, async (entrada) => {
+  // `passthrough`: chave sobrando chega ao `responder` (o `.strict()` do `ENTRADA` a recusa e grava `(desconhecido)`); o SDK padrão a tiraria em silêncio
+  server.registerTool(NOME_DA_FERRAMENTA, { description: DESCRICAO, inputSchema: z.object(FORMA).passthrough(), annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } }, async (entrada) => {
     try {
       const r = await executarChamada(entrada, { sb: getSupabaseServiceClient(), responder, agora: Date.now })
       return { content: [{ type: 'text' as const, text: r.texto }], ...(r.erro ? { isError: true } : {}) }

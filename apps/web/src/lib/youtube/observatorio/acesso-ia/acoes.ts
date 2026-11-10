@@ -70,7 +70,8 @@ export type Entrada = z.infer<typeof ENTRADA>
 
 /* ------------------------------------------------------------------ o mapa */
 
-type Resultado = { ok: true; pedido: Pedido } | { ok: false; frase: string }
+export type CampoDeEntrada = 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
+type Resultado = { ok: true; pedido: Pedido } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
 type Sp = Record<string, string | undefined>
 type Formato = z.infer<typeof formato>
 type Janela = z.infer<typeof janela>
@@ -78,7 +79,7 @@ type Janela = z.infer<typeof janela>
 const NICHO_PADRAO = 'todos'
 const TETO = ACESSO_IA_RULES.tetoPorAcao
 const NENHUM = { tipo: 'nenhum', n: 0 } as const
-const recusar = (frase: string): Resultado => ({ ok: false, frase })
+const recusar = (frase: string, ...campos: CampoDeEntrada[]): Resultado => ({ ok: false, frase, campos })
 const nomeDe = (tela: TelaId): string => TELAS_IA[tela].nome
 
 /** Janela pedida para uma tela que não tem janela. */
@@ -128,12 +129,12 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
   comparar: (e) => {
     const { min, max } = ACESSO_IA_RULES.canaisNoComparar
     const n = e.canal_ids.length
-    if (n < min || n > max) return recusar(`comparar aceita de ${min} a ${max} canais; vieram ${n}`)
-    if (new Set(e.canal_ids.map((c) => c.toLowerCase())).size !== n) return recusar('comparar não aceita o mesmo canal duas vezes')
+    if (n < min || n > max) return recusar(`comparar aceita de ${min} a ${max} canais; vieram ${n}`, 'canal_ids')
+    if (new Set(e.canal_ids.map((c) => c.toLowerCase())).size !== n) return recusar('comparar não aceita o mesmo canal duas vezes', 'canal_ids')
     const aviso: string[] = []
     janelaSemEquivalente('comparar', e.janela, aviso)
     if (e.formato !== undefined) aviso.push(`formato ${e.formato}: a tela Comparar não escolhe formato; o pacote traz o que a tela mostra`)
-    if (e.canal_ids.slice(1).includes('proprio')) return recusar('comparar aceita `proprio` só como primeiro canal')
+    if (e.canal_ids.slice(1).includes('proprio')) return recusar('comparar aceita `proprio` só como primeiro canal', 'canal_ids')
     const [a, ...outros] = e.canal_ids as [string, ...string[]]
     // `proprio`: sem `a` na URL, quem resolve o par escolhe o canal próprio do site pela mesma regra da tela
     return {
@@ -170,8 +171,8 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
   },
 
   serie: (e) => {
-    if ((e.video_id === undefined) === (e.canal_id === undefined)) return recusar('serie pede video_id ou canal_id, um dos dois e nunca os dois')
-    if (e.de > e.ate) return recusar('serie: de não pode ser depois de ate')
+    if ((e.video_id === undefined) === (e.canal_id === undefined)) return recusar('serie pede video_id ou canal_id, um dos dois e nunca os dois', 'canal_id', 'video_id')
+    if (e.de > e.ate) return recusar('serie: de não pode ser depois de ate', 'ate', 'de')
     const tela = e.video_id !== undefined ? 'video?' : 'canal?'
     return {
       ok: true,
@@ -202,11 +203,11 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
   pacote_da_tela: (e) => {
     if (!telaExiste(e.tela)) {
       const existem = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
-      return recusar(`tela desconhecida: use uma de ${existem.join(', ')}`)
+      return recusar(`tela desconhecida: use uma de ${existem.join(', ')}`, 'tela')
     }
     const def = TELAS_IA[e.tela]
-    if (def.estado !== 'existe') return recusar(FRASES_DA_FERRAMENTA.tela_sem_pacote)
-    if (def.pedeId && e.id === undefined) return recusar(`a tela ${e.tela} pede um id`)
+    if (def.estado !== 'existe') return recusar(FRASES_DA_FERRAMENTA.tela_sem_pacote, 'tela')
+    if (def.pedeId && e.id === undefined) return recusar(`a tela ${e.tela} pede um id`, 'id')
     const aviso: string[] = []
     if (!def.pedeId && e.id !== undefined) aviso.push(`id: a tela ${def.nome} não usa id; ele foi ignorado`)
     const aceitos = PARAMETROS_DA_TELA[e.tela]
