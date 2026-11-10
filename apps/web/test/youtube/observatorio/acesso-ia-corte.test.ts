@@ -20,7 +20,7 @@ import { empacotarCanais, modeloDeCanais } from '@/app/cms/(authed)/youtube/comp
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { AGORA, CONTEXTO, medido, modeloCheio, terceiros } from './contexto-ia-fixture'
+import { AGORA, CONTEXTO, medido, modeloCheio, modeloEstresseMudancas, terceiros } from './contexto-ia-fixture'
 import { CLASSES_NA_IA, classeDa, escolherCorte, fixarLinhas } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { ABRIDOR_DE_SESSAO } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
@@ -252,5 +252,78 @@ describe('A7a T2: responder usa o corte e grava linhas e total', () => {
     expect(r.params.total).toBe(200)
     expect(r.params.linhas).toBeLessThan(200)
     expect(r.params.linhas).toBe(linhasNoTexto(r.texto, 'Os canais acompanhados'))
+  })
+})
+
+describe('A7a Fatia 1, conserto do parecer (I1, I2, I3, M1, M2), sempre pelo responder', () => {
+  const abrir = ABRIDOR_DE_SESSAO
+  const dobra = (tela: TelaId, modelo: PacoteModelo) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => ({ modelo, recente: '13/10/2026 09:10', estado: {} }))
+  beforeEach(() => {
+    m.captured.length = 0
+    for (const t of ['canais', 'outliers', 'mudancas', 'canal', 'canal-proprio']) m.empacotar[t] = vi.fn(async () => null)
+  })
+
+  it('I1: 75 canais, 583 dicas: o aviso conta as linhas reais que não couberam, nunca "saíram 200"', async () => {
+    dobra('canais', modeloDe(75))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    const noTexto = linhasNoTexto(r.texto, 'A dica de cada medida')
+    expect(noTexto).toBe(50)
+    expect(r.texto.split('\n').filter((x) => /Dica.*saíram 200/.test(x))).toEqual([])
+    expect(r.texto).toContain(`tabela "A dica de cada medida": ${583 - noTexto} linhas não couberam`)
+  })
+
+  it('I1: Dicas sintéticas de 300 linhas: o aviso diz 300 menos o que está no texto', async () => {
+    dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 70, 100), lista('canais-dicas', 'Dicas', 300, 400)]))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    const noTexto = linhasNoTexto(r.texto, 'Dicas')
+    expect(noTexto).toBeLessThan(200)
+    expect(r.texto).not.toMatch(/Dicas.*saíram 200/)
+    expect(r.texto).toContain(`tabela "Dicas": ${300 - noTexto} linhas não couberam`)
+  })
+
+  it('I2: Mudanças com 40 trocas de 5.000 caracteres: a principal fica inteira, as descrições é que saem', async () => {
+    dobra('mudancas', modeloEstresseMudancas())
+    const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
+    expect(linhasNoTexto(r.texto, 'Trocas de descrição')).toBe(40)
+    expect(JSON.stringify(m.captured)).not.toContain('principal_cortada')
+    expect(r.texto).toContain('descrições')
+    expect(r.texto.length).toBeLessThanOrEqual(TETO)
+  })
+
+  it('I2 (direto): escolherCorte não passa de E2b e a principal não é cortada', () => {
+    const c = escolherCorte(modeloEstresseMudancas(), CONTEXTO, 100, TETO)
+    expect(c.estagio).not.toBe('E3')
+    expect(c.principalCortada).toBe(false)
+  })
+
+  it('I3: E2 que tira a tabela de texto não diz "Por tamanho: nada" e conta em cortes', async () => {
+    const mod = (tam: number) => sintetico('canais', [lista('canais', 'Os canais acompanhados', 10, tam), lista('canais-dicas', 'Dicas', 50, 100), lista('canais-referencias', 'Refs', 3, 10)])
+    // varre o tamanho das linhas da principal: em toda a faixa em que a tabela inteira sai (E2), o texto tem de dizer o que cortou e o registro tem de contar
+    let achou = 0
+    for (let tam = 5_700; tam <= 6_000; tam += 1) {
+      dobra('canais', mod(tam))
+      const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+      if (!r.texto.includes('tabela "Dicas": 50 linhas não couberam')) continue
+      achou += 1
+      expect(r.texto).not.toContain('Por tamanho: nada')
+      expect(r.texto).toContain('cortei')
+      expect(r.params.cortes).toBeGreaterThanOrEqual(1)
+    }
+    expect(achou).toBeGreaterThan(0)
+  })
+
+  it('M1/M2: 4 tabelas de texto, varrendo o teto: o número de cada aviso bate com as linhas que estão no texto', () => {
+    const textos = [['canais-notas', 'Notas'], ['canais-dicas', 'Dicas'], ['outra-a', 'Geral A'], ['outra-b', 'Geral B']] as const
+    const mod = sintetico('canais', [lista('canais', 'Os canais acompanhados', 10, 50), ...textos.map(([id, t]) => lista(id, t, 300, 80))])
+    const avisoDaPrincipal = 'há 10 canais; saíram 10, na ordem da tela' // frase de outro tipo no modelo: só o E3 a tira, por identidade
+    for (let teto = 3_000; teto <= 40_000; teto += 997) {
+      const c = escolherCorte({ ...mod, avisos: ['aviso do empacotador: há 5 coisas; saíram 2'] }, CONTEXTO, 200, teto, undefined, avisoDaPrincipal)
+      expect(c.texto.texto).toContain('aviso do empacotador: há 5 coisas; saíram 2') // M2: nunca some por casamento de texto
+      for (const [, titulo] of textos.slice(0, 2)) {
+        const noTexto = linhasNoTexto(c.texto.texto, titulo)
+        const achou = c.texto.texto.match(new RegExp(`tabela "${titulo}": (\\d+) linhas não couberam`))
+        if (c.estagio === 'E1' && noTexto < 300) expect(Number(achou?.[1])).toBe(300 - noTexto)
+      }
+    }
   })
 })

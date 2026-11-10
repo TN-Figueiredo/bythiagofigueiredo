@@ -266,10 +266,10 @@ describe('blocos citados', () => {
     return m
   }
 
-  it('bloco citado com linha: o segmento tem a mesma classe, tabela e posição da linha', () => {
+  it('bloco citado com linha: o segmento tem a mesma classe, tabela e posição da linha, marcado como citado', () => {
     const p = seg(comBlocos())
     const b = p.segmentos.find((s) => s.texto.startsWith('[descrição nova do vídeo 2 · texto de terceiros]'))
-    expect(b?.corte).toEqual({ classe: 'linha_de_lista', tabela: 'videos', posicao: 2 })
+    expect(b?.corte).toEqual({ classe: 'linha_de_lista', tabela: 'videos', posicao: 2, citado: true })
     expect(b?.texto).toBe('[descrição nova do vídeo 2 · texto de terceiros]\n│ linha 1\n│ linha 2\n')
     expect(b?.linhaDoJson).toEqual({ tabela: 'videos', valores: { bloco: 'descrição nova do vídeo 2', posicao: 2, texto: 'linha 1\nlinha 2' } })
   })

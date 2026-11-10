@@ -14,7 +14,7 @@ import type { BlocoCitado, Celula, ContextoDoPacote, PacoteModelo, Tabela, TelaI
 
 export type ClasseDeCorte =
   | { classe: 'dia_a_dia'; tabela: string }
-  | { classe: 'linha_de_lista'; tabela: string; posicao: number }
+  | { classe: 'linha_de_lista'; tabela: string; posicao: number; citado?: true } // `citado`: o bloco de texto pendurado na linha, não a linha
   | { classe: 'bloco_sem_linha'; ordem: number } // bloco citado sem linha de lista: o último a sair. Bloco COM linha usa 'linha_de_lista'
 
 export interface Segmento {
@@ -199,7 +199,7 @@ function segmentosDaTabela(t: Tabela, citados: readonly BlocoCitado[]): Segmento
   })
   saida.push(seg(4, '')) // a linha em branco que fecha a tabela; sem ela o bloco que vem depois seria lido como mais uma linha da tabela
   const meus = citados.filter((b) => b.linha?.tabela === t.id).sort((a, b) => (a.linha?.posicao ?? 0) - (b.linha?.posicao ?? 0))
-  for (const b of meus) saida.push(blocoCitado(b, { classe: 'linha_de_lista', tabela: t.id, posicao: b.linha?.posicao ?? 0 }))
+  for (const b of meus) saida.push(blocoCitado(b, { classe: 'linha_de_lista', tabela: t.id, posicao: b.linha?.posicao ?? 0, citado: true }))
   return saida
 }
 

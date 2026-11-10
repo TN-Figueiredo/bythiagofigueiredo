@@ -597,7 +597,7 @@ function grande(alvo: number): PacoteModelo {
 describe('responder: o tamanho', () => {
   it('nenhuma resposta passa de 60.000 caracteres; pacote_da_tela, de 30.000 (fixture de 500.000)', async () => {
     const g = grande(500_000)
-    expect(esperado(g, 10_000_000).length).toBeGreaterThan(400_000) // sem o bloco JSON (modo ia) o pacote de 500.000 tem ~409.000
+    expect(esperado(g, 10_000_000).length).toBeGreaterThan(6 * ACESSO_IA_RULES.tetoPorAcao) // sem o bloco JSON (modo ia) o pacote de 500.000 tem ~409.000
     dobra('canal', g)
     const a = await responder({ acao: 'canal', canal_id: C1 }, abrir, AGORA)
     expect(a.texto.length).toBeLessThanOrEqual(60_000)

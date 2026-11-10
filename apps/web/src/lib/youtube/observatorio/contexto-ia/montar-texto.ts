@@ -26,7 +26,11 @@ export interface TextoMontado {
 }
 
 /** A7a: `ia` tira o bloco estruturado (parte 8), a pergunta (parte 9) e a promessa do arquivo .md; o diálogo e o .md não passam `ia`. */
-export interface OpcoesDoTexto { ia?: boolean }
+export interface OpcoesDoTexto {
+  ia?: boolean
+  /** Só com `ia`: o que o chamador já tirou do pacote antes de segmentar (tabelas inteiras); entra no "cortei N" e no total sem corte. */
+  cortadoAntes?: ReadonlyArray<{ rotulo: string; caracteres: number }>
+}
 
 export interface ResumoDoDialogo {
   copia: TextoMontado
@@ -275,11 +279,13 @@ function linhasDeTamanho(
 function resolver(
   p: PacoteSerializado, passo: Passo, soma: Soma, total: number,
   linhasPara: (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number) => string[],
+  antes: ReadonlyArray<{ rotulo: string; caracteres: number }> = [],
 ): { linhas: string[]; caracteres: number; cortes: Array<{ rotulo: string; caracteres: number }> } {
   let liquido = 0
   let melhor: { linhas: string[]; caracteres: number; cortes: Array<{ rotulo: string; caracteres: number }> } | null = null
   for (let i = 0; i < 8; i += 1) {
-    const cortes = itensDoCorte(p, passo, soma, liquido)
+    const somaAntes = antes.reduce((a, x) => a + x.caracteres, 0)
+    const cortes = [...antes, ...itensDoCorte(p, passo, soma, Math.max(0, liquido - somaAntes))]
     const linhas = linhasPara(cortes, liquido)
     const caracteres = soma.semParte7 + parte7(p, linhas).length
     melhor = { linhas, caracteres, cortes }
@@ -294,9 +300,9 @@ function resolver(
 interface Candidatos { planos: Plano[]; primeiro: number }
 const candidatosGuardados = new WeakMap<PacoteSerializado, Map<string, Candidatos>>()
 
-function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia, degraus: readonly number[], ia = false): Candidatos {
+function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia, degraus: readonly number[], ia = false, antes: ReadonlyArray<{ rotulo: string; caracteres: number }> = []): Candidatos {
   const pergunta = cortarPergunta(perguntaBruta)
-  const chave = `${ia ? 'ia|' : ''}${limite}|${modo}|${degraus.join(',')}|${pergunta}`
+  const chave = `${ia ? 'ia|' : ''}${antes.map((x) => `${x.rotulo}=${x.caracteres}`).join(';')}|${limite}|${modo}|${degraus.join(',')}|${pergunta}`
   const doPacote = candidatosGuardados.get(p) ?? new Map<string, Candidatos>()
   candidatosGuardados.set(p, doPacote)
   const guardado = doPacote.get(chave)
@@ -311,11 +317,17 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
     if (novo === total) break
     total = novo
   }
+  const somaAntes = antes.reduce((a, x) => a + x.caracteres, 0)
+  // Com tabelas já tiradas pelo chamador (modo ia), o plano 0 não é "nada": ele diz o que saiu antes, e o total sem corte soma o que saiu.
+  const semNada = ia && antes.length > 0
+  if (semNada) total += somaAntes
+  const linhas0 = semNada ? linhasDeTamanho([...antes], somaAntes, { caracteres: 0, naoSaem: 0 }, null, F.fraseForaFatia1(p.tela)) : [F.porTamanhoNada(total, limite)]
+  const caracteres0 = semNada ? inteiro.semParte7 + parte7(p, linhas0).length : total
   const planos: Plano[] = [{
-    passo: passos[0]!, mantidos: inteiro.mantidos, linhasDeTamanho: [F.porTamanhoNada(total, limite)], caracteres: total, totalSemCorte: total, cortes: [],
-    cabe: total <= limite, pisoPassou: total > limite, numerosNoTexto: contarNoTexto(inteiro.mantidos),
+    passo: passos[0]!, mantidos: inteiro.mantidos, linhasDeTamanho: linhas0, caracteres: caracteres0, totalSemCorte: total, cortes: semNada ? [...antes] : [],
+    cabe: caracteres0 <= limite, pisoPassou: caracteres0 > limite, numerosNoTexto: contarNoTexto(inteiro.mantidos),
   }]
-  if (total > limite) {
+  if (caracteres0 > limite) {
     const completo = ia || limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez', CONTEXTO_IA_RULES.degrausDeLinhas))
     const linhasPara = (piso: boolean) => (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number): string[] => {
       const marca = piso ? { total, limite } : null
@@ -326,18 +338,18 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
     }
     for (const passo of passos.slice(1)) {
       const soma = somar(p, pergunta, passo, ia)
-      const r = resolver(p, passo, soma, total, linhasPara(false))
+      const r = resolver(p, passo, soma, total, linhasPara(false), antes)
       planos.push({ passo, mantidos: soma.mantidos, linhasDeTamanho: r.linhas, caracteres: r.caracteres, totalSemCorte: total, cortes: r.cortes, cabe: false, pisoPassou: r.caracteres > limite, numerosNoTexto: contarNoTexto(soma.mantidos) })
     }
     // Nenhum passo coube: o último é o piso, e a linha "Por tamanho" dele diz o tamanho real.
     if (planos.every((x) => x.caracteres > limite)) {
       const ultimo = planos[planos.length - 1]!
       if (planos.length === 1) {
-        const linhas = linhasPara(true)([], 0)
+        const linhas = linhasPara(true)([...antes], somaAntes)
         planos[0] = { ...ultimo, linhasDeTamanho: [linhas[0]!], caracteres: inteiro.semParte7 + parte7(p, [linhas[0]!]).length, cabe: false, pisoPassou: true }
       } else {
         const soma = somar(p, pergunta, ultimo.passo, ia)
-        const r = resolver(p, ultimo.passo, soma, total, linhasPara(true))
+        const r = resolver(p, ultimo.passo, soma, total, linhasPara(true), antes)
         planos[planos.length - 1] = { ...ultimo, linhasDeTamanho: r.linhas, caracteres: r.caracteres, cortes: r.cortes, pisoPassou: true }
       }
     }
@@ -372,7 +384,7 @@ function montarPlano(p: PacoteSerializado, pergunta: string, plano: Plano, ia = 
 export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite: number, diaADia: ModoDiaADia, degraus: readonly number[] = CONTEXTO_IA_RULES.degrausDeLinhas, opcoes: OpcoesDoTexto = {}): TextoMontado {
   const ia = opcoes.ia === true
   const pergunta = cortarPergunta(perguntaBruta)
-  const c = candidatos(p, perguntaBruta, limite, diaADia, degraus, ia)
+  const c = candidatos(p, perguntaBruta, limite, diaADia, degraus, ia, ia ? (opcoes.cortadoAntes ?? []) : [])
   // A conta é exata; a conferência final só existe para o dia em que alguém mude o formato de um segmento e esqueça a medida:
   // se o texto montado passar do limite, tenta o passo seguinte.
   let i = c.primeiro

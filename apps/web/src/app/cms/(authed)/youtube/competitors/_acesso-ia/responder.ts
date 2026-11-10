@@ -135,21 +135,25 @@ export { degrausDoLimite }
  * Linhas de tabela do tipo `lista`: as `n` primeiras (limite da ação), na ordem da tela. Transitório até a T9 (janelas): o corte por tamanho agora é do
  * `escolherCorte`, que fixa a principal. A principal é a tabela de classe `principal` (`classeDa`), não "a 1ª lista". O bloco citado de linha cortada sai junto.
  */
-function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes): PacoteModelo {
+function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes): { modelo: PacoteModelo; totais: Map<string, number>; avisoDaPrincipal: string | null } {
   const avisos = [...m.avisos]
   const cortadas = new Map<string, number>()
+  const totais = new Map<string, number>()
+  let avisoDaPrincipal: string | null = null
   const tabelas = m.tabelas.map((t): Tabela => {
-    const principal = classeDa(m.tela, t) === 'principal'
     if (t.tipo !== 'lista' || t.linhas.length <= n) return t
     cortes.n += 1
     cortadas.set(t.id, n)
-    avisos.push(principal
-      ? `há ${t.linhas.length} ${SUBSTANTIVO[tela] ?? 'linhas'}; saíram ${n}, na ordem da tela`
-      : `tabela "${t.titulo}": há ${t.linhas.length} linhas; saíram ${n}, na ordem da tela`)
+    totais.set(t.id, t.linhas.length)
+    // só a principal leva o aviso daqui; as outras listas contam o que não coube no `escolherCorte`, que sabe quantas linhas o texto levou de fato
+    if (classeDa(m.tela, t) === 'principal') {
+      avisoDaPrincipal = `há ${t.linhas.length} ${SUBSTANTIVO[tela] ?? 'linhas'}; saíram ${n}, na ordem da tela`
+      avisos.push(avisoDaPrincipal)
+    }
     return { ...t, linhas: t.linhas.slice(0, n) }
   })
   const citados = m.citados.filter((b) => !(b.linha && cortadas.has(b.linha.tabela) && b.linha.posicao > (cortadas.get(b.linha.tabela) ?? 0)))
-  return { ...m, tabelas, citados, avisos }
+  return { modelo: { ...m, tabelas, citados, avisos }, totais, avisoDaPrincipal }
 }
 
 /** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (tabela de ganho diário: soma dos 7 dias só com os 7 medidos; acumulada: última leitura; tipo não declarado: \"não medido\") e depois aos `n` mais recentes. */
@@ -373,8 +377,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       // o corte por tamanho começa pelo que repete (notas, dicas) e só no último estágio chega à lista principal (E3, rede de segurança até a T9)
       const n = pedido.limite.n
       const totalAntes = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')?.linhas.length ?? 0
-      modelo = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
-      const c = escolherCorte(modelo, { geradoEm: agora, recente: montado.recente }, n, tetoDoTexto, totalAntes)
+      const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
+      modelo = lim.modelo
+      const c = escolherCorte(modelo, { geradoEm: agora, recente: montado.recente }, n, tetoDoTexto, lim.totais, lim.avisoDaPrincipal)
       cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
       if (c.principalCortada) {
         cortes.n += 1

@@ -35,9 +35,9 @@ export function classeDa(tela: TelaId, tabela: { id: string; tipo: 'lista' | 'fi
 /** Os degraus do corte por tamanho para o limite `n` da ação: o texto só cai para 25 linhas depois de tentar 150, 100, 75 e 50. */
 export const degrausDoLimite = (n: number): number[] => [n, 150, 100, 75, 50, 25, 10, 5, 3, 1, 0].filter((x, i, xs) => x <= n && xs.indexOf(x) === i)
 
-/** Tira o corte das linhas (e dos blocos citados delas) das tabelas `ids`: elas entram inteiras em qualquer degrau. */
+/** Tira o corte das linhas das tabelas `ids`: elas entram inteiras em qualquer degrau. O bloco citado pendurado na linha (a descrição de cada troca) é texto e continua cortável. */
 export function fixarLinhas(p: PacoteSerializado, ids: ReadonlySet<string>): PacoteSerializado {
-  return { ...p, segmentos: p.segmentos.map((s) => (s.corte?.classe === 'linha_de_lista' && ids.has(s.corte.tabela) ? { ...s, corte: null } : s)) }
+  return { ...p, segmentos: p.segmentos.map((s) => (s.corte?.classe === 'linha_de_lista' && !s.corte.citado && ids.has(s.corte.tabela) ? { ...s, corte: null } : s)) }
 }
 
 export interface Corte {
@@ -78,54 +78,98 @@ const ESTAGIOS: Array<[Corte['estagio'], Config]> = [
   ['E3', { fixos: [], texto: 'dentro', avisaPrincipal: true }],
 ]
 
-export function escolherCorte(modelo: PacoteModelo, ctx: ContextoDoPacote, n: number, teto: number, totalReal?: number): Corte {
+const tamanhoDe = (p: PacoteSerializado): number => p.segmentos.reduce((a, x) => a + x.texto.length + 1, 0)
+
+/**
+ * `totais`: quantas linhas cada lista tinha antes do limite da ação (`limitarLinhas`); sem ele vale o que o modelo traz.
+ * `avisoDaPrincipal`: a frase que o `limitarLinhas` pôs em `modelo.avisos` para a principal (o E3 a troca pela sua; tirada por identidade).
+ */
+export function escolherCorte(modelo: PacoteModelo, ctx: ContextoDoPacote, n: number, teto: number, totais?: ReadonlyMap<string, number>, avisoDaPrincipal?: string | null): Corte {
   const tela = modelo.tela
   const classe = (t: Tabela): ClasseNaIa => classeDa(tela, t)
   const principal = modelo.tabelas.find((t) => classe(t) === 'principal')
-  const totalDaPrincipal = principal?.linhas.length ?? 0
+  const real = (t: Tabela): number => totais?.get(t.id) ?? t.linhas.length
+  const totalDaPrincipal = principal ? real(principal) : 0
   const degraus = degrausDoLimite(n)
-  const rodar = (m: PacoteModelo, fixos: ReadonlySet<string>): { t: TextoMontado; p: PacoteSerializado } => {
+  const rodar = (m: PacoteModelo, fixos: ReadonlySet<string>, antes: ReadonlyArray<{ rotulo: string; caracteres: number }> = []): { t: TextoMontado; p: PacoteSerializado } => {
     const p = fixarLinhas(segmentar(m, ctx), fixos)
-    return { t: montarTexto(p, '', teto, 'todos', degraus, { ia: true }), p }
+    return { t: montarTexto(p, '', teto, 'todos', degraus, { ia: true, cortadoAntes: antes }), p }
+  }
+  const avisoDaLimite = (t: Tabela): string => `tabela "${t.titulo}": há ${real(t)} linhas; saíram ${t.linhas.length}, na ordem da tela`
+  const citadosDaPrincipal = principal ? modelo.citados.filter((b) => b.linha?.tabela === principal.id) : []
+
+  /** Os avisos das listas que o limite da ação ou o degrau `g` cortaram (a principal só no E3, que é quando ela sai por tamanho). */
+  const avisosDasListas = (cfg: Config, g: number | null, base: readonly Tabela[]): string[] => {
+    const avisos: string[] = []
+    for (const t of base) {
+      if (t.tipo !== 'lista') continue
+      const c = classe(t)
+      const cortaG = g !== null && t.linhas.length > g
+      if (c === 'principal') {
+        if (cfg.avisaPrincipal && cortaG) {
+          const resto = g < n ? ` (o limite da ação é ${n}; o resto não coube no tamanho)` : ''
+          avisos.push(`há ${totalDaPrincipal} ${ehTelaComLista(tela) ? SUBSTANTIVO[tela] : 'linhas'}; saíram ${g}, na ordem da tela${resto}`)
+        } else if (cfg.avisaPrincipal && avisoDaPrincipal) avisos.push(avisoDaPrincipal) // o tamanho não cortou a principal: vale a frase do limite da ação
+        continue
+      }
+      const fixa = cfg.fixos.includes(c)
+      const mantidas = !fixa && cortaG ? g : t.linhas.length
+      if (c === 'texto') { if (real(t) > mantidas) avisos.push(avisoDeLinhas(tela, t.titulo, real(t) - mantidas)) }
+      else if (c === 'coluna' && cfg.avisaColunas && cortaG) avisos.push(avisoDeColunas(tela, t.titulo, real(t) - g))
+      else if (real(t) > t.linhas.length && !(cortaG && !fixa)) avisos.push(avisoDaLimite(t))
+      else if (real(t) > t.linhas.length) avisos.push(avisoDeLinhas(tela, t.titulo, real(t) - mantidas))
+    }
+    // as descrições penduradas na principal são texto: saem antes dela, e o aviso conta quantas
+    if (!cfg.avisaPrincipal && g !== null && principal && ehTelaComLista(tela)) {
+      const fora = citadosDaPrincipal.filter((b) => (b.linha?.posicao ?? 0) > g).length
+      if (fora > 0) avisos.push(`descrições de ${fora} ${SUBSTANTIVO[tela]} não couberam; o detalhe aparece na tela ${TELA_DO_DETALHE[tela] || 'da lista'}`)
+    }
+    return avisos
   }
 
   // E0: tudo, nada fixo. Só vale se nada foi cortado (`cabe` é verdadeiro só no plano 0); degrau que "cabe" cortando a principal não vale.
-  const inteiro = rodar(modelo, new Set())
+  const avisosE0 = avisosDasListas({ fixos: [], texto: 'dentro' }, null, modelo.tabelas)
+  const inteiro = rodar({ ...modelo, avisos: [...modelo.avisos, ...avisosE0] }, new Set())
   if (inteiro.t.cabe) {
-    return { texto: inteiro.t, estagio: 'E0', avisos: [], linhasDaPrincipal: totalDaPrincipal, totalDaPrincipal, principalCortada: false, primeiraLinhaDeAviso: inteiro.p.primeiraLinhaDeAviso }
+    return { texto: inteiro.t, estagio: 'E0', avisos: avisosE0, linhasDaPrincipal: principal?.linhas.length ?? 0, totalDaPrincipal, principalCortada: false, primeiraLinhaDeAviso: inteiro.p.primeiraLinhaDeAviso }
   }
 
   let ultimo: Corte | null = null
   for (const [estagio, cfg] of ESTAGIOS) {
     const fixos = new Set(modelo.tabelas.filter((t) => t.tipo === 'lista' && cfg.fixos.includes(classe(t))).map((t) => t.id))
     const base = cfg.texto === 'fora' ? modelo.tabelas.filter((t) => classe(t) !== 'texto') : modelo.tabelas
-    const semAvisoDaPrincipal = cfg.avisaPrincipal ? modelo.avisos.filter((a) => !(a.startsWith('há ') && a.includes('; saíram '))) : modelo.avisos
+    const saidas = modelo.tabelas.filter((t) => !base.includes(t))
+    // o que saiu antes de segmentar não está no pacote: o `montarTexto` precisa saber, para não dizer "Por tamanho: nada"
+    const soltos = modelo.citados.filter((b) => !b.linha)
+    const vazio = saidas.length ? tamanhoDe(segmentar({ ...modelo, tabelas: [], citados: soltos }, ctx)) : 0
+    const antes = saidas.map((t) => ({
+      rotulo: `a tabela "${t.titulo}"`,
+      caracteres: Math.max(0, tamanhoDe(segmentar({ ...modelo, tabelas: [t], citados: [...soltos, ...modelo.citados.filter((b) => b.linha?.tabela === t.id)] }, ctx)) - vazio),
+    }))
+    // a principal da limite da ação só some do aviso no E3; filtrada por identidade, nunca por casamento de texto
+    const semAvisoDaPrincipal = cfg.avisaPrincipal && avisoDaPrincipal ? modelo.avisos.filter((a) => a !== avisoDaPrincipal) : modelo.avisos
     // O aviso diz quantas linhas o texto levou, e o texto muda de tamanho com o aviso: repete até o degrau parar (só desce, então para).
+    const passada = (g: number | null): { avisos: string[]; feito: { t: TextoMontado; p: PacoteSerializado } } => {
+      const avisos = [...saidas.map((t) => avisoDeLinhas(tela, t.titulo, real(t))), ...avisosDasListas(cfg, g, base)]
+      return { avisos, feito: rodar({ ...modelo, tabelas: base, avisos: [...semAvisoDaPrincipal, ...avisos] }, fixos, antes) }
+    }
     let g: number | null = null
-    let feito: { t: TextoMontado; p: PacoteSerializado } | null = null
-    let avisos: string[] = []
-    for (let volta = 0; volta < 5; volta += 1) {
-      avisos = []
-      if (cfg.texto === 'fora') for (const t of modelo.tabelas) if (classe(t) === 'texto') avisos.push(avisoDeLinhas(tela, t.titulo, t.linhas.length))
-      if (g !== null) {
-        if (cfg.texto === 'degraus') for (const t of base) if (classe(t) === 'texto' && t.linhas.length > g) avisos.push(avisoDeLinhas(tela, t.titulo, t.linhas.length - g))
-        if (cfg.avisaColunas) for (const t of base) if (t.tipo === 'lista' && classe(t) === 'coluna' && t.linhas.length > g) avisos.push(avisoDeColunas(tela, t.titulo, t.linhas.length - g))
-        if (cfg.avisaPrincipal && principal && principal.linhas.length > g) {
-          const resto = g < n ? ` (o limite da ação é ${n}; o resto não coube no tamanho)` : ''
-          avisos.push(`há ${totalReal ?? totalDaPrincipal} ${ehTelaComLista(tela) ? SUBSTANTIVO[tela] : 'linhas'}; saíram ${g}, na ordem da tela${resto}`)
-        }
-      }
-      feito = rodar({ ...modelo, tabelas: base, avisos: [...semAvisoDaPrincipal, ...avisos] }, fixos)
-      const novo = feito.t.degrau
+    let r = passada(g)
+    // o degrau só desce e há `degraus.length` deles: mais voltas que isso é invariante quebrado
+    for (let volta = 0; volta <= degraus.length; volta += 1) {
+      const novo = r.feito.t.degrau
       if (novo === g || novo === null) break
       g = novo
+      r = passada(g)
+      if (volta === degraus.length) throw new Error('corte-da-ia: o aviso não chegou a um degrau fixo')
     }
-    const f = feito!
+    const f = r.feito
+    const avisos = r.avisos
     const grau = f.t.degrau
     const cortouAPrincipal = principal !== undefined && grau !== null && principal.linhas.length > grau
     ultimo = {
       texto: f.t, estagio, avisos,
-      linhasDaPrincipal: estagio === 'E3' && grau !== null ? Math.min(totalDaPrincipal, grau) : totalDaPrincipal,
+      linhasDaPrincipal: estagio === 'E3' && grau !== null ? Math.min(totalDaPrincipal, grau) : (principal?.linhas.length ?? 0),
       totalDaPrincipal, principalCortada: estagio === 'E3' && (cortouAPrincipal || f.t.pisoPassou), primeiraLinhaDeAviso: f.p.primeiraLinhaDeAviso,
     }
     if (!f.t.pisoPassou) return ultimo
