@@ -8,6 +8,7 @@ import { referenciaDoCanal, REGRAS_REFERENCIAS, type ReferenciaDoCanal } from '@
 import { inscritosDoCanal, JANELA_RETRATOS_DIAS, REGRAS_INSCRITOS, type InscritosDoCanal, type RetratosDoProprio } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { Fmt, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { gemeo } from '../_canal/formato'
 import type { RiFrase, RiLinhaIns, RiLinhaRef, RiPilula, RiSecao, RiView } from './ri-tipos'
 
 /** O que o modelo lê do motor (o `Observatory` inteiro serve). */
@@ -157,21 +158,21 @@ function secaoReferencias(escopo: ObsChannel[], obs: RiObs, p: RiParams, ordr: '
     const { c, r } = x
     const fx = `${GLIFO_FAIXA[r.classe]} ${ROTULO_FAIXA[r.classe]}`
     return {
-      id: c.id, nome: c.name, proprio: c.own, rank: null, valor: cmpL(r.mediana),
+      id: c.id, nome: c.name, proprio: c.own, rank: null, valor: cmpL(r.mediana), valorN: gemeo(r.mediana),
       sub: `${fx}${r.razao != null ? ' · ' + razaoTxt(r.razao) : ''} · ${r.k} vídeos`,
       marca: esc.pos(r.mediana), faixa: { de: esc.pos(r.p25), ate: esc.pos(r.p75) }, provisoria: false, pilula: null,
       ariaLabel: `${c.name}: vídeo típico de ${nfV(r.mediana)} views por vídeo, metade dos vídeos entre ${nfV(r.p25)} e ${nfV(r.p75)}, ${ROTULO_FAIXA[r.classe]}`,
     }
   }
   const linhaProv = (x: (typeof provs)[number]): RiLinhaRef => ({
-    id: x.c.id, nome: x.c.name, proprio: x.c.own, rank: null, valor: cmpL(x.r.mediana), sub: null,
+    id: x.c.id, nome: x.c.name, proprio: x.c.own, rank: null, valor: cmpL(x.r.mediana), valorN: gemeo(x.r.mediana), sub: null,
     marca: esc.pos(x.r.mediana), faixa: null, provisoria: true,
     pilula: { tipo: 'prov', texto: x.r.desde != null ? ROTULOS_NOVOS_RI.janelaParcial(ddmm(x.r.desde)) : `provisória · ${x.r.k} vídeos` },
     ariaLabel: `${x.c.name}: vídeo típico provisório de ${nfV(x.r.mediana)} views com ${x.r.k} vídeos, sem faixa`,
   })
   const linhaNm = (x: (typeof nms)[number]): RiLinhaRef => {
     const pilula = pilulaNmRef(x.r, p.fmt)
-    return { id: x.c.id, nome: x.c.name, proprio: x.c.own, rank: null, valor: null, sub: null, marca: null, faixa: null, provisoria: false, pilula, ariaLabel: `${x.c.name}: ${pilula.texto}` }
+    return { id: x.c.id, nome: x.c.name, proprio: x.c.own, rank: null, valor: null, valorN: null, sub: null, marca: null, faixa: null, provisoria: false, pilula, ariaLabel: `${x.c.name}: ${pilula.texto}` }
   }
   const ordemFinal = ordr === 'faixa' ? poFaixa : poMediana
   const linhas: RiLinhaRef[] = [
@@ -287,6 +288,7 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     return {
       id: c.id, nome: c.name, proprio: c.own, rank: null, classe: r.classe,
       pct: r.classe === 'eq' ? 'sem variação' : r.pct == null ? null : `${sinal(r.ganho)}${d1(Math.abs(r.pct))}%`,
+      pctN: r.classe === 'eq' ? 0 : gemeo(r.pct),
       sub: `${r.classe === 'eq' ? '' : sinal(r.ganho) + abs + ' · '}${cmpL(r.hoje)} no total · ${datas}`,
       barra: r.classe === 'eq' ? { pct: 0, abs: 0 } : { pct: tam(Math.abs(r.pct ?? 0), maiorPct), abs: tam(Math.abs(r.ganho), maiorAbs) }, pilula: null, nota: null,
       ariaLabel: `${c.name}: ${r.classe === 'eq' ? 'sem variação' : `${r.ganho > 0 ? 'subiu' : 'caiu'} ${abs} inscritos${r.pct != null ? ', ' + d1(Math.abs(r.pct)) + '%' : ''}`} em 28 dias`,
@@ -294,7 +296,7 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
   }
   const linhaNm = ({ c, r }: { c: ObsChannel; r: InsNm }): RiLinhaIns => {
     const { pilula, nota } = pilulaNmIns(r)
-    return { id: c.id, nome: c.name, proprio: c.own, rank: null, classe: null, pct: null, sub: null, barra: null, pilula, nota, ariaLabel: `${c.name}: ${pilula.texto}` }
+    return { id: c.id, nome: c.name, proprio: c.own, rank: null, classe: null, pct: null, pctN: null, sub: null, barra: null, pilula, nota, ariaLabel: `${c.name}: ${pilula.texto}` }
   }
   const linhas = [...(ordi === 'abs' ? poAbs : poPct).map(linhaOk), ...[...nms].sort(desempate).map(linhaNm)]
 

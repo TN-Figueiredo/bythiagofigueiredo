@@ -68,6 +68,8 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '@/lib/youtube/observatorio/comentarios/leitor-mencao',
     // A5 F2: frase fixa do canal agendado para guardar, módulo puro que a tela também usa
     '../_canais/remover-model',
+    // A5 F0.5a: `gemeo` (o `x` normalizado a 12 algarismos), folha sem modelo e sem 'use client' que a tela e o empacotador dividem
+    '../_canal/formato',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
   it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })
@@ -143,5 +145,24 @@ describe('pendências do pacote da IA (Yannis, 17/10)', () => {
   it('as marcas PENDENTE-E17-PACOTE no código são exatamente as declaradas; o portão G-5 (ligar a IA) exige esta lista vazia', () => {
     const achadas = arquivos(join(C, '_contexto-ia')).flatMap((p) => [...ler(p).matchAll(/PENDENTE-E17-PACOTE\(([^)]*)\)/g)].flatMap((m) => m[1]!.split(';').map((x) => x.trim())))
     expect(achadas.sort()).toEqual(['direcaoNicho*', 'groups[].cards[].idade*', 'idade*'])
+  })
+})
+
+describe('A5 F0.5a: o x nasce do número do modelo, nunca do texto', () => {
+  // o `+` só conta como conversão quando é unário (depois de operador ou `return`): `a + r.texto` é concatenação
+  const PROIBIDO = /\b(parseFloat|parseInt|Number)\s*\([^)]*\b(texto|big|mult|pw|subs|observed)\b|(?:^|[=(,:?&|!]|\breturn)\s*\+\s*\w+\.(texto|big|mult|pw|subs|observed)\b/
+  const alvo = [...arquivos(L), ...arquivos(join(C, '_contexto-ia'))]
+  it('nenhum arquivo de contexto-ia/ nem de _contexto-ia/ converte o texto de uma célula em número', () => {
+    expect(alvo.filter((p) => PROIBIDO.test(semComentarios(ler(p)))).map(nome)).toEqual([])
+  })
+  it('controle negativo: um caso positivo por nome (a rede pega cada um)', () => {
+    for (const n of ['texto', 'big', 'mult', 'pw', 'subs', 'observed']) {
+      expect(PROIBIDO.test(`const x = Number(c.${n})`), `Number(${n})`).toBe(true)
+      expect(PROIBIDO.test(`const x = parseFloat(l.${n}.replace(',', '.'))`), `parseFloat(${n})`).toBe(true)
+      expect(PROIBIDO.test(`const x = +r.${n}`), `+${n}`).toBe(true)
+    }
+    expect(PROIBIDO.test('const x = Number(r.subs_total)')).toBe(false)
+    expect(PROIBIDO.test("r.texto.charAt(0) + r.texto.slice(1)"), 'concatenação não é + unário').toBe(false)
+    expect(PROIBIDO.test('const x = Number(v.toPrecision(12))')).toBe(false)
   })
 })

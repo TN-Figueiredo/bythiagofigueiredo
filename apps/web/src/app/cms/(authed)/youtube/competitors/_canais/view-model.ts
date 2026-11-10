@@ -25,7 +25,7 @@ import {
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
-import { NB, nbMilMi, numNb } from '../_canal/formato'
+import { NB, gemeo, nbMilMi, numNb } from '../_canal/formato'
 import { quandoMs } from '../_canal/medidas/formatos'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 import { SEM_LEITURA_NO_MAPA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
@@ -60,21 +60,22 @@ export interface Thumb { src: string | null; text: string | null }
 
 export type CadenceCell =
   | { kind: 'na'; text: string; title: string }
-  | { kind: 'ok'; weeks: Array<{ long: number | null; short: number | null }>; nota: NotaDoRitmo | null; label: string; pw: string; unit: string; sub: string | null; paused: string | null }
+  | { kind: 'ok'; weeks: Array<{ long: number | null; short: number | null }>; nota: NotaDoRitmo | null; label: string; pw: string; /** A5: o ritmo em publicações por semana, sem o arredondamento do texto. */ pwN: number | null; unit: string; sub: string | null; paused: string | null }
 export type VpdCell =
   /** `falta`: a frase é a da ausência do formato ("sem Shorts", "sem vídeos"); em "Todos" ela vem sem rótulo na frente. */
   /** `ausencia`: decisão 75, só no canal próprio com o diário lido (restrito/falhou/não medido); ausente = a célula de sempre. */
   | { kind: 'na'; text: string; title: string; falta?: true; ausencia?: EstadoAusencia }
   /** `title`: a base escrita do número do canal próprio (a janela do diário); ausente nos concorrentes. */
-  | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null; title?: string }
+  | { kind: 'ok'; big: string; abs: string | null; /** A5: os mesmos dois números sem o arredondamento do texto. */ bigN: number; absN: number | null; n: number; weak: boolean; tail: string | null; title?: string }
 export type OutCell =
   | { kind: 'na'; text: string; weak: string | null; upnext: string | null; falta?: true }
-  | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
+  | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; /** A5: o múltiplo em vezes (4,2× → 4.2). */ multN: number; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
   | { kind: 'na'; text: string; title: string; motivo: 'novo' | 'sem-registro' | 'oculto' | 'nao-carregou' | 'sem-percentual' | 'buraco'; fechaEm: number | null; dias: number | null }
-  | { kind: 'flat'; big: 'sem variação'; cap: string; limite: number; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; passo: number }
-  | { kind: 'ok'; big: string; cap: string; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; pct: number }
+  /** `growthPctN` (A5): o crescimento em PONTOS percentuais (12,3% → 12.3), não a fração do `pct`. Em `flat`, `null` quando o YouTube arredonda (`limite > 0`), 0 quando não. */
+  | { kind: 'flat'; big: 'sem variação'; growthPctN: number | null; cap: string; limite: number; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; passo: number }
+  | { kind: 'ok'; big: string; growthPctN: number | null; cap: string; antes: number | null; depois: number | null; de: number | null; ate: number | null; atrasadoAte: number | null; abs: number; pct: number }
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
   msg: string | null; progress: { done: number; total: number } | null; canRetry: boolean; canRemove: boolean
@@ -467,11 +468,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     // Phil M-2: o retrato do próprio é diário (meio-dia fixo): só o dia, sem uma hora que ninguém mediu
     const until = atrasadoAte != null ? `, até ${c.own ? D.dm(atrasadoAte) : D.dmhm(atrasadoAte)}` : ''
     const base = { antes: g.fromSubs ?? null, depois: g.toSubs ?? null, de: g.from ?? null, ate: g.to ?? null, atrasadoAte }
-    if (g.withinRounding) return { kind: 'flat', big: 'sem variação', cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
+    if (g.withinRounding) return { kind: 'flat', big: 'sem variação', growthPctN: g.limiteArred > 0 ? null : 0, cap: g.limiteArred > 0 ? `dentro do arredondamento (±${F.num(g.limiteArred).replace(/ (mil|mi)/g, NB + '$1')})` : 'mesmo número nas duas contagens', limite: g.limiteArred, ...base, abs: g.abs!, passo: g.roundingUnit }
     const absTxt = `${sinal(g.abs!)}${F.num(Math.abs(g.abs!))}`.replace(/ (mil|mi)/g, NB + '$1')
     // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent, only the absolute
     if (g.pct == null) return na(`${absTxt} em 30${NB}d${until}`, 'Sem percentual: o canal não tinha inscritos na contagem anterior.', 'sem-percentual')
-    return { kind: 'ok', big: `${sinal(g.pct)}${F.dec1(Math.abs(g.pct * 100))}%`, cap: `${absTxt} em 30${NB}d${until}`, ...base, abs: g.abs!, pct: g.pct }
+    return { kind: 'ok', big: `${sinal(g.pct)}${F.dec1(Math.abs(g.pct * 100))}%`, growthPctN: gemeo(g.pct * 100), cap: `${absTxt} em 30${NB}d${until}`, ...base, abs: g.abs!, pct: g.pct }
   }
   /** Nome do formato nas frases e a unidade do ritmo. */
   const wordOf = (f: Fmt) => (f === 'long' ? 'longos' : 'Shorts')
@@ -498,7 +499,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       weeks: kl.weeks.map((w, i) => ({ long: w.n, short: w.n === null ? null : ks.weeks[i]?.n ?? 0 })),
       // a nota é do canal, não do formato: só a medida principal a leva (a segunda linha de "Todos" não repete)
       nota: second ? null : kl.nota,
-      label: `${kl.n} vídeos longos e ${ks.n} Shorts ${kl.corte === null ? 'nas últimas 13 semanas' : `em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}`}`, pw: pwTxt(k.pw), unit: `${wordOf(f)}/sem`,
+      label: `${kl.n} vídeos longos e ${ks.n} Shorts ${kl.corte === null ? 'nas últimas 13 semanas' : `em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}`}`, pw: pwTxt(k.pw), pwN: gemeo(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
       sub: empty ? `nenhum em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}` : !second && paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : other.pw === null ? null : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
       paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
@@ -531,9 +532,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       // canal próprio: a base escrita é a janela do diário (D3), à vista na ressalva e inteira na dica
       const dias = o.ev.janela ? `, de ${extras.dm(o.ev.janela.de)} a ${extras.dm(o.ev.janela.ate)}` : ''
       const base = baseVpdTexto(o.ev, extras.dm)
-      return { kind: 'ok', big: vpdAbs(v), abs: rel && o.abs != null ? vpdAbs(o.abs) : null, n: o.ev.n, weak: o.ev.n < R.weakBase, tail: dias + (empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : ''), ...(base ? { title: base } : {}) }
+      return { kind: 'ok', big: vpdAbs(v), abs: rel && o.abs != null ? vpdAbs(o.abs) : null, bigN: gemeo(v)!, absN: rel && o.abs != null ? gemeo(o.abs) : null, n: o.ev.n, weak: o.ev.n < R.weakBase, tail: dias + (empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : ''), ...(base ? { title: base } : {}) }
     }
-    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
+    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, bigN: gemeo(v)!, absN: rel && S.vpdMedian != null ? gemeo(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
   }
   function outCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): OutCell {
     const fmtName = wordOf(f), one = oneOf(f), o = S.bestOutlier
@@ -552,7 +553,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const m = o.mult, a = ageOf(o.video)
     return {
       kind: 'ok', title: `${m.label ?? ''}. ${methodText(m)}; sem contar este vídeo.`, videoTitle: o.video.title, thumb: thumbOf(o.video),
-      mult: F.mult(m.value), tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
+      mult: F.mult(m.value), multN: gemeo(m.value)!, tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
       count: `${S.outliers90} ${S.outliers90 === 1 ? 'outlier' : 'outliers'} no canal`,
     }
   }

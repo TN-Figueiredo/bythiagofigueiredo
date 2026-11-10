@@ -12,6 +12,8 @@ export interface RiLinhaRef {
   proprio: boolean
   rank: number | null
   valor: string | null
+  /** A5: as views do vídeo típico em unidades, sem o arredondamento do texto. */
+  valorN: number | null
   sub: string | null
   marca: number | null
   faixa: { de: number; ate: number } | null
@@ -27,6 +29,8 @@ export interface RiLinhaIns {
   rank: number | null
   classe: 'up' | 'dn' | 'eq' | null
   pct: string | null
+  /** A5: o ganho em pontos percentuais (12,3% → 12.3); 0 em 'sem variação'; null sem percentual. */
+  pctN: number | null
   sub: string | null
   barra: { pct: number; abs: number } | null
   pilula: RiPilula | null
