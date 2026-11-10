@@ -255,7 +255,6 @@ export function marcaDaPrincipal(t: Tabela): string {
   return createHash('sha256').update(chaves.join('\n')).digest('hex').slice(0, 8)
 }
 
-/** Reserva fixa, por tabela de texto que sai da janela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
 /** Janela sem tabela privada (janela 2 em diante): o dado privado não está nela, então o modelo dela não o declara. Uma só função para os dois modos (texto e tabela). */
 export function semPrivadoForaDaJanela(m: PacoteModelo): PacoteModelo {
   if (m.privado.estado !== 'incluido' || m.tabelas.some((t) => t.privada)) return m
@@ -264,6 +263,7 @@ export function semPrivadoForaDaJanela(m: PacoteModelo): PacoteModelo {
   return r
 }
 
+/** Reserva fixa, por tabela de texto que sai da janela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
 export const RESERVA_POR_TABELA_DE_TEXTO = 450
 /** Mudanças: a linha "descrições de N mudanças não couberam" (só quando as descrições saem). */
 export const RESERVA_DAS_DESCRICOES = 300

@@ -317,7 +317,7 @@ export function montarComoEsta(a: {
   const vs = viewsDoCanalPorDia(a.dados.diario, ytIds)
   const graficoViews = buildImpressoes(vs.dias, vs.periodo, { escopo: 'canal', alturaArea: ALTURA_VIEWS, unidade: 'views', dm: a.dm, acesso: a.dados.diario.acesso, hoje: a.hoje, negativa: a.negativa })
   // o corte dos 50 longos mais novos do diário: a soma não é do canal inteiro e o gráfico diz
-  if (vs.foraDoTeto > 0) graficoViews.avisos.push(foraDaLeituraFrase(vs.foraDoTeto))
+  if (vs.foraDoTeto > 0) { graficoViews.avisos.push(foraDaLeituraFrase(vs.foraDoTeto)); graficoViews.foraDoTeto = vs.foraDoTeto }
   const view = buildComoEsta({
     resumo: resumir(dias), periodo, acesso: al.acesso, negativa: a.negativa, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
     concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje, parouEm,

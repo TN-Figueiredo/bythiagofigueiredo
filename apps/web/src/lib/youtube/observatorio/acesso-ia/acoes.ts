@@ -51,7 +51,7 @@ const formato = z.enum(['todos', 'longos', 'shorts'])
 const aPartirDaLinha = z.preprocess((v) => (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(100_000)).optional()
 /** 8 hex da lista; o 9º caractere `p` diz que uma janela anterior perdeu parte do conteúdo (a IA o repete como veio). */
 const marca = z.string().regex(/^[0-9a-f]{8}p?$/).optional()
-/** A5 F1b: só as três listas aceitam `saida`; `comparar` não (D10). */
+/** A5 F1b/F2a: as três listas e a `serie` (um canal) aceitam `saida`; `comparar` não (D10). */
 const saida = z.enum(['texto', 'tabela']).optional()
 
 const dataReal = (s: string): boolean => {
@@ -73,7 +73,7 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('video'), video_id: id }).strict(),
   z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
-  z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional() }).strict(),
+  z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
