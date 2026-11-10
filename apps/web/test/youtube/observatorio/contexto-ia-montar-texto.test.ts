@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { segmentar, type PacoteSerializado } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { medidaConfere, medir, montarTexto, resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
-import { milhar } from '@/lib/youtube/observatorio/contexto-ia/frases'
+import { milhar, fraseForaFatia1, ESTRUTURADO_TITULO, PERGUNTA_TITULO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import {
   CONTEXTO, SENTINELA, modeloCheio, modeloComComentarios, modeloComZero, modeloEstresse, modeloEstresseMudancas, modeloEstresseVideo, modeloMagro,
@@ -492,5 +492,90 @@ describe('prévia e pureza', () => {
     const m = modeloMagro(0, 2)
     m.tabelas[0]!.linhas[0] = [rotulo('Medida', 'pack.m'), medido('1', 1, 'pack.n')]
     expect(montarTexto(pac(m), '', L30, 'todos').texto).toContain('Gerado em: 13/10/2026 14:32')
+  })
+})
+
+// A7a T1: rede, nasce verde (gravada no main ANTES do modo `ia`). Sem a opção `ia`, o texto do diálogo e o do .md saem letra por letra como antes.
+describe('A7a: sem a opção ia, o texto é idêntico ao de antes', () => {
+  it('modeloCheio cortada em 5.000 e em 60.000 (instantâneo)', () => {
+    const p = pac(modeloCheio())
+    expect(montarTexto(p, 'Qual cresce mais?', 5_000, 'todos').texto).toMatchSnapshot('limite 5.000')
+    expect(montarTexto(p, 'Qual cresce mais?', 60_000, 'todos').texto).toMatchSnapshot('limite 60.000')
+  })
+  it('modeloEstresse (60 canais) realmente cortada em 5.000 e em 60.000 (instantâneo)', () => {
+    const p = pac(modeloEstresse())
+    const a = montarTexto(p, 'Qual cresce mais?', 5_000, 'todos')
+    const b = montarTexto(p, 'Qual cresce mais?', 60_000, 'todos')
+    expect(a.cortes.length).toBeGreaterThan(0)
+    expect(b.cortes.length).toBeGreaterThan(0)
+    expect(a.texto).toMatchSnapshot('estresse 5.000')
+    expect(b.texto).toMatchSnapshot('estresse 60.000')
+  })
+  it('o diálogo e o arquivo .md do modeloCheio (instantâneo)', () => {
+    const r = resumir(pac(modeloCheio()), 'Qual cresce mais?')
+    expect(r.copia.texto).toMatchSnapshot('copia')
+    expect(r.completo.texto).toMatchSnapshot('completo')
+  })
+})
+
+describe('A7a T1: modo ia no montarTexto', () => {
+  const IA = { ia: true }
+  const degraus = [25, 10, 5, 3, 1, 0]
+  const casos: Array<['canais' | 'outliers' | 'mudancas', () => PacoteModelo]> = [
+    ['canais', () => modeloEstresse()],
+    ['outliers', () => ({ ...modeloEstresse(), tela: 'outliers' as const })],
+    ['mudancas', () => modeloEstresseMudancas()],
+  ]
+  const EXATO = {
+    canais: '  O que não saiu aqui foi cortado por tamanho; peça a ação canal (ou video) com o id para ver um item inteiro.',
+    outliers: '  O que não saiu aqui foi cortado por tamanho; o detalhe aparece na tela Destaques.',
+    mudancas: '  O que não saiu aqui foi cortado por tamanho; o detalhe aparece na tela Mudanças.',
+  } as const
+
+  it.each(casos)('modo ia (%s): sem parte 8, sem parte 9 e sem a frase do .md; a frase certa da tela', (tela, fazer) => {
+    const t = montarTexto(pac(fazer()), 'Qual cresce mais?', 5_000, 'todos', undefined, IA)
+    expect(t.texto).not.toContain(ESTRUTURADO_TITULO)
+    expect(t.texto).not.toContain(PERGUNTA_TITULO)
+    expect(t.texto).not.toContain('arquivo completo (.md)')
+    expect(t.texto).not.toContain('Qual cresce mais?')
+    expect(t.texto).not.toContain('Cobertura')
+    expect(fraseForaFatia1(tela)).toBe(EXATO[tela])
+    expect(t.texto).toContain(EXATO[tela])
+    expect(medidaConfere(t)).toBe(true)
+    expect(t.caracteres).toBeLessThanOrEqual(5_000)
+    expect(t.cortes.length).toBeGreaterThan(0)
+    // o JSON não entra na conta do "cortei N": a soma dos cortes é o que o texto deixou de levar, contado sem o JSON
+    expect(t.cortes.reduce((a, c) => a + c.caracteres, 0)).toBe(t.totalSemCorte - t.caracteres)
+  })
+
+  it('Destaques e Mudanças não citam ação nem id; Canais cita a ação canal', () => {
+    expect(fraseForaFatia1('outliers')).not.toMatch(/ação|\bid\b/i)
+    expect(fraseForaFatia1('mudancas')).not.toMatch(/ação|\bid\b/i)
+    expect(fraseForaFatia1('canais')).toContain('ação canal')
+  })
+
+  it('totalSemCorte e tirado não incluem o JSON: sem corte, o texto ia é o texto normal menos as partes 8 e 9', () => {
+    const p = pac(modeloCheio())
+    const normal = montarTexto(p, '', L200, 'todos')
+    const ia = montarTexto(p, '', L200, 'todos', undefined, IA)
+    expect(ia.cortes).toEqual([])
+    expect(ia.totalSemCorte).toBe(ia.caracteres)
+    expect(ia.caracteres).toBe(ia.texto.length)
+    expect(ia.caracteres).toBeLessThan(normal.caracteres - 100)
+  })
+
+  it('numerosNoTexto conta só o que ficou: falhou numa linha cortada não entra', () => {
+    const m = modeloEstresse()
+    const lista = m.tabelas[0]!
+    const ultima = lista.linhas.length - 1
+    lista.linhas[ultima] = lista.linhas[ultima]!.map((c, i) => (i === 1 ? ({ papel: 'numero', estado: 'falhou', motivo: 'leitura', origem: 'pack.falha' } as const) : c))
+    const p = pac(m)
+    expect(p.numeros.falhou).toBe(1)
+    const t = montarTexto(p, '', 3_500, 'todos', degraus, IA)
+    expect(t.cortes.some((c) => c.rotulo.includes('linhas além'))).toBe(true) // o corte chegou às linhas da lista (sem isso o teste não prova nada)
+    expect(t.numerosNoTexto.falhou).toBe(0)
+    expect(t.numerosNoTexto.medidos).toBeLessThan(p.numeros.medidos)
+    const inteiro = montarTexto(p, '', L200, 'todos', undefined, IA)
+    expect(inteiro.numerosNoTexto).toEqual(p.numeros)
   })
 })

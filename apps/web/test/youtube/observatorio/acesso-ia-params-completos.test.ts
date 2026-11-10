@@ -19,12 +19,20 @@ describe('FORMA_DOS_PARAMS cobre a ENTRADA', () => {
     const sem = [...chaves].filter((k) => !CHAVES_COM_FORMA_DE_PARAMS.includes(k))
     expect(sem).toEqual([])
   })
-  it('as chaves que o responder devolve no registro (`privado`, `comentarios`, `cortes`, `pares`) têm forma', () => {
-    for (const k of ['privado', 'comentarios', 'cortes', 'pares', 'desfecho', 'por']) expect(CHAVES_COM_FORMA_DE_PARAMS).toContain(k)
+  it('as chaves que o responder devolve no registro (`privado`, `comentarios`, `cortes`, `pares`, `linhas`, `total`) têm forma', () => {
+    for (const k of ['privado', 'comentarios', 'cortes', 'pares', 'desfecho', 'por', 'linhas', 'total']) expect(CHAVES_COM_FORMA_DE_PARAMS).toContain(k)
   })
 })
 
 describe('as formas novas', () => {
+  it('A7a: linhas e total são contadores; texto, negativo e fração saem', async () => {
+    const ok = await inserido({ linhas: 34, total: 120 })
+    expect(ok.linhas).toBe(34)
+    expect(ok.total).toBe(120)
+    const ruim = await inserido({ linhas: 'trinta', total: -1 })
+    expect(ruim).not.toHaveProperty('linhas')
+    expect(ruim).not.toHaveProperty('total')
+  })
   const inserido = async (params: Record<string, unknown>) => {
     const linhas: Array<Record<string, unknown>> = []
     const sb = { from: () => ({ insert: (l: Record<string, unknown>) => { linhas.push(l); return { abortSignal: async () => ({ error: null }) } } }) }

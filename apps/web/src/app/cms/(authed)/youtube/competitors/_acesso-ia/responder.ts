@@ -15,14 +15,16 @@ import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
+import { classeDa, degrausDoLimite, escolherCorte } from './corte-da-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
 type Tela = Pedido['telas'][number]['tela']
 
 const TAGS = { component: 'observatorio-ia', step: 'responder' } as const
-const avisar = (passo: string): void => {
-  Sentry.captureMessage(`observatorio_leitura: ${passo}`, { level: 'warning', tags: TAGS, extra: { passo } })
+/** `extra` só leva contador ou id de lista fechada: nunca texto livre, pedido nem pacote. */
+const avisar = (passo: string, extra?: Record<string, number | string>): void => {
+  Sentry.captureMessage(`observatorio_leitura: ${passo}`, { level: 'warning', tags: TAGS, extra: { passo, ...extra } })
 }
 
 /* ------------------------------------------------------------------ pedido inválido, sem eco de texto livre */
@@ -127,31 +129,31 @@ const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outlier
 
 interface Cortes { n: number }
 
-/** Os degraus do corte por tamanho para o limite `n` da ação: o texto só cai para 25 linhas depois de tentar 150, 100, 75 e 50 (o diálogo do degrau 1 segue com a escada dele). */
-export const degrausDoLimite = (n: number): number[] => [n, 150, 100, 75, 50, 25, 10, 5, 3, 1, 0].filter((x, i, xs) => x <= n && xs.indexOf(x) === i)
+export { degrausDoLimite }
 
 /**
- * Linhas de tabela do tipo `lista`: as `n` primeiras (limite da ação), na ordem da tela. `k` é quantas linhas o texto de fato leva (o corte por tamanho
- * pode tê-lo baixado de `n`): a frase do aviso diz `k`, nunca o limite da ação quando o tamanho cortou mais. O bloco citado de linha cortada sai junto.
+ * Linhas de tabela do tipo `lista`: as `n` primeiras (limite da ação), na ordem da tela. Transitório até a T9 (janelas): o corte por tamanho agora é do
+ * `escolherCorte`, que fixa a principal. A principal é a tabela de classe `principal` (`classeDa`), não "a 1ª lista". O bloco citado de linha cortada sai junto.
  */
-function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes, k: number = n): PacoteModelo {
+function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes): { modelo: PacoteModelo; totais: Map<string, number>; avisoDaPrincipal: string | null } {
   const avisos = [...m.avisos]
-  let primeira = true
   const cortadas = new Map<string, number>()
+  const totais = new Map<string, number>()
+  let avisoDaPrincipal: string | null = null
   const tabelas = m.tabelas.map((t): Tabela => {
-    const principal = t.tipo === 'lista' && primeira
-    if (t.tipo === 'lista') primeira = false
-    if (t.tipo !== 'lista' || t.linhas.length <= Math.min(n, k)) return t
+    if (t.tipo !== 'lista' || t.linhas.length <= n) return t
     cortes.n += 1
     cortadas.set(t.id, n)
-    const resto = k < n ? ` (o limite da ação é ${n}; o resto não coube no tamanho)` : ''
-    avisos.push(principal
-      ? `há ${t.linhas.length} ${SUBSTANTIVO[tela] ?? 'linhas'}; saíram ${k}, na ordem da tela${resto}`
-      : `tabela "${t.titulo}": há ${t.linhas.length} linhas; saíram ${k}, na ordem da tela${resto}`)
-    return t.linhas.length > n ? { ...t, linhas: t.linhas.slice(0, n) } : t
+    totais.set(t.id, t.linhas.length)
+    // só a principal leva o aviso daqui; as outras listas contam o que não coube no `escolherCorte`, que sabe quantas linhas o texto levou de fato
+    if (classeDa(m.tela, t) === 'principal') {
+      avisoDaPrincipal = `há ${t.linhas.length} ${SUBSTANTIVO[tela] ?? 'linhas'}; saíram ${n}, na ordem da tela`
+      avisos.push(avisoDaPrincipal)
+    }
+    return { ...t, linhas: t.linhas.slice(0, n) }
   })
   const citados = m.citados.filter((b) => !(b.linha && cortadas.has(b.linha.tabela) && b.linha.posicao > (cortadas.get(b.linha.tabela) ?? 0)))
-  return { ...m, tabelas, citados, avisos }
+  return { modelo: { ...m, tabelas, citados, avisos }, totais, avisoDaPrincipal }
 }
 
 /** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (tabela de ganho diário: soma dos 7 dias só com os 7 medidos; acumulada: última leitura; tipo não declarado: \"não medido\") e depois aos `n` mais recentes. */
@@ -276,7 +278,7 @@ const topoDe = (p: Pedido): string => {
 /** Texto de um pacote dentro do teto. Se nem o piso do corte cabe, o fim é cortado e a frase diz. Devolve também a 1ª linha de aviso do pacote e o degrau de linhas usado. */
 function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[], cortes?: Cortes): { texto: string; primeira: string | null; degrau: number | null } {
   const pacote = segmentar(m, { geradoEm: agora, recente })
-  const t = montarTexto(pacote, '', teto, 'todos', degraus)
+  const t = montarTexto(pacote, '', teto, 'todos', degraus, { ia: true })
   // A1c: o que `montarTexto` cortou por tamanho (e o piso que estourou, que vira corte do fim) chega ao registro; antes ele gravava `cortes=0` em silêncio
   if (cortes) cortes.n += t.cortes.length + (t.pisoPassou ? 1 : 0)
   return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
@@ -370,18 +372,21 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     let modelo = montado.modelo
     const tetoDoTexto = pedido.teto - (topo === '' ? 0 : topo.length + 1)
     let feito: ReturnType<typeof textoDoModelo>
+    let doCorte: { linhas: number; total: number } | null = null
     if (pedido.limite.tipo === 'linhas') {
-      // o aviso diz quantas linhas o TEXTO levou: se o tamanho cortou abaixo do limite da ação, relê com o número real (k só desce, então para)
+      // o corte por tamanho começa pelo que repete (notas, dicas) e só no último estágio chega à lista principal (E3, rede de segurança até a T9)
       const n = pedido.limite.n
-      let k = n
-      for (let volta = 0; ; volta += 1) {
-        cortes.n = 0
-        modelo = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, k)
-        feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, degrausDoLimite(n), cortes)
-        const novo = feito.degrau === null ? k : Math.min(k, feito.degrau)
-        if (novo === k || volta >= 6) break
-        k = novo
+      const totalAntes = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')?.linhas.length ?? 0
+      const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
+      modelo = lim.modelo
+      const c = escolherCorte(modelo, { geradoEm: agora, recente: montado.recente }, n, tetoDoTexto, lim.totais, lim.avisoDaPrincipal)
+      cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
+      if (c.principalCortada) {
+        cortes.n += 1
+        avisar('principal_cortada', { linhas: c.linhasDaPrincipal, total: totalAntes })
       }
+      feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
+      doCorte = { linhas: c.linhasDaPrincipal, total: totalAntes }
     } else {
       if (pedido.limite.tipo === 'pontos') modelo = recortarSerie(modelo, pedido, agora, cortes)
       feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, undefined, cortes)
@@ -390,6 +395,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const { texto, primeira } = feito
     return resp('ok', cabeEm(comTopo(texto, topo, primeira), pedido.teto), {
       ...params, privado: modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
+      ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
     }, incluiu)
   } catch {
     // sem a mensagem da exceção, sem o pedido, sem o pacote

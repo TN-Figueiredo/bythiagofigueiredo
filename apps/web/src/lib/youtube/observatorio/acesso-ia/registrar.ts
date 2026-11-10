@@ -99,6 +99,9 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   comentarios: (v) => (typeof v === 'boolean' ? v : undefined),
   cortes: (v) => (contador(v) ? v : undefined),
   pares: (v) => (contador(v) ? v : undefined),
+  // A7a: linhas da principal entregues e total da principal antes de qualquer corte (nomes da A4/A5; contador, nunca texto)
+  linhas: (v) => (contador(v) ? v : undefined),
+  total: (v) => (contador(v) ? v : undefined),
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }

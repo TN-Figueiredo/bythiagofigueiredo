@@ -21,6 +21,15 @@ export interface TextoMontado {
   cortes: Array<{ rotulo: string; caracteres: number }>
   degrau: number | null
   pisoPassou: boolean
+  /** Os números que ficaram no texto (recontados sobre os segmentos mantidos); `PacoteSerializado['numeros']` é o modelo inteiro. */
+  numerosNoTexto: PacoteSerializado['numeros']
+}
+
+/** A7a: `ia` tira o bloco estruturado (parte 8), a pergunta (parte 9) e a promessa do arquivo .md; o diálogo e o .md não passam `ia`. */
+export interface OpcoesDoTexto {
+  ia?: boolean
+  /** Só com `ia`: o que o chamador já tirou do pacote antes de segmentar (tabelas inteiras); entra no "cortei N" e no total sem corte. */
+  cortadoAntes?: ReadonlyArray<{ rotulo: string; caracteres: number }>
 }
 
 export interface ResumoDoDialogo {
@@ -125,7 +134,7 @@ interface Soma {
   blocos: { quantos: number; caracteres: number }
 }
 
-function somar(p: PacoteSerializado, pergunta: string, passo: Passo): Soma {
+function somar(p: PacoteSerializado, pergunta: string, passo: Passo, ia = false): Soma {
   const m = medir(p)
   const mantidos: Segmento[] = []
   let texto = 0
@@ -141,12 +150,13 @@ function somar(p: PacoteSerializado, pergunta: string, passo: Passo): Soma {
       if (it.seg.linhaDoJson) { json += it.json; entradas += 1 }
       continue
     }
-    const tirado = it.texto + 1 + it.json
+    const tirado = it.texto + 1 + (ia ? 0 : it.json) // no modo ia o JSON não existe: não conta no "cortei N"
     const c = it.seg.corte
     if (c?.classe === 'dia_a_dia') { if (!dia.tabelas.includes(c.tabela)) dia.tabelas.push(c.tabela); dia.caracteres += tirado }
     else if (c?.classe === 'linha_de_lista') { if (!linhas.listas.includes(c.tabela)) linhas.listas.push(c.tabela); linhas.caracteres += tirado }
     else { blocos.quantos += 1; blocos.caracteres += tirado }
   }
+  if (ia) return { semParte7: texto + mantidos.length, mantidos, dia, linhas, blocos }
   const parte8 = TITULO_8.length + (entradas === 0 ? m.jsonVazio : m.jsonVazio + 2 + json) + 1
   const parte9 = `${F.PERGUNTA_TITULO}\n${F.PERGUNTA_ROTULO}\n${pergunta}`.length
   return { semParte7: texto + parte8 + parte9 + mantidos.length + 2, mantidos, dia, linhas, blocos }
@@ -181,6 +191,30 @@ interface Plano {
   cortes: Array<{ rotulo: string; caracteres: number }>
   cabe: boolean
   pisoPassou: boolean
+  numerosNoTexto: PacoteSerializado['numeros']
+}
+
+/** Recontagem dos números sobre os segmentos que ficaram, lida do bloco estruturado de cada segmento (o estado de cada célula numérica). */
+function contarNoTexto(mantidos: readonly Segmento[]): PacoteSerializado['numeros'] {
+  const n = { medidos: 0, zerosMedidos: 0, naoMedidos: 0, falhou: 0, restrito: 0, privadosMedidos: 0 }
+  let privada = false
+  const contar = (v: unknown): void => {
+    const estado = typeof v === 'object' && v !== null ? (v as { estado?: unknown }).estado : undefined
+    if (estado === 'medido') { n.medidos += 1; if (privada) n.privadosMedidos += 1 }
+    else if (estado === 'zero_medido') { n.zerosMedidos += 1; if (privada) n.privadosMedidos += 1 }
+    else if (estado === 'nao_medido') n.naoMedidos += 1
+    else if (estado === 'falhou') n.falhou += 1
+    else if (estado === 'restrito') n.restrito += 1
+  }
+  for (const s of mantidos) {
+    if (s.texto.startsWith('### ')) privada = (s.texto.split('\n')[0] ?? '').endsWith(F.MARCA_PRIVADO)
+    const valores = s.linhaDoJson?.valores
+    if (!valores) continue
+    if (s.corte?.classe === 'dia_a_dia' && Array.isArray(valores.linhas)) {
+      for (const linha of valores.linhas as unknown[]) if (typeof linha === 'object' && linha !== null) Object.values(linha).forEach(contar)
+    } else Object.values(valores).forEach(contar)
+  }
+  return { ...n, naoMedidos: n.naoMedidos + n.falhou + n.restrito }
 }
 
 function cortarPergunta(pergunta: string): string {
@@ -233,10 +267,11 @@ function itensDoCorte(p: PacoteSerializado, passo: Passo, soma: Soma, liquido: n
 
 function linhasDeTamanho(
   cortes: ReadonlyArray<{ rotulo: string; caracteres: number }>, liquido: number, completo: { caracteres: number; naoSaem: number },
-  piso: { total: number; limite: number } | null,
+  piso: { total: number; limite: number } | null, fora: string | null = null,
 ): string[] {
   const itens = cortes.map((c, i) => `${i ? 'depois' : 'primeiro'} ${c.rotulo} (${F.milhar(c.caracteres)})`).join(', ')
   const primeira = piso ? (cortes.length ? porTamanhoPiso(piso.total, piso.limite, liquido, itens) : porTamanhoPisoSemCorte(piso.total, piso.limite)) : F.porTamanhoCortei(liquido, itens)
+  if (fora !== null) return [primeira, fora]
   return [primeira, completo.naoSaem > 0 ? F.completoLeva(completo.caracteres, completo.naoSaem) : F.COMPLETO_LEVA_TUDO]
 }
 
@@ -244,11 +279,13 @@ function linhasDeTamanho(
 function resolver(
   p: PacoteSerializado, passo: Passo, soma: Soma, total: number,
   linhasPara: (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number) => string[],
+  antes: ReadonlyArray<{ rotulo: string; caracteres: number }> = [],
 ): { linhas: string[]; caracteres: number; cortes: Array<{ rotulo: string; caracteres: number }> } {
   let liquido = 0
   let melhor: { linhas: string[]; caracteres: number; cortes: Array<{ rotulo: string; caracteres: number }> } | null = null
   for (let i = 0; i < 8; i += 1) {
-    const cortes = itensDoCorte(p, passo, soma, liquido)
+    const somaAntes = antes.reduce((a, x) => a + x.caracteres, 0)
+    const cortes = [...antes, ...itensDoCorte(p, passo, soma, Math.max(0, liquido - somaAntes))]
     const linhas = linhasPara(cortes, liquido)
     const caracteres = soma.semParte7 + parte7(p, linhas).length
     melhor = { linhas, caracteres, cortes }
@@ -263,9 +300,9 @@ function resolver(
 interface Candidatos { planos: Plano[]; primeiro: number }
 const candidatosGuardados = new WeakMap<PacoteSerializado, Map<string, Candidatos>>()
 
-function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia, degraus: readonly number[]): Candidatos {
+function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number, modo: ModoDiaADia, degraus: readonly number[], ia = false, antes: ReadonlyArray<{ rotulo: string; caracteres: number }> = []): Candidatos {
   const pergunta = cortarPergunta(perguntaBruta)
-  const chave = `${limite}|${modo}|${degraus.join(',')}|${pergunta}`
+  const chave = `${ia ? 'ia|' : ''}${antes.map((x) => `${x.rotulo}=${x.caracteres}`).join(';')}|${limite}|${modo}|${degraus.join(',')}|${pergunta}`
   const doPacote = candidatosGuardados.get(p) ?? new Map<string, Candidatos>()
   candidatosGuardados.set(p, doPacote)
   const guardado = doPacote.get(chave)
@@ -273,39 +310,46 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
 
   const passos = passosDoCorte(p, modo, degraus)
   // O tamanho do texto inteiro: o número dele está na linha "Por tamanho: nada", então também é um ponto fixo.
-  const inteiro = somar(p, pergunta, passos[0]!)
+  const inteiro = somar(p, pergunta, passos[0]!, ia)
   let total = inteiro.semParte7 + parte7(p, [F.porTamanhoNada(0, limite)]).length
   for (let i = 0; i < 8; i += 1) {
     const novo = inteiro.semParte7 + parte7(p, [F.porTamanhoNada(total, limite)]).length
     if (novo === total) break
     total = novo
   }
+  const somaAntes = antes.reduce((a, x) => a + x.caracteres, 0)
+  // Com tabelas já tiradas pelo chamador (modo ia), o plano 0 não é "nada": ele diz o que saiu antes, e o total sem corte soma o que saiu.
+  const semNada = ia && antes.length > 0
+  if (semNada) total += somaAntes
+  const linhas0 = semNada ? linhasDeTamanho([...antes], somaAntes, { caracteres: 0, naoSaem: 0 }, null, F.fraseForaFatia1(p.tela)) : [F.porTamanhoNada(total, limite)]
+  const caracteres0 = semNada ? inteiro.semParte7 + parte7(p, linhas0).length : total
   const planos: Plano[] = [{
-    passo: passos[0]!, mantidos: inteiro.mantidos, linhasDeTamanho: [F.porTamanhoNada(total, limite)], caracteres: total, totalSemCorte: total, cortes: [],
-    cabe: total <= limite, pisoPassou: total > limite,
+    passo: passos[0]!, mantidos: inteiro.mantidos, linhasDeTamanho: linhas0, caracteres: caracteres0, totalSemCorte: total, cortes: semNada ? [...antes] : [],
+    cabe: caracteres0 <= limite, pisoPassou: caracteres0 > limite, numerosNoTexto: contarNoTexto(inteiro.mantidos),
   }]
-  if (total > limite) {
-    const completo = limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez', CONTEXTO_IA_RULES.degrausDeLinhas))
+  if (caracteres0 > limite) {
+    const completo = ia || limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez', CONTEXTO_IA_RULES.degrausDeLinhas))
     const linhasPara = (piso: boolean) => (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number): string[] => {
       const marca = piso ? { total, limite } : null
+      if (ia) return linhasDeTamanho(cortes, liquido, { caracteres: 0, naoSaem: 0 }, marca, F.fraseForaFatia1(p.tela))
       if (completo) return linhasDeTamanho(cortes, liquido, { caracteres: completo.caracteres, naoSaem: completo.cabe ? 0 : completo.totalSemCorte - completo.caracteres }, marca)
       // o próprio arquivo completo: o que ele leva é o que sobrou; o que não sai é o que ele cortou
       return linhasDeTamanho(cortes, liquido, { caracteres: total - liquido, naoSaem: liquido }, marca)
     }
     for (const passo of passos.slice(1)) {
-      const soma = somar(p, pergunta, passo)
-      const r = resolver(p, passo, soma, total, linhasPara(false))
-      planos.push({ passo, mantidos: soma.mantidos, linhasDeTamanho: r.linhas, caracteres: r.caracteres, totalSemCorte: total, cortes: r.cortes, cabe: false, pisoPassou: r.caracteres > limite })
+      const soma = somar(p, pergunta, passo, ia)
+      const r = resolver(p, passo, soma, total, linhasPara(false), antes)
+      planos.push({ passo, mantidos: soma.mantidos, linhasDeTamanho: r.linhas, caracteres: r.caracteres, totalSemCorte: total, cortes: r.cortes, cabe: false, pisoPassou: r.caracteres > limite, numerosNoTexto: contarNoTexto(soma.mantidos) })
     }
     // Nenhum passo coube: o último é o piso, e a linha "Por tamanho" dele diz o tamanho real.
     if (planos.every((x) => x.caracteres > limite)) {
       const ultimo = planos[planos.length - 1]!
       if (planos.length === 1) {
-        const linhas = linhasPara(true)([], 0)
+        const linhas = linhasPara(true)([...antes], somaAntes)
         planos[0] = { ...ultimo, linhasDeTamanho: [linhas[0]!], caracteres: inteiro.semParte7 + parte7(p, [linhas[0]!]).length, cabe: false, pisoPassou: true }
       } else {
-        const soma = somar(p, pergunta, ultimo.passo)
-        const r = resolver(p, ultimo.passo, soma, total, linhasPara(true))
+        const soma = somar(p, pergunta, ultimo.passo, ia)
+        const r = resolver(p, ultimo.passo, soma, total, linhasPara(true), antes)
         planos[planos.length - 1] = { ...ultimo, linhasDeTamanho: r.linhas, caracteres: r.caracteres, cortes: r.cortes, pisoPassou: true }
       }
     }
@@ -321,7 +365,11 @@ const escolhida = (c: Candidatos): Plano => c.planos[c.primeiro]!
 // ───────────────────────── montagem
 const pecasDoTexto = new WeakMap<TextoMontado, { pecas: string[]; mantidos: Segmento[]; estimado: number }>()
 
-function montarPlano(p: PacoteSerializado, pergunta: string, plano: Plano): { texto: string; pecas: string[] } {
+function montarPlano(p: PacoteSerializado, pergunta: string, plano: Plano, ia = false): { texto: string; pecas: string[] } {
+  if (ia) {
+    const pecas = [...plano.mantidos.map((s) => s.texto), parte7(p, plano.linhasDeTamanho)]
+    return { texto: pecas.join('\n'), pecas }
+  }
   const entradas = plano.mantidos.flatMap((s) => (s.linhaDoJson ? [s.linhaDoJson] : []))
   const json = noJson(cabecalhoDoJson(p, entradas))
   const pecas = [
@@ -333,18 +381,19 @@ function montarPlano(p: PacoteSerializado, pergunta: string, plano: Plano): { te
   return { texto: pecas.join('\n'), pecas }
 }
 
-export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite: number, diaADia: ModoDiaADia, degraus: readonly number[] = CONTEXTO_IA_RULES.degrausDeLinhas): TextoMontado {
+export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite: number, diaADia: ModoDiaADia, degraus: readonly number[] = CONTEXTO_IA_RULES.degrausDeLinhas, opcoes: OpcoesDoTexto = {}): TextoMontado {
+  const ia = opcoes.ia === true
   const pergunta = cortarPergunta(perguntaBruta)
-  const c = candidatos(p, perguntaBruta, limite, diaADia, degraus)
+  const c = candidatos(p, perguntaBruta, limite, diaADia, degraus, ia, ia ? (opcoes.cortadoAntes ?? []) : [])
   // A conta é exata; a conferência final só existe para o dia em que alguém mude o formato de um segmento e esqueça a medida:
   // se o texto montado passar do limite, tenta o passo seguinte.
   let i = c.primeiro
   let plano = c.planos[i]!
-  let montado = montarPlano(p, pergunta, plano)
+  let montado = montarPlano(p, pergunta, plano, ia)
   while (montado.texto.length > limite && i < c.planos.length - 1) {
     i += 1
     plano = c.planos[i]!
-    montado = montarPlano(p, pergunta, plano)
+    montado = montarPlano(p, pergunta, plano, ia)
   }
   const saida: TextoMontado = {
     texto: montado.texto,
@@ -354,6 +403,7 @@ export function montarTexto(p: PacoteSerializado, perguntaBruta: string, limite:
     cortes: plano.cortes,
     degrau: plano.passo.grau,
     pisoPassou: montado.texto.length > limite,
+    numerosNoTexto: plano.numerosNoTexto,
   }
   pecasDoTexto.set(saida, { pecas: montado.pecas, mantidos: plano.mantidos, estimado: plano.caracteres })
   return saida
