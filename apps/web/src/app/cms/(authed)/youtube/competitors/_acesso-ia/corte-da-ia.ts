@@ -3,6 +3,7 @@
 // rede de segurança até a janela da T9). Puro: sem relógio, sem banco, sem Sentry (quem avisa é o `responder`, com as flags que daqui saem).
 import { createHash } from 'node:crypto'
 import { montarTexto, type TextoMontado } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
+import { CATEGORIAS_NO_RESUMO, resumoDoTodo } from '@/lib/youtube/observatorio/acesso-ia/resumo'
 import { segmentar, type PacoteSerializado } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { BlocoCitado, Celula, ContextoDoPacote, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
@@ -265,6 +266,14 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
     }))
   }
   const soltos = modelo.citados.filter((b) => !b.linha)
+  // A7c1: o resumo do todo, uma vez, sobre a principal inteira e as tabelas coluna inteiras (antes de qualquer janela); a janela só o carrega
+  const categoriasDoResumo = (CATEGORIAS_NO_RESUMO[tela as TelaComLista] ?? []).filter((c) => !(c === 'Tipo' && modelo.tabelas.some((t) => t.id === 'quadro-de-efeito')))
+  const resumo = resumoDoTodo(
+    principal,
+    modelo.tabelas.filter((t) => t.tipo === 'lista' && classe(t) === 'coluna').map((t) => ({ tabela: t, donos: donos.get(t.id) ?? [] })),
+    categoriasDoResumo,
+    modelo.paginado,
+  )
   // quanto ocupa uma tabela retirada: o pacote só com ela, menos o pacote sem tabelas (com o mesmo estado do dado privado, que o `segmentar` confere)
   const tamanhoSo = (ts: readonly Tabela[], cit: readonly BlocoCitado[]): number => {
     const priv = ts.some((t) => t.privada)
@@ -357,7 +366,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
       apoio.push({ titulo: 'Descrições das linhas', saiu: 0, de: descricoes })
       if (comTexto) avisos.push(`descrições de ${descricoes} ${SUBSTANTIVO[tela]} não couberam; peça a ação canal com o Id do canal para ver as de um item`)
     }
-    return { modelo: { ...modelo, tabelas, citados, avisos }, antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
+    return { modelo: { ...modelo, tabelas, citados, avisos, ...(resumo ? { resumoDoTodo: resumo } : {}) }, antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
   }
   const rodar = (k: number, estagio: Estagio, comTexto: boolean, tetoDaBusca: number) => {
     const m = montar(k, estagio, comTexto)

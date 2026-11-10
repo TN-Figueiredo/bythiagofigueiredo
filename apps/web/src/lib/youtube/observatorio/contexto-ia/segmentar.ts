@@ -254,6 +254,8 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
     F.dadoMaisRecente(c.recente === null ? null : naCelula(c.recente)),
     F.versaoDoFormato(CONTEXTO_IA_RULES.versaoDoFormato),
   ])))
+  // 1b. o resumo do todo (A7c1): só no acesso pela IA, sem corte, medido junto com o resto
+  if (m.resumoDoTodo) segmentos.push(seg(1, bloco(m.resumoDoTodo.split('\n'))))
 
   // 2. como ler
   segmentos.push(seg(2, bloco([F.COMO_LER_TITULO, ...F.COMO_LER_LINHAS])))
