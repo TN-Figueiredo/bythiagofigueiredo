@@ -179,3 +179,36 @@ export const FRASE_DO_GRAFICO = {
   pizza: 'pizza (as partes somam o todo da tela; toda parte foi medida nesta resposta)',
   nenhum: 'nenhum (tabela de apoio)',
 } as const // novo
+
+// ───────────────────────── A5 F2a: série em CSV longo (um canal)
+export const SEMANA_ABERTA = (fim: string) => `semana ainda aberta (termina em ${fim})` // novo
+export const SEMANA_DIAS_SEM_LEITURA = (faltam: number) => `${faltam} de 7 dias sem leitura` // novo
+export const SEMANA_TOTAL_CORRIGIDO = 'o YouTube corrigiu o total para baixo num dia desta semana; não há ganho a somar' // novo
+export const SEMANA_TABELA_SEM_SOMA = 'esta tabela não soma por semana; peça o grão dia' // novo
+export const DIA_TOTAL_CORRIGIDO = 'o YouTube corrigiu o total para baixo neste dia; não há ganho a somar' // novo
+export const SERIE_ANTES_DA_COLETA = (primeiro: string) => `antes do início da coleta deste canal (${primeiro})` // novo
+export const SERIE_FORA_DOS_90 = 'fora dos 90 dias que a tela guarda' // novo
+export const SERIE_DEPOIS_DO_FIM = (fim: string) => `sem leitura depois de ${fim}` // novo
+export const SERIE_SEM_LEITURA = 'sem leitura' // novo
+export const SERIE_SEM_LEITURA_NENHUMA = 'ainda não há leitura de views deste canal' // a frase da tela (linha-do-tempo-model)
+export const SERIE_A_TELA_COBRE = (de: string, ate: string) => `a tela cobre de ${de} a ${ate}` // novo
+export const SERIE_TOPO_DAS_SEMANAS = (de: string, ate: string) => `Semanas de ${de} a ${ate}, segunda a domingo` // novo
+export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para o canal pedido` // novo
+export const SERIE_BASE_CONCORRENTE = 'canal inteiro, todos os formatos (Shorts incluídos); ganho entre a leitura de D−1 e a de D, dia em horário de São Paulo' // novo
+export const SERIE_BASE_PROPRIO = (fora: number) => `só vídeos longos acompanhados, até 50${fora > 0 ? `; ${fora} fora da soma` : ''}; dia do YouTube em horário do Pacífico` // novo
+export const SERIE_BASE_RESTRITA = 'dado privado do seu canal, não liberado para quem gerou esta resposta' // novo
+export const SERIE_SEM_DATA = 'série sem data de calendário; só no modo texto' // novo
+export const SERIE_CORTADA = (de: number, total: number, grao: string) => `Cortado: ${de} de ${total} linhas da série (${grao}); ficaram as mais recentes, em linhas inteiras` // novo
+export const SERIE_LINHAS = (n: number, total: number) => `linhas: ${n} de ${total}` // novo
+export const SERIE_REGRA_DA_SEMANA = 'grão semana: cada semana (segunda a domingo) é a soma dos 7 dias, só quando os 7 estão medidos; senão o valor fica vazio, com quantos dias foram medidos e o motivo (nunca zero, nunca soma parcial)' // novo
+export const SERIE_PASSOU_A_SEMANA = (pontos: number, n: number) => `${pontos} pontos no grão dia passam de ${n}; mostrada no grão semana` // novo
+export const SERIE_DICIONARIO_COLUNAS: Record<'dia' | 'semana_inicio' | 'canal' | 'medida' | 'valor' | 'estado' | 'dias_medidos' | 'motivo_id', string> = {
+  dia: 'data do dia (AAAA-MM-DD)',
+  semana_inicio: 'segunda-feira da semana (AAAA-MM-DD)',
+  canal: 'apelido do canal (o id está na lista abaixo)',
+  medida: 'o que foi medido',
+  valor: 'número da medida; vazio = sem número (nunca zero), veja motivo_id',
+  estado: 'medido, zero_medido, nao_medido, falhou ou restrito',
+  dias_medidos: 'quantos dos 7 dias da semana foram medidos',
+  motivo_id: 'id da legenda de motivos, só quando o valor está vazio',
+} // novo

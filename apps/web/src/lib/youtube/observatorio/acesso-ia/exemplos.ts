@@ -24,7 +24,7 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   video: 'video_id (uuid ou id de 11 caracteres) obrigatório',
   comparar: 'canal_ids (de 2 a 6; o 1º pode ser proprio) obrigatório; janela e formato são aceitos, mas a tela Comparar não os aplica',
   destaques: 'janela (7, 30, 90 ou todas), formato (todos, longos ou shorts), nicho, a_partir_da_linha (a 1ª linha da janela) e marca (a que a Cobertura devolveu) opcionais; saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcional',
-  serie: 'canal_id ou video_id (um dos dois), de e ate (AAAA-MM-DD, de ≤ ate) obrigatórios; grao (dia ou semana) opcional',
+  serie: 'canal_id ou video_id (um dos dois), de e ate (AAAA-MM-DD, de ≤ ate) obrigatórios; grao (dia ou semana) e saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcionais',
   mudancas: 'canal_id, janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais; a_partir_da_linha e marca (da Cobertura) opcionais; saida (texto ou tabela: tabela devolve CSV) opcional; desde (AAAA-MM-DD) é aceito, mas não filtra: use janela',
   sugestoes: 'sem campos além de acao',
   pacote_da_tela: 'tela obrigatória; id e parametros (pares chave:valor) opcionais',
