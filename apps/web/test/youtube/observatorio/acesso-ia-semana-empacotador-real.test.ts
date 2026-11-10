@@ -5,11 +5,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({ pacote: null as unknown }))
+const m = vi.hoisted(() => ({ pacote: null as unknown, proprio: null as unknown }))
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia', () => ({
-  EMPACOTAR: new Proxy({}, { get: (_t, k) => (k === 'canal' ? async () => m.pacote : async () => null) }),
+  EMPACOTAR: new Proxy({}, { get: (_t, k) => (k === 'canal' ? async () => m.pacote : k === 'canal-proprio' ? async () => m.proprio : async () => null) }),
 }))
 
 import { diaDaLinha, responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
@@ -22,6 +22,10 @@ import type { ContextoDoCanal } from '@/app/cms/(authed)/youtube/competitors/_ca
 import { medidasDoCanal, type Insumos } from '@/lib/youtube/observatorio/medidas/do-canal'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import { tabelaDeDiaADia } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-proprio'
+import { buildImpressoes } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
+import { dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
+import type { DiaAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import { AGORA_CHEIA, HOJE_CHEIA, insumosCheios } from './medidas-fixture'
 
 const C1 = '11111111-1111-4111-8111-111111111111'
@@ -113,4 +117,45 @@ describe('S1b: serie grão semana com o pacote do empacotador real', () => {
     expect(r.texto).not.toContain('NaN')
     expect(r.texto).toMatch(/6 de 7 dias medidos/)
   })
+})
+
+/** A5 F0.5b (4) e (5): o próprio, com o `tabelaDeDiaADia` REAL, 14 dias seguidos (segunda 2026-10-05 a domingo 2026-10-18), e o aviso com o fuso da tabela. */
+describe('F0.5b: série semanal do canal próprio', () => {
+  const dia = (n: number): `${number}-${number}-${number}` => `2026-10-${String(n).padStart(2, '0')}` as never
+  const diasAlc = (nm: number | null): DiaAlcance[] => Array.from({ length: 14 }, (_, i): DiaAlcance => (i + 5 === nm
+    ? { dia: dia(i + 5), situacao: 'nao-medido', motivo: 'recente', imp: null, cliques: null }
+    : { dia: dia(i + 5), situacao: 'com-impressoes', motivo: null, imp: 100 + i, cliques: 1 }))
+  const AGORA = Date.UTC(2026, 9, 20, 15)
+  function pacote(nm: number | null, ids: ReadonlyArray<[string, boolean]>): PacoteModelo {
+    const base = pacoteReal()
+    const g = buildImpressoes(diasAlc(nm), { de: dia(5), ate: dia(18), dias: 14 }, { escopo: 'canal', alturaArea: 180, dm: dmDia, acesso: 'ok', hoje: dia(20) })
+    const tabelas = ids.flatMap(([id, cliques]) => tabelaDeDiaADia(g, 'modelo.grafico', id, 'Série', 'série', cliques, 'soma'))
+    return { ...base, tela: 'canal-proprio', tabelas, citados: [], avisos: [], avisosPrivados: [], privado: { estado: 'incluido', itens: 'impressões' } }
+  }
+  const pedido = { acao: 'serie' as const, canal_id: C1, de: '2026-10-05', ate: '2026-10-11', grao: 'semana' as const }
+
+  it('semana cheia: soma dos 7 dias com o empacotador real; o aviso diz Pacífico e não São Paulo', async () => {
+    m.pacote = null
+    m.proprio = { modelo: pacote(null, [['privado-impressoes-por-dia', true]]), recente: '13/10/2026 09:10', estado: {} }
+    const r = await responder(pedido, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.texto).not.toMatch(/semana incompleta/)
+    expect(r.texto).toContain(String(Array.from({ length: 7 }, (_, i) => 100 + i).reduce((a, b) => a + b, 0)))
+    const aviso = r.texto.split('\n').find((l) => l.includes('grão semana, regra'))!
+    expect(aviso).toContain('Pacífico')
+    expect(aviso).not.toContain('São Paulo')
+  })
+  it('um dia não medido: 6 de 7 dias medidos, sem soma', async () => {
+    m.pacote = null
+    m.proprio = { modelo: pacote(8, [['privado-impressoes-por-dia', true]]), recente: '13/10/2026 09:10', estado: {} }
+    const r = await responder(pedido, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.texto).toMatch(/semana incompleta: 6 de 7 dias medidos/)
+  })
+  it('concorrente: o aviso diz São Paulo e não Pacífico', async () => {
+    const s = semanaCheia((m.pacote as { modelo: PacoteModelo }).modelo)
+    const r = await responder({ acao: 'serie', canal_id: C1, de: s.de, ate: s.ate, grao: 'semana' }, ABRIDOR_DE_SESSAO, AGORA_CHEIA)
+    const aviso = r.texto.split('\n').find((l) => l.includes('grão semana, regra'))!
+    expect(aviso).toContain('São Paulo')
+    expect(aviso).not.toContain('Pacífico')
+  })
+  // o inventário de ids com `semana` roda sobre os empacotadores reais em acesso-ia-f05b-empacotadores-reais.test.tsx (B1/B2)
 })

@@ -169,6 +169,7 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
     [`${p}.colunas[].marca`]: APAR, [`${p}.colunas[].publicacao`]: CTRL, [`${p}.colunas[].alturaPx`]: APAR,
     [`${p}.colunas[].imp`]: 'serie',
     [`${p}.colunas[].cliques`]: 'serie',
+    [`${p}.colunas[].impN`]: REP, [`${p}.colunas[].cliquesN`]: REP, // A5: os gêmeos numéricos de `imp` e `cliques`; viram `x` na mesma célula
     [`${p}.colunas[].cliquesFaixa`]: REP, // o mesmo valor de `cliques`, na forma curta da faixa sob as datas
     [`${p}.periodoTexto`]: 'base',
     [`${p}.vazio`]: 'base',
@@ -183,7 +184,7 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
     // vídeo novo / ainda cedo (E5b): a faixa de 7 casas no lugar do gráfico; vira tabela própria (`tabelaDoCedo`)
     [`${p}.cedo`]: CTRL, [`${p}.cedo.tipo`]: CTRL, [`${p}.cedo.frase`]: 'base',
     [`${p}.cedo.casas[].dia`]: REP, [`${p}.cedo.casas[].rotulo`]: 'rotulo', [`${p}.cedo.casas[].numero`]: REP, [`${p}.cedo.casas[].estado`]: CTRL,
-    [`${p}.cedo.casas[].texto`]: 'numero', [`${p}.cedo.casas[].aria`]: 'motivo',
+    [`${p}.cedo.casas[].texto`]: 'numero', [`${p}.cedo.casas[].valorN`]: REP, [`${p}.cedo.casas[].aria`]: 'motivo',
     [`${p}.cedo.legenda[].tipo`]: APAR, [`${p}.cedo.legenda[].texto`]: APAR,
   }
 }
@@ -336,9 +337,9 @@ export const bas = (texto: string, origem: string): Celula => ({ papel: 'base', 
 export const ter = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const ehZero = (texto: string): boolean => /^0(\s|$)/.test(texto)
 
-export function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string, estado: EstadoAusencia | null = null): Celula {
+export function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string, estado: EstadoAusencia | null = null, x: number | null = null): Celula {
   if (texto === null || texto === '') return celulaAusente(estado, motivo === null || motivo === '' ? A_TELA_NAO_INFORMA_O_MOTIVO : motivo, origemMotivo)
-  return ehZero(texto) ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem: origemTexto } : { papel: 'numero', estado: 'medido', texto, x: null, origem: origemTexto }
+  return ehZero(texto) ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem: origemTexto } : { papel: 'numero', estado: 'medido', texto, x, origem: origemTexto }
 }
 
 export const daMedida = (m: MedidaDoVideo, o: string): Celula => numero(m.texto, m.motivo, `${o}.texto`, `${o}.motivo`, m.estado ?? null)
@@ -466,18 +467,19 @@ function tabelaDeViewsDosVideos(m: ModeloCanalProprio): Tabela[] {
 }
 
 /** O gráfico dia a dia: uma linha por dia, com a origem em `raiz` (`modelo.grafico`, `modelo.blocos.views.grafico`). `comCliques` só no de impressões. */
-export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, titulo: string, nomeNoCorte: string, comCliques: boolean): Tabela[] {
+export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, titulo: string, nomeNoCorte: string, comCliques: boolean, semana: 'soma' | 'ultima' | undefined): Tabela[] {
   if (g.cedo) return tabelaDoCedo(g, raiz, id, titulo, nomeNoCorte)
   if (g.colunas.length === 0) return []
   const linhas = g.colunas.map((c, i): Celula[] => {
     const o = `${raiz}.colunas[${i}]`
-    const linha: Celula[] = [rot(c.rotulo, `${o}.rotulo`), numero(c.imp, c.dica, `${o}.imp`, `${o}.dica`)]
-    if (comCliques) linha.push(numero(c.cliques, c.dica, `${o}.cliques`, `${o}.dica`))
+    const linha: Celula[] = [rot(c.rotulo, `${o}.rotulo`), numero(c.imp, c.dica, `${o}.imp`, `${o}.dica`, null, c.impN)]
+    if (comCliques) linha.push(numero(c.cliques, c.dica, `${o}.cliques`, `${o}.dica`, null, c.cliquesN))
     linha.push(bas(c.situacaoTexto, `${o}.situacaoTexto`))
     return linha
   })
   return [{
     id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true,
+    ...(semana ? { semana, fuso: 'pacifico' as const } : {}), dias: g.colunas.map((c) => c.dia),
     colunas: comCliques ? ['Dia', g.rotuloValor, 'Cliques estimados', g.rotuloSituacao] : ['Dia', g.rotuloValor, g.rotuloSituacao], linhas,
   }]
 }
@@ -492,16 +494,16 @@ function tabelaDoCedo(g: ImpressoesView, raiz: string, id: string, titulo: strin
   const linhas = c.casas.map((x, i): Celula[] => {
     const o = `${raiz}.cedo.casas[${i}]`
     const medido = x.estado === 'zero-medido' || x.estado === 'com-impressoes'
-    return [rot(x.rotulo, `${o}.rotulo`), medido ? numero(x.texto, null, `${o}.texto`, `${o}.aria`) : numero(null, x.aria, `${o}.texto`, `${o}.aria`)]
+    return [rot(x.rotulo, `${o}.rotulo`), medido ? numero(x.texto, null, `${o}.texto`, `${o}.aria`, null, x.valorN) : numero(null, x.aria, `${o}.texto`, `${o}.aria`)]
   })
   return [
-    { id, titulo: `${titulo}, primeiros 7 dias${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true, colunas: ['Dia', g.rotuloValor], linhas },
+    { id: `${id}-cedo`, titulo: `${titulo}, primeiros 7 dias${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true, colunas: ['Dia', g.rotuloValor], linhas },
     ...tabelaDeProsa(`${id}-frase`, `${titulo}, frase dos primeiros dias`, [[c.frase, `${raiz}.cedo.frase`]]),
   ]
 }
 
 function tabelaDoGrafico(g: ImpressoesView, chave: 'grafico' | 'graficoViews', id: string, titulo: string, comCliques: boolean): Tabela[] {
-  return tabelaDeDiaADia(g, `modelo.${chave}`, id, titulo, chave === 'grafico' ? 'impressões por dia' : 'views por dia', comCliques)
+  return tabelaDeDiaADia(g, `modelo.${chave}`, id, titulo, chave === 'grafico' ? 'impressões por dia' : 'views por dia', comCliques, 'soma')
 }
 
 export function tabelaDeProsa(id: string, titulo: string, linhas: Array<[string, string]>): Tabela[] {

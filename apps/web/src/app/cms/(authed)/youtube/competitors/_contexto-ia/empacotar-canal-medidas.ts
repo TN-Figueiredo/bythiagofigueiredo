@@ -15,7 +15,7 @@ import { fraseDoTopo } from '../_canal/medidas/frase-do-topo'
 import { blocoDeDirecao, type BlocoDeDirecao } from '../_canal/medidas/direcao-model'
 import { blocoDeRitmo, type BlocoDeRitmo } from '../_canal/medidas/ritmo-model'
 import { horasDoCanal, type ModeloDe72Horas, type ModeloDeLancamentos } from '../_canal/medidas/lancamentos-model'
-import { linhaDoTempo, type LinhaDoTempo } from '../_canal/medidas/linha-do-tempo-model'
+import { linhaDoTempo, type LinhaDoTempo, type SituacaoDoDia } from '../_canal/medidas/linha-do-tempo-model'
 import type { ComentariosDoCanal } from '../_canal/medidas/comentarios-do-canal'
 import { criadorComLeitura } from '../_canal/medidas/criador-do-canal'
 import { FRASE_CRIADOR_NAO_PEDIDA } from '../_canal/medidas/criador-model'
@@ -53,7 +53,7 @@ export interface DirecaoIa {
 export interface RitmoIa {
   frase: string
   cartoes: Array<{ chave: string; rotulo: string; valor: string | null; pequeno: string | null; motivo: string | null }>
-  raias: Array<{ rotulo: string; ausente: string | null; casas: Array<{ semana: string; valor: string | null; zero: boolean; motivo: string | null }> }>
+  raias: Array<{ rotulo: string; ausente: string | null; casas: Array<{ semana: string; valor: string | null; zero: boolean; motivo: string | null; /** A5: publicações da casa (o número do modelo); null = semana não lida. */ n: number | null }> }>
   ponteiro: { rotulo: string; dias: string; zero: boolean; limiteRotulo: string; limite: string; tipicoRotulo: string; tipico: string | null } | null
 }
 
@@ -87,7 +87,7 @@ export interface LinhaDoTempoIa {
   motivo: string | null
   nota: string | null
   corte: string | null
-  dias: Array<{ dia: string; views: string; situacao: string; ganho: number | null }>
+  dias: Array<{ dia: string; views: string; situacao: string; ganho: number | null; /** A5: o dia ISO (AAAA-MM-DD) do modelo da tela. */ diaIso: string; /** A5: a situação do modelo; decide a `causa` (`ganho` é null também em sem_registro e fora). */ situacaoN: SituacaoDoDia }>
   /** Cada evento cita o título de um vídeo: texto de terceiros. */
   eventos: Array<{ dia: string; texto: string }>
   raiasNaoCarregou: Array<{ nome: string; motivo: string }>
@@ -163,6 +163,7 @@ function ritmoIa(b: BlocoDeRitmo, semanas: number): RitmoIa {
       casas: r.ausente ? [] : r.casas.map((c, k) => ({
         semana: k === r.casas.length - 1 ? b.eixoFim : `há ${r.casas.length - k} semanas`,
         valor: c.estado === 'com' ? String(c.n) : c.estado === 'zero' ? '0' : null, zero: c.estado === 'zero', motivo: c.estado === 'nao_lida' ? c.por : null,
+        n: c.estado === 'com' ? c.n : c.estado === 'zero' ? 0 : null,
       })),
     })),
     ponteiro: p === null ? null : {
@@ -199,13 +200,14 @@ const NOMES_DAS_RAIAS = { videos: 'Vídeos', campos: 'Campos', trocas: 'Trocas' 
 
 function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
   const b = t.barras
-  const ganhos = b.tipo === 'dias' ? b.dias.slice().reverse().map((d) => d.ganho) : []
+  const modelo = b.tipo === 'dias' ? b.dias.slice().reverse() : []
+  const ganhos = modelo.map((d) => d.ganho)
   return {
     frase: `${t.frase.negrito}${t.frase.resto}`,
     motivo: b.tipo === 'dias' ? null : b.motivo, nota: b.tipo === 'dias' ? b.nota : null,
     corte: t.legenda.find((l) => l.chave === 'corte')?.texto ?? null,
     // `ganho` é o número de máquina do dia no modelo da tela (`DiaDaLinha.ganho`), na mesma ordem de `t.tabela` (mais recente primeiro); nunca parseado do texto
-    dias: t.tabela.map(([dia, views, situacao], i) => ({ dia, views, situacao, ganho: ganhos[i] ?? null })),
+    dias: t.tabela.map(([dia, views, situacao], i) => ({ dia, views, situacao, ganho: ganhos[i] ?? null, diaIso: modelo[i]?.dia ?? '', situacaoN: modelo[i]?.situacao ?? 'sem_registro' })),
     eventos: t.tabela.flatMap(([dia, , , aconteceu]) => (aconteceu === '' ? [] : [{ dia, texto: aconteceu }])),
     raiasNaoCarregou: (['videos', 'campos', 'trocas'] as const).flatMap((r) => (t.raias[r].tipo === 'nao_carregou' ? [{ nome: NOMES_DAS_RAIAS[r], motivo: NAO_CARREGOU_TELA }] : [])),
   }
@@ -315,7 +317,7 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
 
   // Linha do tempo
   'derivado.medidas.tempo.frase': 'base', 'derivado.medidas.tempo.motivo': 'base', 'derivado.medidas.tempo.nota': 'base', 'derivado.medidas.tempo.corte': 'base',
-  'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].ganho': { descartado: 'repetido' }, 'derivado.medidas.tempo.dias[].situacao': 'base',
+  'derivado.medidas.tempo.dias[].dia': 'rotulo', 'derivado.medidas.tempo.dias[].views': 'numero', 'derivado.medidas.tempo.dias[].ganho': { descartado: 'repetido' }, 'derivado.medidas.tempo.dias[].situacao': 'base', 'derivado.medidas.tempo.dias[].diaIso': { descartado: 'repetido' }, 'derivado.medidas.tempo.dias[].situacaoN': { descartado: 'controle de tela' },
   'derivado.medidas.tempo.eventos[].dia': 'rotulo', 'derivado.medidas.tempo.eventos[].texto': 'terceiros', 'derivado.medidas.tempo.raiasNaoCarregou[].nome': 'rotulo', 'derivado.medidas.tempo.raiasNaoCarregou[].motivo': 'motivo',
 
   // O que o criador respondeu
@@ -331,7 +333,7 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.ritmo.cartoes[].pequeno': 'base', 'derivado.medidas.ritmo.cartoes[].motivo': 'motivo',
   'derivado.medidas.ritmo.raias[].rotulo': 'rotulo', 'derivado.medidas.ritmo.raias[].ausente': 'base',
   'derivado.medidas.ritmo.raias[].casas[].semana': 'rotulo', 'derivado.medidas.ritmo.raias[].casas[].valor': 'numero',
-  'derivado.medidas.ritmo.raias[].casas[].zero': CTRL, 'derivado.medidas.ritmo.raias[].casas[].motivo': 'motivo',
+  'derivado.medidas.ritmo.raias[].casas[].zero': CTRL, 'derivado.medidas.ritmo.raias[].casas[].motivo': 'motivo', 'derivado.medidas.ritmo.raias[].casas[].n': { descartado: 'repetido' },
   'derivado.medidas.ritmo.ponteiro': CTRL, 'derivado.medidas.ritmo.ponteiro.rotulo': 'rotulo', 'derivado.medidas.ritmo.ponteiro.dias': 'numero', 'derivado.medidas.ritmo.ponteiro.zero': CTRL,
   'derivado.medidas.ritmo.ponteiro.limiteRotulo': 'rotulo', 'derivado.medidas.ritmo.ponteiro.limite': 'numero',
   'derivado.medidas.ritmo.ponteiro.tipicoRotulo': 'rotulo', 'derivado.medidas.ritmo.ponteiro.tipico': 'numero',
@@ -345,6 +347,9 @@ const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiro
 const medido = (texto: string, origem: string, zero = false, x: number | null = null): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x, origem })
 // Decisão 75: a projeção marca pelo TIPO do modelo (`nao_carregou`) o bloco que não chegou com NAO_CARREGOU_TELA; no pacote isso é a célula `falhou`, nunca "não medido".
 const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(motivo === NAO_CARREGOU_TELA ? 'falhou' : 'nao_medido', motivo, origem)
+
+/** A5: o dia `diminuiu` sai `nao_medido` com `causa: 'diminuiu'`, decidido pela situação do modelo (nunca pelo texto). */
+const comCausa = (c: Celula, situacao: SituacaoDoDia): Celula => (situacao === 'diminuiu' && c.papel === 'numero' && c.estado === 'nao_medido' ? { ...c, causa: 'diminuiu' } : c)
 
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 
@@ -367,7 +372,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   }
   const D = `${O}.direcao`
   const dir = m.direcao
-  const valorOuMotivo = (valor: string | null, motivo: string | null, ov: string, om: string, zero = false): Celula => (valor !== null ? medido(valor, ov, zero) : naoMedido(motivo, om))
+  const valorOuMotivo = (valor: string | null, motivo: string | null, ov: string, om: string, zero = false, x: number | null = null): Celula => (valor !== null ? medido(valor, ov, zero, x) : naoMedido(motivo, om))
   tabelas.push(tabelaFixa('canal-direcao', 'Para onde o canal anda: as três leituras', 'direção do canal', ['Leitura', 'Valor', 'O que compara'],
     dir.linhas.map((l, i) => [rotulo(l.nome, `${D}.linhas[${i}].nome`), valorOuMotivo(l.valor, l.motivo, `${D}.linhas[${i}].valor`, `${D}.linhas[${i}].motivo`), base(l.sub, `${D}.linhas[${i}].sub`)])))
   const comNumeros = dir.linhas.flatMap((l, i) => (l.numeros !== null ? [[i, l.numeros] as const] : []))
@@ -395,7 +400,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   }
   const semanas: Celula[][] = rit.raias.flatMap((r, i) => r.casas.map((c, k): Celula[] => [
     rotulo(r.rotulo, `${R}.raias[${i}].rotulo`), rotulo(c.semana, `${R}.raias[${i}].casas[${k}].semana`),
-    valorOuMotivo(c.valor, c.motivo, `${R}.raias[${i}].casas[${k}].valor`, `${R}.raias[${i}].casas[${k}].motivo`, c.zero),
+    valorOuMotivo(c.valor, c.motivo, `${R}.raias[${i}].casas[${k}].valor`, `${R}.raias[${i}].casas[${k}].motivo`, c.zero, c.n),
   ]))
   if (semanas.length) tabelas.push({ id: 'canal-ritmo-semanas', titulo: `Publicações por semana, das ${MEASURE_RULES.rhythm.weeks} últimas semanas`, tipo: 'lista', nomeNoCorte: 'publicações por semana', privada: false, colunas: ['Formato', 'Semana', 'Publicações'], linhas: semanas })
   const pt = rit.ponteiro
@@ -435,8 +440,9 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
   const T = `${O}.tempo`
   const tem = m.tempo
   if (tem.dias.length) {
-    tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, semana: 'soma', colunas: ['Dia', 'Views ganhas', 'Situação'],
-      linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? naoMedido(d.situacao !== 'sem registro' ? d.situacao : 'sem registro', `${T}.dias[${i}].views`) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0', d.ganho), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
+    const diasIso = tem.dias.map((d) => d.diaIso)
+    tabelas.push({ id: 'canal-linha-do-tempo', titulo: 'Linha do tempo: views ganhas por dia, do dia mais recente ao mais antigo', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia do canal', privada: false, semana: 'soma', fuso: 'sao_paulo', ...(diasIso.every((d) => d !== '') ? { dias: diasIso } : {}), colunas: ['Dia', 'Views ganhas', 'Situação'],
+      linhas: tem.dias.map((d, i) => [rotulo(d.dia, `${T}.dias[${i}].dia`), d.views === 'sem registro' ? comCausa(naoMedido(d.situacao !== 'sem registro' ? d.situacao : 'sem registro', `${T}.dias[${i}].views`), d.situacaoN) : medido(d.views, `${T}.dias[${i}].views`, d.views === '0', d.ganho), base(d.situacao, `${T}.dias[${i}].situacao`)]) })
   }
   if (tem.eventos.length) {
     tabelas.push({ id: 'canal-linha-do-tempo-eventos', titulo: 'Linha do tempo: o que aconteceu em cada dia', tipo: 'lista', nomeNoCorte: 'o que aconteceu por dia', privada: false, colunas: ['Dia', 'O que aconteceu'],

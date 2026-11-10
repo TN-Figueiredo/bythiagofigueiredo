@@ -247,8 +247,8 @@ export function empacotarVideoProprio(m: ModeloVideoProprio, privado: EstadoDoPr
   for (const [i, p] of b.retencao.metodo.entries()) definicoes.push({ medida: `De onde vem a curva de retenção (${i + 1})`, frase: p, limiares: [], privado: false })
 
   if (incluido) {
-    if (b.views?.grafico) privadas.push(...tabelaDeDiaADia(b.views.grafico, 'modelo.blocos.views.grafico', 'privado-views-por-dia-do-video', 'Views por dia do vídeo', 'views por dia do vídeo', false))
-    if (b.impressoes?.grafico) privadas.push(...tabelaDeDiaADia(b.impressoes.grafico, 'modelo.blocos.impressoes.grafico', 'privado-impressoes-por-dia-do-video', 'Impressões e cliques por dia do vídeo', 'impressões por dia do vídeo', true))
+    if (b.views?.grafico) privadas.push(...tabelaDeDiaADia(b.views.grafico, 'modelo.blocos.views.grafico', 'privado-views-por-dia-do-video', 'Views por dia do vídeo', 'views por dia do vídeo', false, 'soma'))
+    if (b.impressoes?.grafico) privadas.push(...tabelaDeDiaADia(b.impressoes.grafico, 'modelo.blocos.impressoes.grafico', 'privado-impressoes-por-dia-do-video', 'Impressões e cliques por dia do vídeo', 'impressões por dia do vídeo', true, 'soma'))
     privadas.push(...tabelaDaTaxa(b.impressoes?.taxa?.faixa), ...tabelasDasReguas(b.canal.reguas, true), ...prosaDoVideo(m))
     if (b.views?.grafico) for (const [i, p] of b.views.grafico.metodo.entries()) definicoes.push({ medida: `Como ler o gráfico de views do vídeo (${i + 1})`, frase: p, limiares: [], privado: true })
     if (b.impressoes?.grafico) for (const [i, p] of b.impressoes.grafico.metodo.entries()) definicoes.push({ medida: `Como ler o gráfico de impressões do vídeo (${i + 1})`, frase: p, limiares: [], privado: true })

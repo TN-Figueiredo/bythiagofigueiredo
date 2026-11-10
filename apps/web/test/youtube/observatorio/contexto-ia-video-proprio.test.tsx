@@ -124,6 +124,8 @@ const COLUNAS = (m: ModeloVideoProprio): Record<string, Record<string, string | 
     'privado-taxa-de-clique-do-video': { 'Faixa': '.rotulo', 'Taxa': '.valor', 'Intervalo de 95%, de': '.loTxt', 'Intervalo de 95%, até': '.hiTxt' },
     'privado-views-por-dia-do-video': GRAFICO(g?.rotuloValor ?? '', g?.rotuloSituacao ?? '', false),
     'privado-impressoes-por-dia-do-video': GRAFICO(i?.rotuloValor ?? '', i?.rotuloSituacao ?? '', true),
+    'privado-views-por-dia-do-video-cedo': GRAFICO(g?.rotuloValor ?? '', g?.rotuloSituacao ?? '', false),
+    'privado-impressoes-por-dia-do-video-cedo': GRAFICO(i?.rotuloValor ?? '', i?.rotuloSituacao ?? '', false), // A5: a faixa dos 7 dias tem id próprio
     'privado-impressoes-por-dia-do-video-frase': { 'Texto': '.frase' }, 'privado-views-por-dia-do-video-frase': { 'Texto': '.frase' }, // a frase da faixa dos 7 dias
   }
 }
@@ -160,7 +162,7 @@ const SEM_FOLHA_NAS_FIXTURES: string[] = [
   'blocos.impressoes.grafico', // E5b: o gráfico de impressões nunca é nulo nas fixtures (o vídeo novo traz `cedo`, não nulo)
   'blocos.views.grafico.cedo.tipo', 'blocos.views.grafico.cedo.frase', // a faixa dos 7 dias só existe no gráfico de impressões; as folhas dela estão provadas em blocos.impressoes
   'blocos.views.grafico.cedo.casas[].dia', 'blocos.views.grafico.cedo.casas[].rotulo', 'blocos.views.grafico.cedo.casas[].numero', 'blocos.views.grafico.cedo.casas[].estado',
-  'blocos.views.grafico.cedo.casas[].texto', 'blocos.views.grafico.cedo.casas[].aria', 'blocos.views.grafico.cedo.legenda[].tipo', 'blocos.views.grafico.cedo.legenda[].texto',
+  'blocos.views.grafico.cedo.casas[].texto', 'blocos.views.grafico.cedo.casas[].valorN', 'blocos.views.grafico.cedo.casas[].aria', 'blocos.views.grafico.cedo.legenda[].tipo', 'blocos.views.grafico.cedo.legenda[].texto',
   'blocos.impressoes.grafico.avisos[]', // o gráfico de impressões do vídeo não tem aviso em nenhuma fixture (o de views tem)
   'blocos.retencao.curva.revistos[].de', 'blocos.retencao.curva.revistos[].ate', // a curva sintética não tem trecho revisto
 ]
