@@ -95,7 +95,7 @@ export const INVENTARIO_MUDANCAS: Inventario = {
   // o efeito medido
   'heroes[].effect.status': CTRL, 'heroes[].effect.demoted': CTRL, 'heroes[].effect.noBase': REP, 'heroes[].effect.method': REP, 'heroes[].effect.fallback': REP,
   'heroes[].effect.notCause': 'base', 'heroes[].effect.collected': CTRL, 'heroes[].effect.afterNeeded': CTRL, 'heroes[].effect.icon': APAR,
-  'heroes[].effect.label': 'base', 'heroes[].effect.numbers': REP, 'heroes[].effect.pp': 'numero', 'heroes[].effect.detail': 'base', 'heroes[].effect.wait': 'base',
+  'heroes[].effect.label': 'base', 'heroes[].effect.numbers': REP, 'heroes[].effect.pp': 'numero', 'heroes[].effect.ppN': REP, 'heroes[].effect.rowsN': CTRL, 'heroes[].effect.rowsN.observed': REP, 'heroes[].effect.rowsN.observedFrom': REP, 'heroes[].effect.rowsN.observedTo': REP, 'heroes[].effect.rowsN.expected': REP, 'heroes[].effect.rowsN.iqr': CTRL, 'heroes[].effect.rowsN.iqr[]': REP, 'heroes[].effect.detail': 'base', 'heroes[].effect.wait': 'base',
   'heroes[].effect.caveats[]': 'base', 'heroes[].effect.footTitle': REP,
   'heroes[].effect.spark': CTRL, 'heroes[].effect.spark.before[]': REP, 'heroes[].effect.spark.after[]': REP, 'heroes[].effect.spark.expected*': REP,
   'heroes[].effect.spark.min': REP, 'heroes[].effect.spark.max': REP, 'heroes[].effect.spark.maxLabel': REP, 'heroes[].effect.spark.minLabel': REP,
@@ -107,7 +107,7 @@ export const INVENTARIO_MUDANCAS: Inventario = {
   'derivado.heroes[].effect.noBase': 'base', 'derivado.heroes[].effect.fallback': 'base',
 
   // o quadro de efeito ajustado e o resumo
-  'ledger.medians[].type': ID, 'ledger.medians[].typeLabel': 'rotulo', 'ledger.medians[].median': 'numero', 'ledger.medians[].n': 'numero', 'ledger.medians[].poolN': 'numero', 'ledger.medians[].range': REP,
+  'ledger.medians[].type': ID, 'ledger.medians[].typeLabel': 'rotulo', 'ledger.medians[].median': 'numero', 'ledger.medians[].medianN': REP, 'ledger.medians[].n': 'numero', 'ledger.medians[].poolN': 'numero', 'ledger.medians[].range': REP,
   'ledger.medians[].few': CTRL, 'ledger.medians[].text': 'base', 'derivado.ledger.medians[].semMediana': 'motivo',
   'ledger.groups*': REP, 'ledger.total': REP, 'ledger.totalCheck': CTRL, 'ledger.minN': REP, 'ledger.winLabel': 'rotulo', 'ledger.out[]*': REP, 'ledger.totalLine[]*': REP,
   'ledger.note': 'base', 'ledger.emptyText': 'base',
@@ -158,15 +158,31 @@ const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto,
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 
 /** O texto que o modelo escreveu para um número. "—" e nulo são "não medido", sem motivo no modelo. */
-function celulaDoNumero(texto: string | number | null, origem: string, motivo: string = A_TELA_NAO_INFORMA_O_MOTIVO): Celula {
+function celulaDoNumero(texto: string | number | null, origem: string, motivo: string = A_TELA_NAO_INFORMA_O_MOTIVO, x: number | null = typeof texto === 'number' ? texto : null): Celula {
   if (texto === null || texto === '—') return { papel: 'numero', estado: 'nao_medido', motivo, origem }
   const t = String(texto)
-  if (t === '0') return { papel: 'numero', estado: 'zero_medido', texto: t, x: 0, origem }
-  return { papel: 'numero', estado: 'medido', texto: t, x: null, origem }
+  // A5 F0.5a: o estado continua decidido pelo texto (`'0'`), como antes; o `x` vem do número do motor (gêmeo ou o próprio número), nunca do texto.
+  if (t === '0') return { papel: 'numero', estado: 'zero_medido', texto: t, x, origem }
+  return { papel: 'numero', estado: 'medido', texto: t, x, origem }
 }
 
-const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
-const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
+/** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
+const CHAVES: Record<string, string[]> = {
+  'trocas': ['video', 'canal', 'nicho', 'tipo', 'quando', 'visto'],
+  'trocas-efeito': ['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'],
+  'trocas-esperado': ['video', 'esperado_sem_a_troca_pct', 'efeito_pp'],
+  'trocas-faixa': ['video', 'limite_da_faixa_pct'],
+  'trocas-base': ['video', 'videos_na_base', 'faixa_de_idade', 'metodo'],
+  'trocas-titulos': ['video', 'titulo_de_antes', 'titulo_de_depois'],
+  'trocas-thumbs': ['video', 'imagem', 'periodo'],
+  'trocas-descricoes': ['video', 'linhas_novas', 'linhas_removidas', 'trocas_de_utm_ocultas'],
+  'trocas-notas': ['video', 'nota'],
+  'quadro-de-efeito': ['tipo', 'trocas_do_nicho_na_janela', 'com_veredito_n', 'mediana_do_efeito_pp', 'resultado'],
+  'forja-do-site': ['nicho', 'do_site'],
+}
+const comChaves = (t: Tabela): Tabela => ({ ...t, chaves: CHAVES[t.id] })
+const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
+const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
 
 // ───────────────────────── tabelas
 const trocas = (m: ModeloMudancas): Array<{ i: number; h: Hero }> => m.heroes.map((h, i) => ({ i, h }))
@@ -194,10 +210,10 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
   {
     saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', 'Observado', 'Antes (views/dia)', 'Depois (views/dia)'],
       medidas.map(({ i, h }) => {
-        const p = `modelo.heroes[${i}]`, r = h.effect.rows!
+        const p = `modelo.heroes[${i}]`, r = h.effect.rows!, n = h.effect.rowsN!
         return [
           terceiros(h.video.title, `${p}.video.title`), rotulo(h.typeLabel, `${p}.typeLabel`), base(h.effect.label, `${p}.effect.label`),
-          celulaDoNumero(r.observed, `${p}.effect.rows.observed`), celulaDoNumero(r.observedFrom, `${p}.effect.rows.observedFrom`), celulaDoNumero(r.observedTo, `${p}.effect.rows.observedTo`),
+          celulaDoNumero(r.observed, `${p}.effect.rows.observed`, undefined, n.observed), celulaDoNumero(r.observedFrom, `${p}.effect.rows.observedFrom`, undefined, n.observedFrom), celulaDoNumero(r.observedTo, `${p}.effect.rows.observedTo`, undefined, n.observedTo),
         ]
       })))
     const comEsperado = medidas.filter(({ h }) => real(h.effect.rows!.expected) && real(h.effect.pp))
@@ -205,7 +221,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
       saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', 'Esperado sem a troca', 'Efeito'],
         comEsperado.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`), celulaDoNumero(h.effect.pp, `${p}.effect.pp`)]
+          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN!.expected), celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)]
         })))
     }
     const comFaixa = medidas.filter(({ h }) => h.effect.rows!.iqr !== null)
@@ -213,7 +229,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
       saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', 'Limite da faixa'],
         comFaixa.flatMap(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`)])
+          return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN!.iqr![k]!)])
         })))
     }
     const comBase = medidas.filter(({ i }) => m.derivado.heroes[i]?.effect.noBase == null)
@@ -288,7 +304,7 @@ function tabelaDoQuadro(m: ModeloMudancas): Tabela[] {
       const p = `modelo.ledger.medians[${i}]`
       return [
         rotulo(x.typeLabel, `${p}.typeLabel`), celulaDoNumero(x.poolN, `${p}.poolN`), celulaDoNumero(x.n, `${p}.n`),
-        x.median === null ? { papel: 'numero', estado: 'nao_medido', motivo: m.derivado.ledger.medians[i]?.semMediana ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `modelo.derivado.ledger.medians[${i}].semMediana` } : celulaDoNumero(x.median, `${p}.median`),
+        x.median === null ? { papel: 'numero', estado: 'nao_medido', motivo: m.derivado.ledger.medians[i]?.semMediana ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `modelo.derivado.ledger.medians[${i}].semMediana` } : celulaDoNumero(x.median, `${p}.median`, undefined, x.medianN),
         base(x.text, `${p}.text`),
       ]
     }))]
