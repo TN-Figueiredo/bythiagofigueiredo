@@ -151,6 +151,18 @@ describe('E5a T0b: o retrato antes dos números', () => {
         Object.values(r).forEach(semNotaNula)
       }
     }
+    // A5 F0.5a T1-T3: campos NUMÉRICOS gêmeos do texto (absN, bigN, multN, pwN) adicionados aos modelos de tela para o MCP/IA; o texto
+    // antigo continua comparado campo a campo. Só a chave nova, e só quando é número, sai da comparação.
+    const GEMEOS = new Set(['absN', 'bigN', 'multN', 'pwN'])
+    const semGemeos = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(semGemeos); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        for (const k of GEMEOS) if (typeof r[k] === 'number') delete r[k]
+        Object.values(r).forEach(semGemeos)
+      }
+    }
+    semGemeos(atual)
     diasCompletos(atual); diasCompletos(novo); semNotaNula(atual)
     expect(soNumeroDoCrescimento(atual)).toEqual(soNumeroDoCrescimento(novo))
   })
