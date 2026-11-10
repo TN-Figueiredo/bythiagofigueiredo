@@ -479,7 +479,7 @@ export function tabelaDeDiaADia(g: ImpressoesView, raiz: string, id: string, tit
   })
   return [{
     id, titulo: `${titulo}${TITULO_PRIVADO}`, tipo: 'dia_a_dia', nomeNoCorte, privada: true,
-    ...(semana ? { semana, fuso: 'pacifico' as const } : {}), dias: g.colunas.map((c) => c.dia),
+    ...(semana ? { semana, fuso: 'pacifico' as const } : {}), ...(g.foraDoTeto !== undefined && g.foraDoTeto > 0 ? { foraDoTeto: g.foraDoTeto } : {}), dias: g.colunas.map((c) => c.dia),
     colunas: comCliques ? ['Dia', g.rotuloValor, 'Cliques estimados', g.rotuloSituacao] : ['Dia', g.rotuloValor, g.rotuloSituacao], linhas,
   }]
 }

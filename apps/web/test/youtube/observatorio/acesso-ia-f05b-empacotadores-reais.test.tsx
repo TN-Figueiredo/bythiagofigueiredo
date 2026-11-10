@@ -33,6 +33,7 @@ import { empacotarCanalProprio, modeloDeCanalProprio } from '@/app/cms/(authed)/
 import { empacotarVideoProprio, modeloDeVideoProprio } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-proprio'
 import { empacotarCanal, modeloDeCanal } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal'
 import { empacotarInsights, modeloDeInsights } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-insights'
+import { MEDIDAS_DA_TABELA } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/serie-tabela'
 import { projetarMedidas } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-medidas'
 import type { ContextoDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/canal-derivado'
 import { medidasDoCanal, type Insumos } from '@/lib/youtube/observatorio/medidas/do-canal'
@@ -46,9 +47,11 @@ const C1 = '11111111-1111-4111-8111-111111111111'
 const lido = (id: string): EstadoDoPrivado => ({ acessoPorCanal: { [id]: { diario: 'ok', alcance: 'ok' } }, negativa: null })
 
 // ───────────────────────── os pacotes reais
-function canalProprio(): { p: PacoteModelo; w: Mundo } {
+function canalProprio(foraDoTeto = 0): { p: PacoteModelo; w: Mundo } {
   const w = proprioWorld()
   const pv = viewDe(w, {}, {})
+  // o diário passou do teto: os `foraDoTeto` primeiros vídeos ficaram de fora da leitura
+  if (foraDoTeto > 0 && w.dados.diario.acesso === 'ok') w.dados.diario.dado.foraDoTeto = pv.videos.videos.slice(0, foraDoTeto).map((v) => v.ytId)
   const { posicao } = posicaoDoSite(w.obs, w.canalId)
   const ce = montarComoEsta({
     dados: w.dados, hoje: w.hoje, dm: w.dm, posicao, posicaoItens: pv.header.posicaoItens, canalId: w.canalId,
@@ -155,5 +158,47 @@ describe('F0.5b M1: a frase de SEMANA_FECHADA no grão semana', () => {
     m.pacotes = { 'video-proprio': { modelo: p, recente: null, estado: {} } }
     const r = await responder({ acao: 'serie', video_id: C1, de: '2020-01-01', ate: '2026-12-31', grao: 'semana' }, ABRIDOR_DE_SESSAO, VW.obs.NOW)
     expect(r.texto).toContain(SEMANA_FECHADA[cedo!.id]!)
+  })
+})
+
+// ───────────────────────── Yannis M-4: o "N fora da soma" vem do empacotador real
+describe('A5 F2a (Yannis M-4): fora da soma pelo empacotador real', () => {
+  it('diário acima do teto: Tabela.foraDoTeto leva o número e a série em tabela diz "N fora da soma"', async () => {
+    const { p, w } = canalProprio(3)
+    expect(p.tabelas.find((t) => t.id === 'privado-views-por-dia')?.foraDoTeto).toBe(3)
+    m.pacotes = { 'canal-proprio': { modelo: p, recente: null, estado: {} } }
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2020-01-01', ate: '2026-12-31', grao: 'dia', saida: 'tabela' }, ABRIDOR_DE_SESSAO, w.obs.NOW)
+    expect(r.texto).toContain('3 fora da soma')
+  })
+  it('sem corte do teto: nenhum "fora da soma"', async () => {
+    const { p, w } = canalProprio(0)
+    expect(p.tabelas.find((t) => t.id === 'privado-views-por-dia')?.foraDoTeto).toBeUndefined()
+    m.pacotes = { 'canal-proprio': { modelo: p, recente: null, estado: {} } }
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2020-01-01', ate: '2026-12-31', grao: 'dia', saida: 'tabela' }, ABRIDOR_DE_SESSAO, w.obs.NOW)
+    expect(r.texto).not.toContain('fora da soma')
+  })
+})
+
+// ───────────────────────── Yannis M-5: o inventário das colunas da série
+describe('A5 F2a (Yannis M-5): MEDIDAS_DA_TABELA contra os empacotadores reais', () => {
+  const TITULO: Record<string, string> = { views_ganhas: 'Views ganhas', views: 'Views', impressoes: 'Impressões', cliques_estimados: 'Cliques estimados' }
+  it('toda dia_a_dia com dias (e semana declarada) está no mapa; toda coluna aponta para célula numérica em todas as linhas, com o título esperado', () => {
+    let conferidas = 0
+    for (const [nome, p] of todos()) {
+      for (const t of p.tabelas.filter((x) => x.tipo === 'dia_a_dia' && x.dias !== undefined)) {
+        const cols = MEDIDAS_DA_TABELA[t.id]
+        expect(cols, `${nome}: ${t.id} tem dias mas não está em MEDIDAS_DA_TABELA`).toBeDefined()
+        for (const c of cols!) {
+          conferidas++
+          expect(t.linhas.every((l) => l[c.col]?.papel === 'numero'), `${nome}: ${t.id} col ${c.col}`).toBe(true)
+          expect(t.colunas[c.col]?.startsWith(TITULO[c.medida]!), `${nome}: ${t.id} col ${c.col} (${t.colunas[c.col]})`).toBe(true)
+        }
+      }
+    }
+    expect(conferidas).toBeGreaterThanOrEqual(6)
+  })
+  it('todo id do mapa aparece em algum empacotador real (id velho no mapa não passa)', () => {
+    const vistos = new Set(todos().flatMap(([, p]) => p.tabelas.map((t) => t.id)))
+    for (const id of Object.keys(MEDIDAS_DA_TABELA)) expect(vistos.has(id), id).toBe(true)
   })
 })

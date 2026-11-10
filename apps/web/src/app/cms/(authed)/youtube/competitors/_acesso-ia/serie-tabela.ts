@@ -5,7 +5,7 @@ import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { segmentar, textoDoPrivadoExcluido } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { campoCsv, novaLegenda, numeroCsv, type EstadoVazio, type Legenda } from '@/lib/youtube/observatorio/contexto-ia/tabela-csv'
 import { naCelula } from '@/lib/youtube/observatorio/contexto-ia/terceiros'
-import { foraDaLeituraFrase } from '@/lib/youtube/observatorio/proprio/vpd'
+import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 import type { Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import type { Celula, ContextoDoPacote, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
@@ -22,6 +22,10 @@ export interface PontoCsv {
   motivo?: string
   /** O ponto vem de tabela privada (conta em `privadosMedidos`). */
   privada?: true
+  /** Id da tabela de onde o ponto veio (o aviso `csv_sem_x` diz qual tabela falhou). */
+  tabela?: string
+  /** Linha-resumo ("a tela cobre de ... a ..."): não conta como ponto nem como número. */
+  resumo?: true
 }
 export interface CanalDaSerie { apelido: string; canalId: string; nome: string; medidas: Array<{ medida: string; titulo: string; base: string }> }
 
@@ -39,6 +43,36 @@ export const segundaDe = (dia: string): string => somaDias(dia, -((new Date(ms(d
 export const dmy = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const entre = (a: string, b: string): number => Math.round((ms(b) - ms(a)) / DIA_MS)
+const maior = (a: string, b: string): string => (a > b ? a : b)
+
+export const diaValido = (a: number, m: number, d: number): boolean => m >= 1 && m <= 12 && d >= 1 && new Date(Date.UTC(a, m - 1, d)).getUTCMonth() === m - 1 && new Date(Date.UTC(a, m - 1, d)).getUTCDate() === d
+/** `AAAA-MM-DD` de um dia que existe no calendário. */
+export const isoValido = (d: string): boolean => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); return m !== null && diaValido(Number(m[1]), Number(m[2]), Number(m[3])) }
+
+/** O dia de uma linha de `dia_a_dia`, lido do texto da 1ª célula (`dd/mm`, `dd/mm/aaaa`, `aaaa-mm-dd`, "hoje", "ontem"). Não leu: `null` (nunca chuta). */
+export function diaDaLinha(linha: readonly Celula[], agora: number): string | null {
+  const c = linha[0]
+  if (!c || c.papel === 'numero') return null
+  const t = c.texto.trim().toLowerCase()
+  const hoje = hojeSp(agora)
+  if (t === 'hoje') return hoje
+  if (t === 'ontem') return isoDe(Date.parse(`${hoje}T00:00:00Z`) - 86_400_000)
+  let m = /(\d{4})-(\d{2})-(\d{2})/.exec(t)
+  if (m) return diaValido(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null
+  m = /(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/.exec(t)
+  if (!m) return null
+  const d = Number(m[1]), mes = Number(m[2])
+  let ano = m[3] ? Number(m[3]) : Number(hoje.slice(0, 4))
+  if (!diaValido(ano, mes, d)) return null
+  let r = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  // sem ano: o dia mais recente que não está no futuro
+  if (!m[3] && r > isoDe(Date.parse(`${hoje}T00:00:00Z`) + 86_400_000)) {
+    ano -= 1
+    if (!diaValido(ano, mes, d)) return null
+    r = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  return r
+}
 
 /* ------------------------------------------------------------------ a semana */
 
@@ -78,26 +112,39 @@ export function frasesDoMotivo(motivo: MotivoDaSemana, segunda: string, k: numbe
 
 /* ------------------------------------------------------------------ os pontos */
 
-/** Colunas numéricas de cada tabela `dia_a_dia` com data que a série lê: coluna da tabela e a chave de máquina da medida. */
-const MEDIDAS_DA_TABELA: Readonly<Record<string, ReadonlyArray<{ col: number; medida: string }>>> = {
+/** Colunas numéricas de cada tabela `dia_a_dia` com data que a série lê: coluna da tabela e a chave de máquina da medida. Segunda lista, que tem de casar com o empacotador (teste de inventário contra os empacotadores reais). */
+export const MEDIDAS_DA_TABELA: Readonly<Record<string, ReadonlyArray<{ col: number; medida: string }>>> = {
   'canal-linha-do-tempo': [{ col: 1, medida: 'views_ganhas' }],
   'privado-views-por-dia': [{ col: 1, medida: 'views' }],
   'privado-views-por-dia-do-video': [{ col: 1, medida: 'views' }],
   'privado-impressoes-por-dia': [{ col: 1, medida: 'impressoes' }, { col: 2, medida: 'cliques_estimados' }],
   'privado-impressoes-por-dia-do-video': [{ col: 1, medida: 'impressoes' }, { col: 2, medida: 'cliques_estimados' }],
 }
+/** A base de cada tabela, por id: o que a coluna SOMA e em que fuso. Id fora do mapa = o canal concorrente (São Paulo). */
+const BASE_DA_TABELA: Readonly<Record<string, (t: Tabela) => string>> = {
+  'privado-views-por-dia': (t) => F.SERIE_BASE_PROPRIO(t.foraDoTeto ?? 0),
+  'privado-views-por-dia-do-video': () => F.SERIE_BASE_VIDEO,
+  'privado-impressoes-por-dia-do-video': () => F.SERIE_BASE_VIDEO,
+  'privado-impressoes-por-dia': () => F.SERIE_BASE_ALCANCE_CANAL,
+}
 const MEDIDA_RESTRITA = 'views'
 
-interface Serie { t: Tabela; col: number; medida: string }
-const diasValidos = (t: Tabela): boolean => t.dias !== undefined && t.dias.length === t.linhas.length
+/** `dias`: o ISO de cada linha de `t.linhas` (ou `null` quando a linha não tem data que valha). `doTexto`: a data veio do texto da 1ª célula, não de `Tabela.dias`. */
+interface Serie { t: Tabela; col: number; medida: string; dias: Array<string | null>; doTexto: boolean }
 const ehDoProprio = (m: PacoteModelo): boolean => m.tela === 'canal-proprio' || m.tela === 'video-proprio'
 /** O dado privado não foi liberado: a série do próprio sai `restrito`, e nenhuma tabela privada é lida (mesmo que alguém a entregue). */
 const privadoNegado = (m: PacoteModelo): boolean => m.privado.estado !== 'incluido'
 
-function seriesDe(m: PacoteModelo): Serie[] {
+/** As datas de uma tabela: `Tabela.dias` quando vale (mesmo tamanho de `linhas`; entrada que não é dia do calendário vira `null`), senão o texto da 1ª célula, com aviso. */
+function diasDaSerie(t: Tabela, agora: number): { dias: Array<string | null>; doTexto: boolean } {
+  if (t.dias !== undefined && t.dias.length === t.linhas.length) return { dias: t.dias.map((d) => (isoValido(d) ? d : null)), doTexto: false }
+  return { dias: t.linhas.map((l) => diaDaLinha(l, agora)), doTexto: true }
+}
+
+function seriesDe(m: PacoteModelo, agora: number): Serie[] {
   return m.tabelas
-    .filter((t) => t.tipo === 'dia_a_dia' && diasValidos(t) && MEDIDAS_DA_TABELA[t.id] !== undefined && !(t.privada && privadoNegado(m)))
-    .flatMap((t) => MEDIDAS_DA_TABELA[t.id]!.map((c) => ({ t, col: c.col, medida: c.medida })))
+    .filter((t) => t.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[t.id] !== undefined && !(t.privada && privadoNegado(m)))
+    .flatMap((t) => { const d = diasDaSerie(t, agora); return MEDIDAS_DA_TABELA[t.id]!.map((c) => ({ t, col: c.col, medida: c.medida, ...d })) })
 }
 const regraDe = (t: Tabela): 'soma' | 'ultima' | null => (t.semana === 'soma' ? 'soma' : t.semana === 'ultima' ? 'ultima' : null)
 const estadoDaSoma = (x: number | null): PontoCsv['estado'] => (x === null ? 'nao_medido' : x === 0 ? 'zero_medido' : 'medido')
@@ -108,25 +155,36 @@ function datasDoPedido(de: string, ate: string, grao: 'dia' | 'semana'): string[
   return out
 }
 
+/** O menor dia com data de uma série (a borda de trás da janela que a tela guarda); `null` sem nenhum. */
+const menorDia = (s: Serie): string | null => s.dias.reduce<string | null>((a, d) => (d !== null && (a === null || d < a) ? d : a), null)
+
 function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string): PontoCsv[] {
   const { t, col, medida } = s
   const celulas = new Map<string, Celula>()
-  t.linhas.forEach((l, i) => { const d = t.dias![i]!; const c = l[col]; if (c !== undefined && !celulas.has(d)) celulas.set(d, c) })
+  t.linhas.forEach((l, i) => { const d = s.dias[i]; const c = l[col]; if (d != null && c !== undefined && !celulas.has(d)) celulas.set(d, c) })
   const todos = [...celulas.keys()].sort()
+  const privada = t.privada ? ({ privada: true } as const) : {}
+  const ponto = (data: string, x: number | null, estado: PontoCsv['estado'], motivo: string | undefined, diasMedidos?: number, resumo = false): PontoCsv =>
+    ({ data, canalId, apelido, medida, x, estado, ...(diasMedidos !== undefined ? { diasMedidos } : {}), ...(motivo !== undefined ? { motivo } : {}), ...privada, tabela: t.id, ...(resumo ? { resumo: true as const } : {}) })
+  const semDia = p.grao === 'semana' ? 0 : undefined
+
+  const de = p.grao === 'semana' ? segundaDe(p.de) : p.de
+  const ate = p.grao === 'semana' ? somaDias(segundaDe(p.ate), 6) : p.ate
+  // nenhuma data que valha: uma linha-resumo, nunca crash nem chave vazia
+  if (todos.length === 0) return [ponto(de, null, 'nao_medido', F.SERIE_SEM_LEITURA_NENHUMA, semDia, true)]
   const tmin = todos[0]!
   const tmax = todos[todos.length - 1]!
   // início e fim da coleta: o MENOR e o MAIOR dia com leitura, pelas células de `dias` (a tabela vem do dia mais recente ao mais antigo: a posição não vale)
   const lidos = todos.filter((d) => temLeitura(celulas.get(d)))
   const inicio = lidos[0]
   const fimDaLeitura = lidos[lidos.length - 1]
-  const privada = t.privada ? ({ privada: true } as const) : {}
-  const ponto = (data: string, x: number | null, estado: PontoCsv['estado'], motivo: string | undefined, diasMedidos?: number): PontoCsv =>
-    ({ data, canalId, apelido, medida, x, estado, ...(diasMedidos !== undefined ? { diasMedidos } : {}), ...(motivo !== undefined ? { motivo } : {}), ...privada })
-  const semDia = p.grao === 'semana' ? 0 : undefined
+  const resumoDaTela = (data: string): PontoCsv => ponto(data, null, 'nao_medido', F.SERIE_A_TELA_COBRE(dmy(tmin), dmy(tmax)), semDia, true)
+  if (ate < tmin || de > tmax) return [resumoDaTela(de)]
 
-  const de = p.grao === 'semana' ? segundaDe(p.de) : p.de
-  const ate = p.grao === 'semana' ? somaDias(segundaDe(p.ate), 6) : p.ate
-  if (ate < tmin || de > tmax) return [ponto(de, null, 'nao_medido', F.SERIE_A_TELA_COBRE(dmy(tmin), dmy(tmax)), semDia)]
+  // o que está ANTES da tabela vira UMA linha-resumo (não uma linha por dia: de 0001-01-01 saíam 105 mil); a conversão para a semana também conta só o que a tabela tem
+  const bordaDeTras = p.grao === 'semana' ? segundaDe(tmin) : tmin
+  const fora: PontoCsv[] = de < bordaDeTras ? [resumoDaTela(de)] : []
+  const deDentro = maior(de, bordaDeTras)
 
   const semLeitura = (d: string): string =>
     inicio === undefined || fimDaLeitura === undefined ? F.SERIE_SEM_LEITURA_NENHUMA
@@ -135,9 +193,9 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
           : F.SERIE_SEM_LEITURA
 
   if (p.grao === 'dia') {
-    return datasDoPedido(de, ate, 'dia').map((d): PontoCsv => {
+    return [...fora, ...datasDoPedido(deDentro, ate, 'dia').map((d): PontoCsv => {
       const c = celulas.get(d)
-      if (c === undefined) return ponto(d, null, 'nao_medido', inicio === undefined ? F.SERIE_SEM_LEITURA_NENHUMA : d < tmin ? F.SERIE_FORA_DOS_90 : semLeitura(d))
+      if (c === undefined) return ponto(d, null, 'nao_medido', semLeitura(d))
       if (c.papel !== 'numero') return ponto(d, null, 'nao_medido', semLeitura(d))
       if (c.estado === 'medido' || c.estado === 'zero_medido') {
         const x = xDaCelula(c)
@@ -146,28 +204,37 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
       if (c.estado === 'falhou' || c.estado === 'restrito') return ponto(d, null, c.estado, c.motivo)
       if (c.estado === 'nao_medido' && c.causa === 'diminuiu') return ponto(d, null, 'nao_medido', F.DIA_TOTAL_CORRIGIDO)
       return ponto(d, null, 'nao_medido', semLeitura(d))
-    })
+    })]
   }
-  return datasDoPedido(de, ate, 'semana').map((segunda): PontoCsv => {
+  return [...fora, ...datasDoPedido(deDentro, ate, 'semana').map((segunda): PontoCsv => {
     const domingo = somaDias(segunda, 6)
     const nenhuma = (motivo: string): PontoCsv => ponto(segunda, null, 'nao_medido', motivo, 0)
     if (inicio === undefined || fimDaLeitura === undefined) return nenhuma(F.SERIE_SEM_LEITURA_NENHUMA)
-    if (domingo < tmin) return nenhuma(F.SERIE_FORA_DOS_90)
     if (segunda > fimDaLeitura) return nenhuma(F.SERIE_DEPOIS_DO_FIM(dmy(fimDaLeitura)))
     if (domingo < inicio) return nenhuma(F.SERIE_ANTES_DA_COLETA(dmy(inicio)))
     const dias = todos.filter((d) => d >= segunda && d <= domingo).map((d) => ({ dia: d, celula: celulas.get(d)! }))
     const r = somaDaSemana(segunda, dias, hoje, regraDe(t))
-    return ponto(segunda, r.x, estadoDaSoma(r.x), r.motivo === null ? undefined : frasesDoMotivo(r.motivo, segunda, r.diasMedidos), r.diasMedidos)
-  })
+    let motivo = r.motivo === null ? undefined : frasesDoMotivo(r.motivo, segunda, r.diasMedidos)
+    if (r.motivo === 'dias_sem_leitura') {
+      // a semana de borda diz a causa dos dias que faltam, com as mesmas frases do grão dia
+      const causas = [
+        ...(inicio > segunda && inicio > tmin ? [F.SERIE_ANTES_DA_COLETA(dmy(inicio))] : []),
+        ...(tmin > segunda ? [F.SERIE_FORA_DOS_90] : []),
+        ...(fimDaLeitura < domingo ? [F.SERIE_DEPOIS_DO_FIM(dmy(fimDaLeitura))] : []),
+      ]
+      if (causas.length > 0) motivo = `${motivo}; ${causas.join('; ')}`
+    }
+    return ponto(segunda, r.x, estadoDaSoma(r.x), motivo, r.diasMedidos)
+  })]
 }
 
 /**
- * Os pontos da série de um canal (ou vídeo): data crescente, depois a medida na ordem das colunas. Só lê tabela `dia_a_dia` com `dias` (as demais saem da série).
+ * Os pontos da série de um canal (ou vídeo): data crescente, depois a medida na ordem das colunas. Só lê tabela `dia_a_dia` que está em `MEDIDAS_DA_TABELA` (as demais saem da série).
  * Próprio sem o direito: uma linha `restrito` por dia (ou semana) pedido, sem número nenhum.
  */
 export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, agora: number): PontoCsv[] {
   const hoje = hojeSp(agora)
-  const series = seriesDe(m)
+  const series = seriesDe(m, agora)
   const porSerie = series.map((s) => pontosDaSeriePorMedida(s, canalId, apelido, p, hoje))
   const negado = m.privado
   const restritos: PontoCsv[] = ehDoProprio(m) && negado.estado === 'excluido'
@@ -183,20 +250,10 @@ export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string,
 
 /* ------------------------------------------------------------------ o CSV */
 
-/** O `N fora da soma` do próprio (o `responder` o lê do modelo INTEIRO, antes de reduzi-lo à série): o aviso do teto chega como frase (`foraDaLeituraFrase`); acha-se o `k` comparando com a frase, sem ler número do texto. */
-export function foraDaSoma(m: PacoteModelo): number {
-  const frases = new Set<string>()
-  for (const t of m.tabelas) for (const l of t.linhas) for (const c of l) if (c.papel !== 'numero') frases.add(c.texto)
-  for (const a of [...m.avisos, ...(m.avisosPrivados ?? [])]) frases.add(a)
-  for (let k = 1; k <= 1000; k += 1) if (frases.has(foraDaLeituraFrase(k))) return k
-  return 0
-}
-
-/** O dicionário de cada canal e medida: nome, o que a coluna mede e a base (que lê `Tabela.fuso`). */
-export function infoDaSerie(m: PacoteModelo, canalId: string, apelido: string, fora = foraDaSoma(m)): CanalDaSerie {
-  const medidas = seriesDe(m).map((s): CanalDaSerie['medidas'][number] => ({
-    medida: s.medida, titulo: s.t.colunas[s.col] ?? s.medida,
-    base: s.t.fuso === 'pacifico' ? F.SERIE_BASE_PROPRIO(s.medida === 'views' ? fora : 0) : F.SERIE_BASE_CONCORRENTE,
+/** O dicionário de cada canal e medida: nome, o que a coluna mede e a base (por id da tabela; `Tabela.foraDoTeto` carrega o "N fora da soma"). `agora` só resolve "hoje"/"ontem" de tabela sem `dias`. */
+export function infoDaSerie(m: PacoteModelo, canalId: string, apelido: string, agora: number): CanalDaSerie {
+  const medidas = seriesDe(m, agora).map((s): CanalDaSerie['medidas'][number] => ({
+    medida: s.medida, titulo: s.t.colunas[s.col] ?? s.medida, base: BASE_DA_TABELA[s.t.id]?.(s.t) ?? F.SERIE_BASE_CONCORRENTE,
   }))
   if (ehDoProprio(m) && m.privado.estado === 'excluido') medidas.push({ medida: MEDIDA_RESTRITA, titulo: 'Views', base: F.SERIE_BASE_RESTRITA })
   return { apelido, canalId, nome: m.foco[0]?.nome ?? '', medidas }
@@ -251,41 +308,72 @@ const contar = (ps: readonly PontoCsv[]): Numeros => ({
   privadosMedidos: ps.filter((p) => p.privada === true && (p.estado === 'medido' || p.estado === 'zero_medido')).length,
 })
 
+/** A primeira linha da resposta, calculada sobre o que o CSV entrega (não sobre a tabela inteira): falha de leitura, depois "quase tudo não medido". Sem "seção 4": o modo tabela não tem. */
+function avisoDoCsv(ps: readonly PontoCsv[]): string | null {
+  const n = contar(ps)
+  const total = n.medidos + n.zerosMedidos + n.naoMedidos + n.restrito
+  if (n.falhou > 0) return F.SERIE_AVISO_FALHA(n.falhou)
+  if (total >= 1 && (n.naoMedidos + n.restrito) / total >= CONTEXTO_IA_RULES.magroAPartirDe) return F.SERIE_AVISO_MAGRO(n.medidos + n.zerosMedidos, total)
+  return null
+}
+
 /**
  * O modo tabela da `serie` de um canal. `m` é o modelo já reduzido à série (só tabelas `dia_a_dia`, sem comentário; `soASerie`), o MESMO objeto que vai a `segmentar`
  * (que lança com dado privado sem direito). `n` = pontos por canal; `teto` = caracteres do texto. O corte é por data inteira, das mais antigas.
  */
 export function respostaDaSerieEmTabela(
-  m: PacoteModelo, ctx: ContextoDoPacote, pedido: { canalId: string; apelido: string; de: string; ate: string; grao: 'dia' | 'semana'; foraDaSoma?: number }, n: number, teto: number,
+  m: PacoteModelo, ctx: ContextoDoPacote, pedido: { canalId: string; apelido: string; de: string; ate: string; grao: 'dia' | 'semana' }, n: number, teto: number,
 ): RespostaDaSerie {
   const pacote = segmentar(m, ctx)
+  const agora = ctxAgora(ctx)
   const avisos: AvisoDaSerie[] = []
+  const series = seriesDe(m, agora)
   let grao = pedido.grao
   let convertida = false
-  const diasPedidos = entre(pedido.de, pedido.ate) + 1
   let cortes = 0
   const extras: string[] = []
-  if (grao === 'dia' && diasPedidos > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasPedidos, n)) }
-  const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, ctxAgora(ctx))
-  const info = infoDaSerie(m, pedido.canalId, pedido.apelido, pedido.foraDaSoma)
+  // a conversão para a semana conta os dias que a tabela TEM dentro do pedido (como o modo texto), não os dias pedidos
+  const menores = series.map(menorDia).filter((d): d is string => d !== null)
+  const diasPedidos = entre(pedido.de, pedido.ate) + 1
+  const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), pedido.ate) + 1
+  if (grao === 'dia' && diasDentro > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasDentro, n)) }
+  const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, agora)
+  const info = infoDaSerie(m, pedido.canalId, pedido.apelido, agora)
   const de = grao === 'semana' ? segundaDe(pedido.de) : pedido.de
   const ate = grao === 'semana' ? somaDias(segundaDe(pedido.ate), 6) : pedido.ate
   if (grao === 'semana') extras.push(F.SERIE_REGRA_DA_SEMANA)
 
-  const datas = [...new Set(tudo.map((p) => p.data))]
-  const soNoTexto = m.tabelas.filter((t) => t.tipo === 'dia_a_dia' && !(diasValidos(t) && MEDIDAS_DA_TABELA[t.id] !== undefined)).map((t) => t.nomeNoCorte)
+  // a data que veio do texto (a tabela perdeu `dias`) avisa o Sentry, uma vez por tabela; a linha sem data que valha fica fora e é dita
+  for (const id of new Set(series.filter((s) => s.doTexto).map((s) => s.t.id))) {
+    const s = series.find((x) => x.t.id === id)!
+    const semData = s.dias.filter((d) => d === null).length
+    avisos.push({ passo: 'dias_do_texto', extra: { tabela: id, ...(semData > 0 ? { sem_data: semData } : {}) } })
+  }
+  for (const id of new Set(series.map((s) => s.t.id))) {
+    const s = series.find((x) => x.t.id === id)!
+    const semData = s.dias.filter((d) => d === null).length
+    if (semData > 0) extras.push(`tabela "${s.t.nomeNoCorte}": ${F.SERIE_DESCARTADAS(semData)}`)
+  }
+  const datas = [...new Set(tudo.filter((p) => p.resumo !== true).map((p) => p.data))]
+  const soNoTexto = m.tabelas.filter((t) => t.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[t.id] === undefined).map((t) => t.nomeNoCorte)
   for (const nome of soNoTexto) extras.push(`tabela "${nome}": ${F.SERIE_SEM_DATA}`)
   const nenhumMedido = tudo.length > 0 && !tudo.some((p) => p.estado === 'medido' || p.estado === 'zero_medido')
   const primeiraMinha = nenhumMedido ? F.SERIE_NENHUM_PONTO(dmy(de), dmy(ate)) : null
+  const soResumo = tudo.length > 0 && tudo.every((p) => p.resumo === true)
+  const semResumo = (ps: readonly PontoCsv[]): PontoCsv[] => ps.filter((p) => p.resumo !== true)
+  // intervalo inteiro fora da tabela: "linhas: 0 de N" (N = datas pedidas); a linha-resumo não conta
+  const total = soResumo ? datasDoPedido(de, ate, grao).length : semResumo(tudo).length
+  const vazioDoPacote = m.vazio !== null
 
-  const montar = (ficam: number): { texto: string; pontos: PontoCsv[] } => {
+  const montar = (ficam: number): { texto: string; pontos: PontoCsv[]; contados: number } => {
     const depois = new Set(datas.slice(Math.max(0, datas.length - ficam)))
-    const ps = tudo.filter((p) => depois.has(p.data))
+    const ps = tudo.filter((p) => p.resumo === true || depois.has(p.data))
+    const contados = semResumo(ps).length
     const legenda = novaLegenda()
     const csv = csvDaSerie(ps, grao, legenda, [info])
     const avisosDoModelo = [...m.avisos, ...extras, ...(m.privado.estado === 'incluido' ? (m.avisosPrivados ?? []).map((a) => `${a}${F_MARCA}`) : [])]
     const cortou = ficam < datas.length
-    const linhasAvisos = [...avisosDoModelo.map((a) => `- ${naCelula(a)}`), ...(cortou ? [`- ${F.SERIE_CORTADA(ps.length, tudo.length, grao)}`] : [])]
+    const linhasAvisos = [...avisosDoModelo.map((a) => `- ${naCelula(a)}`), ...(cortou ? [`- ${F.SERIE_CORTADA(contados, total, grao)}`] : [])]
     const privada = ps.some((p) => p.privada === true)
     const colunas = grao === 'semana'
       ? ['semana_inicio', 'canal', 'medida', 'valor', 'estado', 'dias_medidos', 'motivo_id'] as const
@@ -298,18 +386,22 @@ export function respostaDaSerieEmTabela(
       ...csv.dicionarioDeCanais,
       F.graficoSugerido(F.FRASE_DO_GRAFICO.linha),
       '```csv', csv.cabecalho, ...csv.linhas, '```',
-      F.SERIE_LINHAS(ps.length, tudo.length),
+      F.SERIE_LINHAS(contados, total),
     ].join('\n')
+    // a primeira linha é a do recorte (nenhum ponto medido, falha, magro); a do pacote (calculada sobre a tabela de 90 dias) sai da parte 1, menos a de tela vazia
+    const minha = primeiraMinha ?? (vazioDoPacote ? null : avisoDoCsv(semResumo(ps)))
+    const doPacote = pacote.primeiraLinhaDeAviso
+    const parte1 = pacote.segmentos.filter((x) => x.parte === 1).map((x) => (!vazioDoPacote && doPacote !== null && x.texto.startsWith(doPacote) ? x.texto.slice(doPacote.length).replace(/^\n+/, '') : x.texto))
     const partes = [
-      ...(primeiraMinha ? [primeiraMinha] : []),
-      ...pacote.segmentos.filter((x) => x.parte === 1).map((x) => x.texto),
+      ...(minha ? [minha] : []),
+      ...parte1,
       F.COMO_LER_TABELA,
       ...(m.privado.estado === 'excluido' ? [textoDoPrivadoExcluido(m.privado)] : []),
       ...(linhasAvisos.length > 0 ? [['## Avisos', ...linhasAvisos].join('\n')] : []),
       ...(legenda.linhas().length > 0 ? [legenda.linhas().join('\n')] : []),
       bloco,
     ]
-    return { texto: partes.join('\n\n'), pontos: ps }
+    return { texto: partes.join('\n\n'), pontos: ps, contados }
   }
 
   // o limite de pontos por canal (n datas) e o teto de caracteres: tira as datas mais antigas, em linhas inteiras (busca binária; o texto cresce com o número de datas)
@@ -328,13 +420,17 @@ export function respostaDaSerieEmTabela(
     avisos.push({ passo: 'serie_tabela_estourou' })
   }
   if (ficam < datas.length) cortes += 1
-  const rotulos = ficam < datas.length ? [`${melhor.pontos.length} de ${tudo.length} linhas da série`] : []
-  const semXn = tudo.filter((p) => p.motivo === F.MOTIVO_SEM_NUMERO_DE_MAQUINA).length
-  if (semXn > 0) avisos.push({ passo: 'csv_sem_x', extra: { tabela: seriesDe(m)[0]?.t.id ?? '', n: semXn } })
+  const rotulos = ficam < datas.length ? [`${melhor.contados} de ${total} linhas da série`] : []
+  // o `x` que faltou, por tabela (o aviso diz qual tabela falhou)
+  const semXPorTabela = new Map<string, number>()
+  for (const p of tudo) if (p.motivo === F.MOTIVO_SEM_NUMERO_DE_MAQUINA) semXPorTabela.set(p.tabela ?? '', (semXPorTabela.get(p.tabela ?? '') ?? 0) + 1)
+  for (const [tabela, k] of semXPorTabela) avisos.push({ passo: 'csv_sem_x', extra: { tabela, n: k } })
+  const semXn = [...semXPorTabela.values()].reduce((a, b) => a + b, 0)
   if (melhor.texto.length > teto) rotulos.push('o fim do texto')
+  const primeiraFinal = primeiraMinha ?? (vazioDoPacote ? pacote.primeiraLinhaDeAviso : avisoDoCsv(semResumo(melhor.pontos)))
   return {
-    texto: melhor.texto, primeira: primeiraMinha ?? pacote.primeiraLinhaDeAviso, pontos: melhor.pontos.length, total: tudo.length, de, ate, grao, convertida, cortes,
-    rotulos, semX: semXn, numeros: contar(melhor.pontos), incluiuPrivado: m.privado.estado === 'incluido', soNoTexto, nenhumMedido, avisos,
+    texto: melhor.texto, primeira: primeiraFinal, pontos: melhor.contados, total, de, ate, grao, convertida, cortes,
+    rotulos, semX: semXn, numeros: contar(semResumo(melhor.pontos)), incluiuPrivado: m.privado.estado === 'incluido', soNoTexto, nenhumMedido, avisos,
   }
 }
 

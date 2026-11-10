@@ -36,6 +36,8 @@ export interface Tabela {
   dias?: string[]
   /** A5: fuso do dia da série. */
   fuso?: 'sao_paulo' | 'pacifico'
+  /** A5: só a soma dos vídeos longos do diário (`privado-views-por-dia`): quantos vídeos longos mais antigos ficaram de fora do teto. Ausente = nenhum. */
+  foraDoTeto?: number
   nomeNoCorte: string
   privada: boolean
 }

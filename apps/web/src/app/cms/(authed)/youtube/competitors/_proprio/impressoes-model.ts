@@ -119,6 +119,8 @@ export interface ImpressoesView {
   resumo: string | null
   /** Avisos curtos: poucos dias, dias não medidos, coleta parada. */
   avisos: string[]
+  /** Só o gráfico de views do canal: quantos vídeos longos o teto do diário deixou de fora da soma (o número, não a frase). Ausente = nenhum. */
+  foraDoTeto?: number
   /** O método, em parágrafos, para o ⓘ. */
   metodo: string[]
   escopo: 'canal' | 'video'

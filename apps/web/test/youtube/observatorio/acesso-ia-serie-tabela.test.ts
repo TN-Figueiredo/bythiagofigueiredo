@@ -12,10 +12,9 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => m.captur
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia', () => ({ EMPACOTAR: m.empacotar }))
 
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
-import { csvDaSerie, pontosDaSerie, somaDaSemana, type PontoCsv } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/serie-tabela'
+import { csvDaSerie, infoDaSerie, pontosDaSerie, respostaDaSerieEmTabela, somaDaSemana, type PontoCsv } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/serie-tabela'
 import { ABRIDOR_DE_SESSAO } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
 import { novaLegenda } from '@/lib/youtube/observatorio/contexto-ia/tabela-csv'
-import { foraDaLeituraFrase } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { base, medido, modeloCheio, naoMedido, rotulo, zero } from './contexto-ia-fixture'
 
@@ -134,8 +133,11 @@ describe('pontosDaSerie', () => {
     expect(ps.map((p) => p.x)).toEqual(['2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09'].map(ganhoDe))
   })
 
-  it('só lê tabela com dias: sem dias, a série sai sem pontos', () => {
-    expect(pontos(modelo(tabela({ semDias: true })), { de: '2026-11-01', ate: '2026-11-09', grao: 'dia' })).toEqual([])
+  it('(I-1) sem dias, a série lê o texto da 1ª célula; sem data que valha no texto, uma linha-resumo e nenhum ponto inventado', () => {
+    expect(pontos(modelo(tabela({ semDias: true })), { de: '2026-11-01', ate: '2026-11-09', grao: 'dia' })).toHaveLength(9)
+    const ps = pontos(modelo(tabela({ semDias: true, rotuloDoDia: () => 'sem data' })), { de: '2026-11-01', ate: '2026-11-09', grao: 'dia' })
+    expect(ps).toHaveLength(1)
+    expect(ps[0]).toMatchObject({ x: null, estado: 'nao_medido', resumo: true })
   })
 
   it('(i2) início da coleta: a tabela vem DESCENDENTE e o início é o MENOR dia com leitura, não a posição', () => {
@@ -170,9 +172,11 @@ describe('pontosDaSerie', () => {
     const mm = modelo(t)
     expect(pontos(mm, { de: '2026-10-20', ate: '2026-10-20', grao: 'dia' })[0]!.motivo).toBe('sem leitura')
     // a tabela de 30 dias começa em 11/10: o dia 2026-10-08 ... não; 11-09 menos 29 = 10-11
+    // M-2: o que está antes da tabela é UMA linha-resumo (a tela cobre de ... a ...), não uma linha por dia
     const antes = pontos(mm, { de: '2026-10-09', ate: '2026-10-12', grao: 'dia' })
-    expect(antes[0]!.motivo).toBe('fora dos 90 dias que a tela guarda')
-    expect(antes[3]!.estado).toBe('medido')
+    expect(antes).toHaveLength(3)
+    expect(antes[0]).toMatchObject({ data: '2026-10-09', estado: 'nao_medido', motivo: `a tela cobre de ${dmaDe('2026-10-11')} a ${dmaDe('2026-11-09')}` })
+    expect(antes[2]!.estado).toBe('medido')
   })
 
   it('(h) intervalo inteiro fora da tabela: UMA linha resumo por medida, "a tela cobre de … a …"', () => {
@@ -200,9 +204,9 @@ describe('pontosDaSerie', () => {
     const soma = Array.from({ length: 7 }, (_, i) => ganhoDe(mais('2026-10-05', i))).reduce((a, b) => a + b, 0)
     expect(porData.get('2026-10-05')).toMatchObject({ x: soma, estado: 'medido', diasMedidos: 7 })
     // 28/09: só 03/10 e 04/10 têm leitura
-    expect(porData.get('2026-09-28')).toMatchObject({ x: null, estado: 'nao_medido', diasMedidos: 2, motivo: '5 de 7 dias sem leitura' })
+    expect(porData.get('2026-09-28')).toMatchObject({ x: null, estado: 'nao_medido', diasMedidos: 2, motivo: `5 de 7 dias sem leitura; antes do início da coleta deste canal (${dmaDe('2026-10-03')})` })
     // 02/11: segunda a quarta lidas; hoje é 10/11, então a semana de 02/11 JÁ passou: dias sem leitura
-    expect(porData.get('2026-11-02')).toMatchObject({ x: null, diasMedidos: 3, motivo: '4 de 7 dias sem leitura' })
+    expect(porData.get('2026-11-02')).toMatchObject({ x: null, diasMedidos: 3, motivo: `4 de 7 dias sem leitura; sem leitura depois de ${dmaDe('2026-11-04')}` })
   })
 
   it('semana corrente: o motivo é semana ainda aberta (termina em dd/mm)', () => {
@@ -215,7 +219,7 @@ describe('pontosDaSerie', () => {
   it('semana inteira antes do início da coleta e semana inteira antes da tabela têm motivo próprio', () => {
     const ps = pontos(modelo(tabela()), { de: '2026-08-03', ate: '2026-09-27', grao: 'semana' })
     const porData = new Map(ps.map((p) => [p.data, p]))
-    expect(porData.get('2026-08-03')!.motivo).toBe('fora dos 90 dias que a tela guarda')
+    expect(porData.get('2026-08-03')!.motivo).toBe(`a tela cobre de ${dmaDe('2026-08-12')} a ${dmaDe('2026-11-09')}`)
     expect(porData.get('2026-09-21')!.motivo).toBe(`antes do início da coleta deste canal (${dmaDe('2026-10-03')})`)
   })
 
@@ -294,7 +298,7 @@ describe('responder: serie em tabela (um canal)', () => {
     expect(csvDe(r.texto).slice(1)).toHaveLength(1)
     expect(r.texto).toContain(`a tela cobre de ${dmaDe('2026-08-12')} a ${dmaDe('2026-11-09')}`)
     expect(r.texto).toContain('Nenhum ponto medido entre')
-    expect(r.texto).toContain('linhas: 1 de 1')
+    expect(r.texto).toContain('linhas: 0 de 31')
   })
 
   it('serie sem tabela dia_a_dia: a frase de hoje no texto, CSV só com o cabeçalho, Cobertura serieAusente', async () => {
@@ -317,14 +321,14 @@ describe('responder: serie em tabela (um canal)', () => {
   it('(j) pelo responder: sem o direito, linhas restrito e nenhum número do próprio; com o direito, "privado: sim" e a base com N fora da soma', async () => {
     const SENT = 987654
     const privada = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', celula: () => med(SENT), inicio: '2026-08-01' })
-    const aviso: Tabela = { id: 'privado-views-em-frases', titulo: 'Views por dia do canal, em frases', tipo: 'fixa', nomeNoCorte: 'frases', privada: true, colunas: ['Texto'], linhas: [[base(foraDaLeituraFrase(3), 'p.av')]] }
     dobra('canal-proprio', modelo([], { privado: { estado: 'excluido', motivo: 'sem_direito', itens: 'views por dia' } }, 'canal-proprio'))
     const sem = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
     expect(sem.desfecho).toBe('ok')
     expect(csvDe(sem.texto).slice(1).every((l) => l.includes(',restrito,'))).toBe(true)
     expect(sem.texto).not.toContain(String(SENT))
     expect(sem.incluiuPrivado).toBe(false)
-    dobra('canal-proprio', modelo([privada, aviso], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio'))
+    expect(sem.params).toMatchObject({ linhas: 3, total: 3 }) // m-2: as linhas restrito contam
+    dobra('canal-proprio', modelo([{ ...privada, foraDoTeto: 3 }], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio'))
     const com = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
     expect(com.texto).toContain('privado: sim')
     expect(com.texto).toContain(`${SENT}`)
@@ -344,13 +348,12 @@ describe('responder: serie em tabela (um canal)', () => {
     expect(r.texto).toContain('horário de São Paulo')
   })
 
-  it('corte por tamanho: acima de 400 dias o grão dia passa à semana, e ficam as semanas mais recentes em linhas inteiras', async () => {
+  it('corte por tamanho: 678 dias pedidos sobre 90 linhas NÃO passam à semana (conta pelos pontos da tabela, como o modo texto)', async () => {
     dobra('canal', modelo(tabela({ n: 90 })))
     const r = await responder({ acao: 'serie', canal_id: C1, de: '2025-01-01', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
     const csv = csvDe(r.texto)
-    expect(csv[0].startsWith('semana_inicio')).toBe(true)
-    expect(csv.length - 1).toBeLessThanOrEqual(400)
-    expect(r.params.cortes).toBeGreaterThan(0)
+    expect(csv[0].startsWith('dia,')).toBe(true)
+    expect(csv.length - 1).toBe(91)
   })
 
   it('o registro grava saida efetiva "tabela" e linhas/total do CSV', async () => {
@@ -413,5 +416,135 @@ describe('responder lê Tabela.dias (modo texto)', () => {
     dobra('canal', modelo(cedo, { privado: { estado: 'incluido', itens: 'x' } }))
     await responder(SERIE, abrir, AGORA)
     expect(avisosDoSentry().some((a) => a.includes('dias_do_texto'))).toBe(false)
+  })
+})
+
+/* ------------------------------------------------------------------ conserto da revisão do Yannis (F2a) */
+
+describe('revisão Yannis: I-1 (tabela sem dias no modo tabela)', () => {
+  it('I-1: a linha do tempo sem dias lê a data do texto da 1ª célula, avisa dias_do_texto e não diz "sem data de calendário"', async () => {
+    dobra('canal', modelo(tabela({ semDias: true, n: 30, rotuloDoDia: (d) => dmaDe(d) })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    const achado = m.captured.find((c) => String(c[0]).includes('dias_do_texto'))
+    expect(achado).toBeDefined()
+    expect(JSON.stringify(achado)).toContain('canal-linha-do-tempo')
+    expect(r.texto).not.toContain('sem data de calendário')
+    expect(csvDe(r.texto).slice(1)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03'].map((d) => `${d},c1,views_ganhas,${ganhoDe(d)},medido,`))
+  })
+})
+
+describe('revisão Yannis: M-1 (a primeira linha é do recorte)', () => {
+  it('M-1: coleta começando em 28/10, pedido de 03/11 a 09/11 medido: nenhum aviso de "quase tudo não medido"', async () => {
+    dobra('canal', modelo(tabela({ inicio: '2026-10-28' })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-03', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(r.texto).not.toContain('quase tudo')
+    expect(r.texto).not.toContain('seção 4')
+  })
+  it('M-1: pedido todo antes da coleta abre por "Nenhum ponto medido"', async () => {
+    dobra('canal', modelo(tabela({ inicio: '2026-10-28' })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-10-01', ate: '2026-10-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(r.texto.startsWith('Nenhum ponto medido')).toBe(true)
+  })
+  it('M-1: célula falhou fora do recorte não vira a primeira linha', async () => {
+    const falhou = (): Celula => ({ papel: 'numero', estado: 'falhou', motivo: 'o YouTube não respondeu', origem: 'p' })
+    dobra('canal', modelo(tabela({ celula: (d) => (d === '2026-09-01' ? falhou() : med(ganhoDe(d))), inicio: '2026-08-01' })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-03', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(r.texto).not.toMatch(/não foi lido|não foram lidos/)
+  })
+  it('M-1: recorte com número que não foi lido abre pela frase de falha, sem a "seção 4"', async () => {
+    const falhou = (): Celula => ({ papel: 'numero', estado: 'falhou', motivo: 'o YouTube não respondeu', origem: 'p' })
+    dobra('canal', modelo(tabela({ celula: (d) => (d === '2026-11-05' ? falhou() : med(ganhoDe(d))), inicio: '2026-08-01' })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-03', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(r.texto.startsWith('AVISO: 1 número não foi lido')).toBe(true)
+    expect(r.texto).not.toContain('seção 4')
+  })
+})
+
+describe('revisão Yannis: M-2 (recorte à tabela antes de converter) e m-4', () => {
+  it('M-2: 678 dias pedidos sobre 90 linhas ficam no grão dia: 90 linhas e UMA linha-resumo, linhas: 90 de 90', async () => {
+    dobra('canal', modelo(tabela({ n: 90 })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2025-01-01', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    const csv = csvDe(r.texto)
+    expect(csv[0].startsWith('dia,')).toBe(true)
+    expect(csv.length - 1).toBe(91)
+    expect(csv[1].startsWith('2025-01-01,c1,views_ganhas,,nao_medido')).toBe(true)
+    expect(r.texto).toContain('a tela cobre de')
+    expect(r.texto).toContain('linhas: 90 de 90')
+  })
+  it('M-2: 500 dias medidos numa tabela de 500 linhas passam do limite e vão para a semana', async () => {
+    dobra('canal', modelo(tabela({ n: 500 })))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2025-06-28', ate: '2026-11-09', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(csvDe(r.texto)[0].startsWith('semana_inicio')).toBe(true)
+    expect(r.params.cortes).toBeGreaterThan(0)
+  })
+  it('m-4: intervalo inteiro fora da tabela diz "linhas: 0 de N" (N = dias pedidos), a linha-resumo não conta', async () => {
+    dobra('canal', modelo(tabela()))
+    const r = await responder({ acao: 'serie', canal_id: C1, de: '2026-05-01', ate: '2026-05-31', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    expect(csvDe(r.texto).slice(1)).toHaveLength(1)
+    expect(r.texto).toContain('linhas: 0 de 31')
+  })
+})
+
+describe('revisão Yannis: M-3 (a base é da tabela)', () => {
+  const infoDe = (id: string, tela: TelaId) => infoDaSerie(modelo(tabela({ id, privada: true, fuso: 'pacifico' }), { privado: { estado: 'incluido', itens: 'x' } }, tela), C1, 'c1', AGORA).medidas[0]!.base
+  it('M-3: views por dia do canal mantêm "só vídeos longos acompanhados, até 50"', () => {
+    expect(infoDe('privado-views-por-dia', 'canal-proprio')).toContain('até 50')
+  })
+  it('M-3: a série de UM vídeo diz "só este vídeo", sem "até 50"', () => {
+    for (const id of ['privado-views-por-dia-do-video', 'privado-impressoes-por-dia-do-video']) {
+      const b = infoDe(id, 'video-proprio')
+      expect(b).not.toContain('até 50')
+      expect(b).toContain('só este vídeo')
+      expect(b).toContain('horário do Pacífico')
+    }
+  })
+  it('M-3: impressões do canal não herdam a base dos 50 vídeos longos', () => {
+    const b = infoDe('privado-impressoes-por-dia', 'canal-proprio')
+    expect(b).not.toContain('até 50')
+    expect(b).toContain('horário do Pacífico')
+  })
+})
+
+describe('revisão Yannis: m-1, m-3, m-6 e m-7', () => {
+  it('m-1: a semana que começa antes da coleta diz o motivo real', () => {
+    const ps = pontos(modelo(tabela()), { de: '2026-09-28', ate: '2026-09-28', grao: 'semana' })
+    expect(ps[0]!.motivo).toBe(`5 de 7 dias sem leitura; antes do início da coleta deste canal (${dmaDe('2026-10-03')})`)
+  })
+  it('m-1: a semana mais velha, cortada pela janela de 90 dias, diz a causa', () => {
+    // a tabela começa em 12/08 (quarta): a semana de 10/08 tem 5 dias na tabela
+    const ps = pontos(modelo(tabela({ inicio: '2026-08-01' })), { de: '2026-08-10', ate: '2026-08-10', grao: 'semana' })
+    expect(ps[0]!.motivo).toBe('2 de 7 dias sem leitura; fora dos 90 dias que a tela guarda')
+  })
+  it('m-3: o sem_x registra o id da tabela que falhou, não o da primeira série', async () => {
+    const semX: Celula = { papel: 'numero', estado: 'medido', texto: '5', origem: 'p' }
+    const views = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico' })
+    const imp = tabela({ id: 'privado-impressoes-por-dia', privada: true, fuso: 'pacifico', celula: () => semX })
+    dobra('canal-proprio', modelo([views, imp], { privado: { estado: 'incluido', itens: 'x' } }, 'canal-proprio'))
+    await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
+    const achado = m.captured.find((c) => String(c[0]).includes('csv_sem_x'))
+    expect(achado).toBeDefined()
+    expect(JSON.stringify(achado)).toContain('privado-impressoes-por-dia')
+    expect(JSON.stringify(achado)).not.toContain('privado-views-por-dia')
+  })
+  it('m-6: dia ISO inválido em Tabela.dias descarta a linha (sem chave vazia nem "//" na frase)', () => {
+    const t = tabela({ n: 10 })
+    t.dias![3] = ''
+    const ps = pontos(modelo(t), { de: '2026-11-01', ate: '2026-11-09', grao: 'dia' })
+    expect(ps.some((p) => p.data === '')).toBe(false)
+    expect(ps.some((p) => (p.motivo ?? '').includes('//'))).toBe(false)
+    const fora = pontos(modelo(t), { de: '2026-05-01', ate: '2026-05-02', grao: 'dia' })
+    expect(fora[0]!.motivo).toContain(dmaDe('2026-10-31'))
+  })
+  it('m-7: o teto de caracteres tira as datas mais antigas em linhas inteiras e avisa serie_tabela_estourou', () => {
+    const mm = modelo(tabela({ n: 400, ultimo: '2026-11-09' }))
+    const r = respostaDaSerieEmTabela(mm, { geradoEm: AGORA, recente: '10/11/2026 09:10' }, { canalId: C1, apelido: 'c1', de: mais('2026-11-09', -399), ate: '2026-11-09', grao: 'dia' }, 400, 3_000)
+    expect(r.texto.length).toBeLessThanOrEqual(3_000)
+    const fim = /linhas: (\d+) de (\d+)$/.exec(r.texto)
+    expect(fim).not.toBeNull()
+    expect(Number(fim![1])).toBeLessThan(Number(fim![2]))
+    expect(Number(fim![1])).toBe(r.pontos)
+    expect(r.texto).toContain('\n```\nlinhas:')
+    expect(r.avisos.map((a) => a.passo)).toContain('serie_tabela_estourou')
+    expect(csvDe(r.texto).every((l) => /^(dia|\d{4}-\d{2}-\d{2}),/.test(l))).toBe(true)
   })
 })

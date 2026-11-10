@@ -21,7 +21,7 @@ import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 import { respostaEmTabela } from './resposta-tabela'
-import { dmy, foraDaSoma, respostaDaSerieEmTabela, segundaDe, somaDaSemana } from './serie-tabela'
+import { diaDaLinha, diaValido, dmy, hojeSp, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -94,34 +94,8 @@ function paramsDaEntrada(e: Entrada): Params {
 /* ------------------------------------------------------------------ datas das linhas de série */
 
 const SP_MS = 3 * 3_600_000
-const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 10)
-const hojeSp = (agora: number): string => iso(agora - SP_MS)
-const diaValido = (a: number, m: number, d: number): boolean => m >= 1 && m <= 12 && d >= 1 && new Date(Date.UTC(a, m - 1, d)).getUTCMonth() === m - 1 && new Date(Date.UTC(a, m - 1, d)).getUTCDate() === d
 
-/** O dia de uma linha de `dia_a_dia`, lido do texto da 1ª célula (`dd/mm`, `dd/mm/aaaa`, `aaaa-mm-dd`, "hoje", "ontem"). Não leu: `null` (nunca chuta). */
-export function diaDaLinha(linha: readonly Celula[], agora: number): string | null {
-  const c = linha[0]
-  if (!c || c.papel === 'numero') return null
-  const t = c.texto.trim().toLowerCase()
-  const hoje = hojeSp(agora)
-  if (t === 'hoje') return hoje
-  if (t === 'ontem') return iso(Date.parse(`${hoje}T00:00:00Z`) - 86_400_000)
-  let m = /(\d{4})-(\d{2})-(\d{2})/.exec(t)
-  if (m) return diaValido(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null
-  m = /(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/.exec(t)
-  if (!m) return null
-  const d = Number(m[1]), mes = Number(m[2])
-  let ano = m[3] ? Number(m[3]) : Number(hoje.slice(0, 4))
-  if (!diaValido(ano, mes, d)) return null
-  let r = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  // sem ano: o dia mais recente que não está no futuro
-  if (!m[3] && r > iso(Date.parse(`${hoje}T00:00:00Z`) + 86_400_000)) {
-    ano -= 1
-    if (!diaValido(ano, mes, d)) return null
-    r = `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  }
-  return r
-}
+export { diaDaLinha }
 
 const medidaNaLinha = (l: readonly Celula[]): boolean => l.some((c) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido'))
 
@@ -368,7 +342,6 @@ const somarNumeros = (a: Numeros, b: Numeros): Numeros => ({
   falhou: a.falhou + b.falhou, restrito: a.restrito + b.restrito, privadosMedidos: a.privadosMedidos + b.privadosMedidos,
 })
 const horaSp = (agora: number): string => new Date(agora - SP_MS).toISOString().slice(11, 16)
-const somaDias = (dia: string, d: number): string => iso(Date.parse(`${dia}T00:00:00Z`) + d * 86_400_000)
 
 /** Só entra no texto a chamada que o esquema e o tradutor aceitam; a que falha cai e avisa (id inventado ou campo fora do esquema nunca chega à IA). */
 function validas(candidatas: readonly Proxima[]): Proxima[] {
@@ -644,17 +617,17 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     } else {
       if (pedido.limite.tipo === 'pontos' && pedido.saida === 'tabela' && pedido.de !== undefined && pedido.ate !== undefined) {
         // A5 F2a: a série de um canal em CSV longo; o modelo reduzido à série é o MESMO objeto que vai a `segmentar` e ao gerador
-        const fora = foraDaSoma(modelo)
         modelo = recortarSerie(modelo, pedido, agora, cortes, true)
         const idDaSerie = (entrada as { canal_id?: string; video_id?: string }).canal_id ?? (entrada as { video_id?: string }).video_id ?? ''
-        const r = respostaDaSerieEmTabela(modelo, { geradoEm: agora, recente: montado.recente }, { canalId: idDaSerie, apelido: 'c1', de: pedido.de, ate: pedido.ate, grao: pedido.grao ?? 'dia', foraDaSoma: fora }, pedido.limite.n, tetoDoTexto)
+        const r = respostaDaSerieEmTabela(modelo, { geradoEm: agora, recente: montado.recente }, { canalId: idDaSerie, apelido: 'c1', de: pedido.de, ate: pedido.ate, grao: pedido.grao ?? 'dia' }, pedido.limite.n, tetoDoTexto)
         for (const a of r.avisos) avisar(a.passo, a.extra)
         saidaEfetiva = 'tabela'
         semXDaTabela = r.semX
         cortes.n += r.cortes
         soNoTexto = r.soNoTexto
         incluiuDaTabela = r.incluiuPrivado
-        if (modelo.tabelas.some((t) => t.tipo === 'dia_a_dia')) {
+        // as linhas entregues contam sempre que a série tem linha (também as `restrito` do próprio sem o direito)
+        if (r.total > 0) {
           cortes.serie = { pontos: r.pontos, total: r.total, de: r.de, ate: r.ate, grao: r.grao, convertida: r.convertida, semData: 0 }
           doCorte = { linhas: r.pontos, total: r.total }
         }

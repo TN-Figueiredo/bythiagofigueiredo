@@ -196,6 +196,13 @@ export const SERIE_TOPO_DAS_SEMANAS = (de: string, ate: string) => `Semanas de $
 export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para o canal pedido` // novo
 export const SERIE_BASE_CONCORRENTE = 'canal inteiro, todos os formatos (Shorts incluídos); ganho entre a leitura de D−1 e a de D, dia em horário de São Paulo' // novo
 export const SERIE_BASE_PROPRIO = (fora: number) => `só vídeos longos acompanhados, até 50${fora > 0 ? `; ${fora} fora da soma` : ''}; dia do YouTube em horário do Pacífico` // novo
+export const SERIE_BASE_VIDEO = 'só este vídeo; dia do YouTube em horário do Pacífico' // novo
+export const SERIE_BASE_ALCANCE_CANAL = 'impressões e cliques do relatório de alcance do canal; dia do YouTube em horário do Pacífico' // novo
+export const SERIE_AVISO_MAGRO = (medidos: number, total: number) =>
+  `AVISO: quase tudo nesta série está não medido (${medidos} de ${total} números). O motivo de cada linha está na legenda de motivos abaixo. Não trate “não medido” como zero.` // novo
+export const SERIE_AVISO_FALHA = (falhou: number) =>
+  `AVISO: ${falhou} ${falhou === 1 ? 'número não foi lido' : 'números não foram lidos'} agora; ${falhou === 1 ? 'não é zero nem falta de dado' : 'não são zero nem falta de dado'}. O motivo de cada linha está na legenda de motivos abaixo.` // novo
+export const SERIE_DESCARTADAS = (n: number) => `${n} ${n === 1 ? 'linha sem data reconhecível ficou' : 'linhas sem data reconhecível ficaram'} fora da série` // novo
 export const SERIE_BASE_RESTRITA = 'dado privado do seu canal, não liberado para quem gerou esta resposta' // novo
 export const SERIE_SEM_DATA = 'série sem data de calendário; só no modo texto' // novo
 export const SERIE_CORTADA = (de: number, total: number, grao: string) => `Cortado: ${de} de ${total} linhas da série (${grao}); ficaram as mais recentes, em linhas inteiras` // novo
