@@ -3,7 +3,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import type { EstadoDoPrivado, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { a3World } from './a3-fixture'
-import { medidasDoOraculo } from './canais-e5a-fixture'
+import { medidasDoOraculo, medidasDoMotor } from './canais-e5a-fixture'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { buildRiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-model'
 import { dmDia, type ExtrasProprio } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
@@ -56,5 +56,18 @@ export function casosDeCanais(): CasoCanais[] {
     { nome: 'diario negado', obs: w.obs, sp: {}, extras: extrasDe(w.obs, 'sem-acesso'), privado: privadoDe(w.obs, 'negado', 'sem_direito') },
     { nome: 'diario com falha', obs: w.obs, sp: {}, extras: extrasDe(w.obs, 'leitura-falhou'), privado: privadoDe(w.obs, 'erro') },
     { nome: 'inscritos ocultos', obs: semOculto.obs, sp: {}, extras: extrasDe(semOculto.obs), privado: privadoDe(semOculto.obs, 'ok') },
+  ]
+}
+
+/**
+ * Cobertura NOVA da rede de estados (Yannis M1 e M7), em arquivo de instantâneo próprio: o de `casosDeCanais` (commit 0) não é regravado.
+ * `restrito`: com `extras.negativa = sem_direito` a ausência do diário vira `r`. `canais-resumo-base`: um canal sem o estado lido dá base ("de N") ao filtro.
+ */
+export function casosNovosDeCanais(): CasoCanais[] {
+  const w = a3World()
+  const primeiro = w.obs.channels.find((c) => !c.own)!.id
+  return [
+    { nome: 'diario restrito', obs: w.obs, sp: {}, extras: { ...extrasDe(w.obs, 'sem-acesso'), negativa: 'sem_direito' }, privado: privadoDe(w.obs, 'negado', 'sem_direito') },
+    { nome: 'estado lido em parte', obs: w.obs, sp: { medidas: medidasDoMotor(w.obs, { [primeiro]: 'nao_carregou' }) }, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') },
   ]
 }

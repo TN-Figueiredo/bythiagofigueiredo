@@ -25,7 +25,8 @@ import {
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
-import { NB, gemeo, nbMilMi, numNb } from '../_canal/formato'
+import { NB, nbMilMi, numNb } from '../_canal/formato'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import { quandoMs } from '../_canal/medidas/formatos'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 import { SEM_LEITURA_NO_MAPA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
@@ -66,10 +67,10 @@ export type VpdCell =
   /** `ausencia`: decisão 75, só no canal próprio com o diário lido (restrito/falhou/não medido); ausente = a célula de sempre. */
   | { kind: 'na'; text: string; title: string; falta?: true; ausencia?: EstadoAusencia }
   /** `title`: a base escrita do número do canal próprio (a janela do diário); ausente nos concorrentes. */
-  | { kind: 'ok'; big: string; abs: string | null; /** A5: os mesmos dois números sem o arredondamento do texto. */ bigN: number; absN: number | null; n: number; weak: boolean; tail: string | null; title?: string }
+  | { kind: 'ok'; big: string; abs: string | null; /** A5: os mesmos dois números sem o arredondamento do texto. */ bigN: number | null; absN: number | null; n: number; weak: boolean; tail: string | null; title?: string }
 export type OutCell =
   | { kind: 'na'; text: string; weak: string | null; upnext: string | null; falta?: true }
-  | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; /** A5: o múltiplo em vezes (4,2× → 4.2). */ multN: number; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
+  | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; /** A5: o múltiplo em vezes (4,2× → 4.2). */ multN: number | null; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
   | { kind: 'na'; text: string; title: string; motivo: 'novo' | 'sem-registro' | 'oculto' | 'nao-carregou' | 'sem-percentual' | 'buraco'; fechaEm: number | null; dias: number | null }
@@ -532,9 +533,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       // canal próprio: a base escrita é a janela do diário (D3), à vista na ressalva e inteira na dica
       const dias = o.ev.janela ? `, de ${extras.dm(o.ev.janela.de)} a ${extras.dm(o.ev.janela.ate)}` : ''
       const base = baseVpdTexto(o.ev, extras.dm)
-      return { kind: 'ok', big: vpdAbs(v), abs: rel && o.abs != null ? vpdAbs(o.abs) : null, bigN: gemeo(v)!, absN: rel && o.abs != null ? gemeo(o.abs) : null, n: o.ev.n, weak: o.ev.n < R.weakBase, tail: dias + (empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : ''), ...(base ? { title: base } : {}) }
+      return { kind: 'ok', big: vpdAbs(v), abs: rel && o.abs != null ? vpdAbs(o.abs) : null, bigN: gemeo(v), absN: rel && o.abs != null ? gemeo(o.abs) : null, n: o.ev.n, weak: o.ev.n < R.weakBase, tail: dias + (empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : ''), ...(base ? { title: base } : {}) }
     }
-    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, bigN: gemeo(v)!, absN: rel && S.vpdMedian != null ? gemeo(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
+    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, bigN: gemeo(v), absN: rel && S.vpdMedian != null ? gemeo(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
   }
   function outCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): OutCell {
     const fmtName = wordOf(f), one = oneOf(f), o = S.bestOutlier
@@ -553,7 +554,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const m = o.mult, a = ageOf(o.video)
     return {
       kind: 'ok', title: `${m.label ?? ''}. ${methodText(m)}; sem contar este vídeo.`, videoTitle: o.video.title, thumb: thumbOf(o.video),
-      mult: F.mult(m.value), multN: gemeo(m.value)!, tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
+      mult: F.mult(m.value), multN: gemeo(m.value), tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
       count: `${S.outliers90} ${S.outliers90 === 1 ? 'outlier' : 'outliers'} no canal`,
     }
   }

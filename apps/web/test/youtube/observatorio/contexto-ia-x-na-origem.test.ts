@@ -4,7 +4,7 @@
  * Gravado contra o código de ANTES do conserto; depois dele tem de continuar verde sem regravar o arquivo de estados.
  */
 import { describe, it, expect } from 'vitest'
-import { casosDeCanais, mundoComCanais, pacoteDe, modeloDe, privadoDe, extrasDe, type CasoCanais } from './contexto-ia-x-fixture'
+import { casosDeCanais, casosNovosDeCanais, mundoComCanais, pacoteDe, modeloDe, privadoDe, extrasDe, type CasoCanais } from './contexto-ia-x-fixture'
 import { nbMilMi, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/formato'
 import { vpdText } from '@/app/cms/(authed)/youtube/competitors/_canal/numeros'
 import { empacotarCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
@@ -13,6 +13,7 @@ import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 import type { Celula, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { CONTEXTO } from './contexto-ia-fixture'
+import { a3World } from './a3-fixture'
 
 const LETRA: Record<string, string> = { medido: 'M', zero_medido: 'Z', nao_medido: 'n', falhou: 'f', restrito: 'r' }
 const letra = (c: Celula): string => (c.papel === 'numero' ? LETRA[c.estado]! : '.')
@@ -30,6 +31,13 @@ describe('canais: estados iguais (rede da F0.5a)', () => {
   it('o mapa tabela/coluna/linha → estado e texto das fixtures é o de antes do conserto', async () => {
     const saida = casosDeCanais().map((c) => `## ${c.nome}\n${mapaDeEstados(pacoteDe(c)).join('\n')}`).join('\n\n') + '\n'
     await expect(saida).toMatchFileSnapshot('__snapshots__/contexto-ia-x-estados-canais.txt')
+  })
+  it('cobertura nova (M1, M7): `restrito` e `canais-resumo-base` entram na rede, em instantâneo próprio', async () => {
+    const casos = casosNovosDeCanais()
+    const saida = casos.map((c) => `## ${c.nome}\n${mapaDeEstados(pacoteDe(c)).join('\n')}`).join('\n\n') + '\n'
+    expect(saida, 'algum canal tem célula restrita').toMatch(/: [A-Za-z.]*r[A-Za-z.]* /)
+    expect(saida, 'a tabela de base existe').toContain('canais-resumo-base/')
+    await expect(saida).toMatchFileSnapshot('__snapshots__/contexto-ia-x-estados-canais-novos.txt')
   })
   it('a rede enxerga: trocar o estado de uma célula muda o mapa', () => {
     const c = casosDeCanais()[0]!
@@ -82,7 +90,7 @@ function medidas(p: PacoteModelo) {
 const semX = (c: Celula) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && 'semXMotivo' in c && typeof c.semXMotivo === 'string'
 const todosOsCasos = (): CasoCanais[] => {
   const w60 = mundoComCanais(60)
-  return [...casosDeCanais(),
+  return [...casosDeCanais(), ...casosNovosDeCanais(),
     { nome: '60 canais, longos', obs: w60.obs, sp: {}, extras: extrasDe(w60.obs), privado: privadoDe(w60.obs, 'ok') },
     { nome: '60 canais, todos', obs: w60.obs, sp: { fmt: 'todos' }, extras: extrasDe(w60.obs), privado: privadoDe(w60.obs, 'ok') }]
 }
@@ -125,14 +133,25 @@ describe('canais: o formatador da unidade da coluna aplicado a x dá o texto (2)
     'canais-resumo-estado/Canais': (x) => String(x),
     'canais-inscritos/Ganho em 28 dias': (x) => `${sinal(x)}${F.dec1(Math.abs(x))}%`,
   }
-  it('cada coluna numérica tem formatador e o x reescreve o texto da célula', () => {
-    const p = pacoteDe(caso)
+  /** Referências ("Views do vídeo típico") usa o `cmpL` privado do modelo; aqui só a unidade e a ordem de grandeza, e nunca zero (M2). */
+  const REFERENCIAS = 'canais-referencias/Views do vídeo típico'
+  it.each(todosOsCasos().map((c) => [c.nome, c] as const))('%s: cada coluna numérica tem formatador e o x reescreve o texto da célula', (_n, c0) => {
+    const p = pacoteDe(c0)
     const sem: string[] = [], erradas: string[] = []
-    let checadas = 0
+    let checadas = 0, referencias = 0
     for (const m of medidas(p)) {
-      const f = FORMATADOR[`${m.tabela}/${m.coluna}`]
-      if (!f) { if (!['canais-referencias/Views do vídeo típico'].includes(`${m.tabela}/${m.coluna}`)) sem.push(m.caminho); continue }
+      const chave = `${m.tabela}/${m.coluna}`
       const c = m.c as { texto: string; x?: number | null; semXMotivo?: string }
+      if (chave === REFERENCIAS) {
+        if (typeof c.x !== 'number') continue
+        referencias += 1
+        const t = c.texto.replace(/\u00a0/g, ' ')
+        const ok = / mi$/.test(t) ? c.x >= 1e6 : / mil$/.test(t) ? c.x >= 1e3 && c.x < 1e6 : c.x > 0 && c.x < 1e3
+        if (!ok) erradas.push(`${m.caminho}: texto "${t}" fora da ordem de grandeza de x=${c.x}`)
+        continue
+      }
+      const f = FORMATADOR[chave]
+      if (!f) { sem.push(m.caminho); continue }
       if (typeof c.x !== 'number') continue // o teste (1) acusa a falta; a contagem abaixo impede o verde vazio
       checadas += 1
       const texto = c.texto === 'sem variação' ? 'sem variação' : c.texto.replace(/\u00a0/g, ' ')
@@ -140,19 +159,13 @@ describe('canais: o formatador da unidade da coluna aplicado a x dá o texto (2)
       if (texto !== esperado && !(texto === 'sem variação' && c.x === 0)) erradas.push(`${m.caminho}: texto "${texto}" ≠ f(x=${c.x}) "${esperado}"`)
     }
     expect(sem, 'coluna numérica sem formatador no teste').toEqual([])
-    expect(checadas, 'células conferidas pelo formatador (sem isso o teste passa vazio)').toBeGreaterThan(100)
+    expect(checadas, 'células conferidas pelo formatador (sem isso o teste passa vazio)').toBeGreaterThan(20)
+    expect(referencias, 'Referências conferidas').toBeGreaterThan(0)
     expect(erradas).toEqual([])
   })
-  it('(2b) ordem de grandeza: coluna em % com texto ≥ 1% tem |x| ≥ 1 (a fração 0,123 no lugar de 12,3 cai aqui)', () => {
-    let vistas = 0
-    for (const m of medidas(pacoteDe(caso))) {
-      const c = m.c as { texto: string; x?: number | null }
-      const pct = /^[+\u2212-]?(\d+(?:,\d+)?)%$/.exec(c.texto)
-      if (!pct || typeof c.x !== 'number') continue
-      vistas += 1
-      if (Number(pct[1]!.replace(',', '.')) >= 1) expect(Math.abs(c.x), m.caminho).toBeGreaterThanOrEqual(1)
-    }
-    expect(vistas, 'a fixture tem coluna em %').toBeGreaterThan(0)
+  it('a coluna que só existe fora de `todos` (Vídeos comparados) é exercitada pelo formatador; `Views/dia, mediana dos vídeos` nenhuma fixture produz (registrado no relatório)', () => {
+    const vistas = new Set(todosOsCasos().flatMap((c) => medidas(pacoteDe(c)).map((m) => `${m.tabela}/${m.coluna}`)))
+    for (const k of ['canais-maior-outlier/Vídeos comparados']) expect(vistas.has(k), k).toBe(true)
   })
   it('(2b) crescimento "+12,3%" → x === 12.3 (o empacotador copia o gêmeo do modelo ×100, normalizado)', () => {
     const m = modeloDe(caso)
@@ -278,6 +291,10 @@ describe('canais: chaves (4)', () => {
           "canal",
           "nota",
         ],
+        "canais-resumo-base": [
+          "estado",
+          "base",
+        ],
         "canais-resumo-direcao": [
           "direcao",
           "canais",
@@ -311,23 +328,48 @@ describe('canais: chaves (4)', () => {
   })
 })
 
-describe('canais: crescimento "sem variação" (7, D11)', () => {
-  const caso = casosDeCanais().find((c) => c.nome === 'longos')!
-  const celula = (limite: number) => {
-    const m = modeloDe(caso)
-    const r = [...m.list.ranked, ...m.list.unranked].find((x) => !x.own && x.cells.growth.kind !== 'na')!
-    r.cells.growth = { kind: 'flat', big: 'sem variação', cap: 'x', limite, antes: 1, depois: 1, de: 1, ate: 2, atrasadoAte: null, abs: 0, passo: 1000, growthPctN: limite > 0 ? null : 0 } as never
-    const t = empacotarCanais(m, caso.privado).tabelas.find((x) => x.id === 'canais')!
-    return t.linhas.find((l) => (l[2] as { texto: string }).texto === r.id)![9]! as { estado: string; texto: string; x?: number | null; semXMotivo?: string }
+describe('canais: crescimento "sem variação" (7, D11), pelo buildCanaisView REAL', () => {
+  /** Dois concorrentes sem mudança nenhuma de inscritos: um com 500 (limite 0, contagem exata) e um com 5 mi (limite > 0). Nada do modelo é montado à mão. */
+  const w = a3World((ds) => {
+    const [a, b] = ds.channels.filter((x) => !x.own)
+    for (const [c, subs] of [[a!, 500], [b!, 5_000_000]] as const) { c.subs = subs; c.snapshots = c.snapshots.map((s) => ({ ...s, subs })) }
+  })
+  const [pequeno, grande] = w.obs.channels.filter((x) => !x.own)
+  const caso: CasoCanais = { nome: 'sem variação', obs: w.obs, sp: {}, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') }
+  const celula = (id: string) => {
+    const t = pacoteDe(caso).tabelas.find((x) => x.id === 'canais')!
+    return t.linhas.find((l) => (l[2] as { texto: string }).texto === id)![9]! as { estado: string; texto: string; x?: number | null; semXMotivo?: string }
   }
-  it('com limiteArred > 0: medido sem x (undefined, nunca 0) e o motivo cita ±1.000; texto não muda', () => {
-    const c = celula(1000)
+  it('o modelo decide uma vez: flat com limite 0 traz growthPctN 0; com limite > 0, null', () => {
+    const m = modeloDe(caso)
+    const g = (id: string) => [...m.list.ranked, ...m.list.unranked].find((r) => r.id === id)!.cells.growth
+    expect(g(pequeno!.id)).toMatchObject({ kind: 'flat', limite: 0, growthPctN: 0 })
+    expect(g(grande!.id)).toMatchObject({ kind: 'flat', growthPctN: null })
+    expect((g(grande!.id) as { limite: number }).limite).toBeGreaterThan(0)
+  })
+  it('com limiteArred > 0: medido sem x (undefined, nunca 0) e o motivo cita ±N; texto não muda', () => {
+    const c = celula(grande!.id)
     expect(c.estado).toBe('medido'); expect(c.texto).toBe('sem variação')
     expect(c.x).toBeUndefined()
-    expect(c.semXMotivo).toMatch(/±1\.000/)
+    expect(c.semXMotivo).toMatch(/±[\d.]+ inscritos/)
   })
-  it('com limiteArred === 0: x === 0, estado medido', () => {
-    const c = celula(0)
-    expect(c.estado).toBe('medido'); expect(c.x).toBe(0); expect(c.semXMotivo).toBeUndefined()
+  it('com limiteArred === 0 (menos de mil inscritos): x === 0, estado medido, sem motivo', () => {
+    const c = celula(pequeno!.id)
+    expect(c.estado).toBe('medido'); expect(c.texto).toBe('sem variação'); expect(c.x).toBe(0); expect(c.semXMotivo).toBeUndefined()
+  })
+})
+
+describe('canais: Inscritos 28 dias, "sem variação" de 0 para 0 (M5)', () => {
+  const w = a3World((ds) => { const c = ds.channels.find((x) => !x.own)!; c.subs = 0; c.snapshots = c.snapshots.map((s) => ({ ...s, subs: 0 })) })
+  const alvo = w.obs.channels.find((x) => !x.own)!
+  const caso: CasoCanais = { nome: '0 para 0', obs: w.obs, sp: {}, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') }
+  it('sem percentual (0/0): medido sem x, com o motivo; nunca 0%', () => {
+    const l = modeloDe(caso).ri.inscritos
+    if (l.estado !== 'ok') throw new Error('RI de inscritos sem dados na fixture')
+    const linha = l.linhas.find((x) => x.id === alvo.id)!
+    expect(linha).toMatchObject({ classe: 'eq', pct: 'sem variação', pctN: null })
+    const t = pacoteDe(caso).tabelas.find((x) => x.id === 'canais-inscritos')!
+    const cel = t.linhas.find((r) => (r[0] as { texto: string }).texto === alvo.name)![1]! as { estado: string; x?: number | null; semXMotivo?: string }
+    expect(cel.estado).toBe('medido'); expect(cel.x).toBeUndefined(); expect(cel.semXMotivo).toMatch(/não tinha inscritos/)
   })
 })

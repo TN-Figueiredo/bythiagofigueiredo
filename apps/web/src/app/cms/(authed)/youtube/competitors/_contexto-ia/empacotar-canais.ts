@@ -20,7 +20,7 @@ import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventar
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
 import { celulaAusente } from './celula-ausente'
-import { gemeo } from '../_canal/formato'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import { fraseAgendadoIa } from '../_canais/remover-model'
 
 const JANELA = MEASURE_RULES.direction.windowDays
@@ -362,9 +362,9 @@ const textos = (xs: ReadonlyArray<[string | null | undefined, string]>): Array<[
 function direcaoX(d: Extract<CanaisRow['direcao'], { tipo: 'medido' }>): number | null {
   return d.ganhoAnterior > 0 ? gemeo(((d.ganhoRecente - d.ganhoAnterior) / d.ganhoAnterior) * 100) : gemeo(d.pct)
 }
-/** D11: "sem variação" com o arredondamento do YouTube maior que zero não tem número (o crescimento pode ser qualquer um dentro de ±N): sai vazio, com o motivo. */
+/** D11: "sem variação" com o arredondamento do YouTube maior que zero não tem número (o crescimento pode ser qualquer um dentro de ±N): sai vazio, com o motivo. A decisão é do modelo (`growthPctN === null` em `flat`), só ela. */
 function celulaDoCrescimento(g: Exclude<CanaisRow['cells']['growth'], { kind: 'na' }>, origem: string): Celula {
-  if (g.kind === 'flat' && g.limite > 0) return medidoSemX(g.big, origem, `dentro do arredondamento do YouTube (±${g.limite.toLocaleString('pt-BR')} inscritos)`)
+  if (g.kind === 'flat' && g.growthPctN === null) return medidoSemX(g.big, origem, `dentro do arredondamento do YouTube (±${g.limite.toLocaleString('pt-BR')} inscritos)`)
   return medido(g.big, origem, g.growthPctN)
 }
 
@@ -515,7 +515,7 @@ function tabelasDeReferenciasEInscritos(m: ModeloCanais): Tabela[] {
     const medida = (l: RiLinhaIns) => l.classe != null && l.barra != null
     out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', 'Ganho em 28 dias'],
       ordem.map(({ l, k }) => [terceiros(l.nome, `modelo.ri.inscritos.linhas[${k}].nome`),
-        medida(l) && l.pct !== null ? medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, l.pctN) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
+        medida(l) && l.pct !== null ? (l.classe === 'eq' && l.pctN === null ? medidoSemX(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, 'sem percentual: o canal não tinha inscritos') : medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, l.pctN)) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
     const notas: Celula[][] = []
     for (const { l, k } of ordem) {
       const d = m.derivado.ri.inscritos[k]!

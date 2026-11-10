@@ -68,8 +68,6 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '@/lib/youtube/observatorio/comentarios/leitor-mencao',
     // A5 F2: frase fixa do canal agendado para guardar, módulo puro que a tela também usa
     '../_canais/remover-model',
-    // A5 F0.5a: `gemeo` (o `x` normalizado a 12 algarismos), folha sem modelo e sem 'use client' que a tela e o empacotador dividem
-    '../_canal/formato',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
   it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })
@@ -151,7 +149,9 @@ describe('pendências do pacote da IA (Yannis, 17/10)', () => {
 describe('A5 F0.5a: o x nasce do número do modelo, nunca do texto', () => {
   // o `+` só conta como conversão quando é unário (depois de operador ou `return`): `a + r.texto` é concatenação
   const PROIBIDO = /\b(parseFloat|parseInt|Number)\s*\([^)]*\b(texto|big|mult|pw|subs|observed)\b|(?:^|[=(,:?&|!]|\breturn)\s*\+\s*\w+\.(texto|big|mult|pw|subs|observed)\b/
-  const alvo = [...arquivos(L), ...arquivos(join(C, '_contexto-ia'))]
+  // M6: os modelos onde o gêmeo nasce também não leem o texto. T2/T3 acrescentam `_outliers/view-model.ts` e `_mudancas/view-model.ts` aqui.
+  const MODELOS_COM_GEMEO = ['_canais/view-model.ts', '_canais/ri-model.ts'].map((f) => join(C, f))
+  const alvo = [...arquivos(L), ...arquivos(join(C, '_contexto-ia')), ...MODELOS_COM_GEMEO]
   it('nenhum arquivo de contexto-ia/ nem de _contexto-ia/ converte o texto de uma célula em número', () => {
     expect(alvo.filter((p) => PROIBIDO.test(semComentarios(ler(p)))).map(nome)).toEqual([])
   })

@@ -8,7 +8,7 @@ import { referenciaDoCanal, REGRAS_REFERENCIAS, type ReferenciaDoCanal } from '@
 import { inscritosDoCanal, JANELA_RETRATOS_DIAS, REGRAS_INSCRITOS, type InscritosDoCanal, type RetratosDoProprio } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { Fmt, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import type { Observatory } from '@/lib/youtube/observatorio'
-import { gemeo } from '../_canal/formato'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import type { RiFrase, RiLinhaIns, RiLinhaRef, RiPilula, RiSecao, RiView } from './ri-tipos'
 
 /** O que o modelo lê do motor (o `Observatory` inteiro serve). */
@@ -288,7 +288,7 @@ function secaoInscritos(escopo: ObsChannel[], p: RiParams, ordi: 'pct' | 'abs'):
     return {
       id: c.id, nome: c.name, proprio: c.own, rank: null, classe: r.classe,
       pct: r.classe === 'eq' ? 'sem variação' : r.pct == null ? null : `${sinal(r.ganho)}${d1(Math.abs(r.pct))}%`,
-      pctN: r.classe === 'eq' ? 0 : gemeo(r.pct),
+      pctN: r.classe === 'eq' && r.pct !== null ? 0 : gemeo(r.pct),
       sub: `${r.classe === 'eq' ? '' : sinal(r.ganho) + abs + ' · '}${cmpL(r.hoje)} no total · ${datas}`,
       barra: r.classe === 'eq' ? { pct: 0, abs: 0 } : { pct: tam(Math.abs(r.pct ?? 0), maiorPct), abs: tam(Math.abs(r.ganho), maiorAbs) }, pilula: null, nota: null,
       ariaLabel: `${c.name}: ${r.classe === 'eq' ? 'sem variação' : `${r.ganho > 0 ? 'subiu' : 'caiu'} ${abs} inscritos${r.pct != null ? ', ' + d1(Math.abs(r.pct)) + '%' : ''}`} em 28 dias`,
