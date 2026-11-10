@@ -30,6 +30,9 @@ export interface ColunaView {
   imp: string | null
   /** Cliques estimados do dia; null = não medido (dia não medido OU dia com impressão sem CTR). "menos de 1" quando o valor é maior que 0 e arredonda a 0. */
   cliques: string | null
+  /** A5: os gêmeos numéricos de `imp` e `cliques` (nunca arredondados pelo texto); null = não medido. */
+  impN: number | null
+  cliquesN: number | null
   /** O que aparece na faixa dos cliques, sob as datas: "1.139", "<1"; null = nada (sem clique, ou não medido). Sempre null em views. */
   cliquesFaixa: string | null
   /** A frase do dia (dica, fala do leitor de tela). */
@@ -52,6 +55,8 @@ export interface CedoCasaView {
   estado: 'zero-medido' | 'com-impressoes' | 'dia-nao-chegou' | 'ainda-nao-existe'
   /** o que a casa escreve: "0", o número, "hoje", "ontem", "não medido" ou nada */
   texto: string
+  /** A5: o gêmeo numérico de `texto` (0 no zero medido, o valor com impressões); null = não medido ou ainda não existe. */
+  valorN: number | null
   aria: string
 }
 
@@ -325,20 +330,22 @@ function colunaDe(d: DiaAlcance, i: number, n: number, teto: number, o: OpcoesIm
       const imp = d.imp ?? 0
       const cliques = d.cliques
       // views não têm cliques: nunca "0", nunca "não medido" de clique; a coluna só não tem a faixa
-      if (unidade === 'views') return { ...comum, alturaPx: Math.max(BARRA_MINIMA_PX, imp * o.alturaArea / teto), imp: int(imp), cliques: null, cliquesFaixa: null }
+      if (unidade === 'views') return { ...comum, alturaPx: Math.max(BARRA_MINIMA_PX, imp * o.alturaArea / teto), imp: int(imp), impN: imp, cliques: null, cliquesN: null, cliquesFaixa: null }
       return {
         ...comum,
         alturaPx: Math.max(BARRA_MINIMA_PX, imp * o.alturaArea / teto),
         imp: int(imp),
+        impN: imp,
+        cliquesN: cliques == null ? null : cliques,
         cliques: cliques == null ? null : cliquesTextoDia(cliques),
         cliquesFaixa: cliques == null || cliques <= 0 ? null : Math.round(cliques) === 0 ? '<1' : int(cliques),
       }
     }
     case 'zero-medido':
-      return { ...comum, alturaPx: ZERO_PX, imp: '0', cliques: unidade === 'views' ? null : '0', cliquesFaixa: null }
+      return { ...comum, alturaPx: ZERO_PX, imp: '0', impN: 0, cliques: unidade === 'views' ? null : '0', cliquesN: unidade === 'views' ? null : 0, cliquesFaixa: null }
     case 'nao-medido':
       // não medido NÃO é barra de altura zero: a coluna ocupa a área inteira, hachurada
-      return { ...comum, alturaPx: o.alturaArea, imp: null, cliques: null, cliquesFaixa: null }
+      return { ...comum, alturaPx: o.alturaArea, imp: null, impN: null, cliques: null, cliquesN: null, cliquesFaixa: null }
     default: {
       const _nunca: never = d.situacao
       return _nunca
@@ -471,15 +478,15 @@ function casasDoCedo(e: Extract<EstadoCedo, { casas: unknown }>, o: OpcoesImpres
     const numero = i + 1
     switch (c.estado) {
       case 'zero-medido':
-        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '0', aria: `${rotulo}: zero medido: o YouTube mandou o dia e não houve impressão` }
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '0', valorN: 0, aria: `${rotulo}: zero medido: o YouTube mandou o dia e não houve impressão` }
       case 'com-impressoes':
-        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: int(c.valor ?? 0), aria: `${rotulo}: ${plural(c.valor ?? 0, 'impressão', 'impressões')}` }
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: int(c.valor ?? 0), valorN: c.valor ?? 0, aria: `${rotulo}: ${plural(c.valor ?? 0, 'impressão', 'impressões')}` }
       case 'dia-nao-chegou': {
         const hoje = c.dia === o.hoje, ont = c.dia === ontem
-        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: hoje ? 'hoje' : ont ? 'ontem' : 'não medido', aria: `${rotulo}: não medido: o dia ainda não chegou${hoje ? ' (hoje)' : ont ? ' (ontem)' : ''}` }
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: hoje ? 'hoje' : ont ? 'ontem' : 'não medido', valorN: null, aria: `${rotulo}: não medido: o dia ainda não chegou${hoje ? ' (hoje)' : ont ? ' (ontem)' : ''}` }
       }
       case 'ainda-nao-existe':
-        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '', aria: `${rotulo}: ainda não existe${numero === 7 ? '; neste dia o gráfico volta' : ''}` }
+        return { dia: c.dia, rotulo, numero, estado: c.estado, texto: '', valorN: null, aria: `${rotulo}: ainda não existe${numero === 7 ? '; neste dia o gráfico volta' : ''}` }
       default: {
         const _nunca: never = c.estado
         return _nunca

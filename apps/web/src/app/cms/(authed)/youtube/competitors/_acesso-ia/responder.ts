@@ -13,7 +13,7 @@ import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from 
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
-import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import { SEMANA_FECHADA, type Celula, type PacoteModelo, type Tabela, type TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
@@ -234,6 +234,8 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       const semanas = new Map<string, typeof dentro>()
       for (const x of dentro) semanas.set(segundaDe(x.dia), [...(semanas.get(segundaDe(x.dia)) ?? []), x])
       const regra = t.semana === 'soma' ? 'soma' : t.semana === 'ultima' ? 'ultima' : null
+      // A5: o fuso do dia vem da tabela (privadas = dia do YouTube, Pacífico; concorrente = São Paulo); sem declarar, a frase de sempre
+      const horario = t.fuso === 'pacifico' ? 'horário do Pacífico' : 'horário de São Paulo'
       const escolhidas = [...semanas.entries()].map(([segunda, xs]) => {
         const ord = [...xs].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0))
         if (regra === 'ultima') {
@@ -245,10 +247,10 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       dentro = escolhidas
       if (!convertida) totalDaSerie = escolhidas.length // pediu semana: o total é de semanas
       avisos.push(regra === 'soma'
-        ? `série "${t.titulo}": grão semana, regra "ganho diário": cada semana (segunda a domingo, horário de São Paulo) é a soma dos 7 dias, só quando os 7 estão medidos; senão a célula sai "não medido" com quantos dias foram medidos (nunca zero, nunca soma parcial)`
+        ? `série "${t.titulo}": grão semana, regra "ganho diário": cada semana (segunda a domingo, ${horario}) é a soma dos 7 dias, só quando os 7 estão medidos; senão a célula sai "não medido" com quantos dias foram medidos (nunca zero, nunca soma parcial)`
         : regra === 'ultima'
-          ? `série "${t.titulo}": grão semana, regra "acumulado": a última leitura de cada semana (segunda a domingo, horário de São Paulo); o total no fim do dia, não é soma nem média`
-          : `série "${t.titulo}": grão semana: o tipo desta tabela (ganho por dia ou total acumulado) não declarado, então a soma da semana não é calculada; cada semana sai "não medido" com quantos dias foram medidos; peça o grão dia`)
+          ? `série "${t.titulo}": grão semana, regra "acumulado": a última leitura de cada semana (segunda a domingo, ${horario}); o total no fim do dia, não é soma nem média`
+          : `série "${t.titulo}": grão semana: o tipo desta tabela (ganho por dia ou total acumulado) não declarado, então a soma da semana não é calculada; cada semana sai "não medido" com quantos dias foram medidos${SEMANA_FECHADA[t.id] ? ` (${SEMANA_FECHADA[t.id]})` : ''}; peça o grão dia`)
     }
     if (dentro.length > n) {
       const mantidos = new Set([...dentro].sort((a, b) => (a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : 0)).slice(0, n).map((x) => x.i))

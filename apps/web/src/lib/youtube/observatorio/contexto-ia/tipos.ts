@@ -40,7 +40,16 @@ export interface Tabela {
 }
 
 /** A5: id da tabela `dia_a_dia` → por que a semana não soma; `<id>-cedo`: "primeiros 7 dias, sem data de calendário". Preenchido na F0.5b. */
-export const SEMANA_FECHADA: Record<string, string> = {}
+const SEM_DATA_CEDO = 'primeiros 7 dias, sem data de calendário'
+const SEM_DATA_MAPA = 'dia da semana por bloco de 2 horas, sem data de calendário'
+export const SEMANA_FECHADA: Record<string, string> = {
+  'privado-views-por-dia-cedo': SEM_DATA_CEDO,
+  'privado-impressoes-por-dia-cedo': SEM_DATA_CEDO,
+  'privado-views-por-dia-do-video-cedo': SEM_DATA_CEDO,
+  'privado-impressoes-por-dia-do-video-cedo': SEM_DATA_CEDO,
+  'mapa-uploads': SEM_DATA_MAPA,
+  'mapa-multiplicador': SEM_DATA_MAPA,
+}
 
 export interface BlocoCitado {
   rotulo: string

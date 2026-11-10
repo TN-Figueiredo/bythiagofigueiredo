@@ -25,7 +25,7 @@ describe('contrato da data da série (rótulo dd/mm)', () => {
     const g = buildImpressoes(dias, { de: d(1), ate: d(12), dias: 12 }, { escopo: 'canal', alturaArea: 180, dm: dmDia, acesso: 'ok', hoje: d(14) })
     const agora = Date.UTC(2026, 9, 14, 15)
     for (const cliques of [false, true]) {
-      const [t] = tabelaDeDiaADia(g, 'modelo.grafico', 'id', 'Titulo', 'nome', cliques)
+      const [t] = tabelaDeDiaADia(g, 'modelo.grafico', 'id', 'Titulo', 'nome', cliques, 'soma')
       expect(t?.tipo).toBe('dia_a_dia')
       expect(t!.linhas.length).toBe(12)
       expect(t!.linhas.filter((l) => diaDaLinha(l, agora) === null).map((l) => l[0]!.texto)).toEqual([])
