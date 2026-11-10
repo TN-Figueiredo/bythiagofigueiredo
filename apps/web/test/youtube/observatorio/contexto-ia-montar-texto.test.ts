@@ -494,3 +494,17 @@ describe('prévia e pureza', () => {
     expect(montarTexto(pac(m), '', L30, 'todos').texto).toContain('Gerado em: 13/10/2026 14:32')
   })
 })
+
+// A7a T1: rede, nasce verde (gravada no main ANTES do modo `ia`). Sem a opção `ia`, o texto do diálogo e o do .md saem letra por letra como antes.
+describe('A7a: sem a opção ia, o texto é idêntico ao de antes', () => {
+  it('modeloCheio cortada em 5.000 e em 60.000 (instantâneo)', () => {
+    const p = pac(modeloCheio())
+    expect(montarTexto(p, 'Qual cresce mais?', 5_000, 'todos').texto).toMatchSnapshot('limite 5.000')
+    expect(montarTexto(p, 'Qual cresce mais?', 60_000, 'todos').texto).toMatchSnapshot('limite 60.000')
+  })
+  it('o diálogo e o arquivo .md do modeloCheio (instantâneo)', () => {
+    const r = resumir(pac(modeloCheio()), 'Qual cresce mais?')
+    expect(r.copia.texto).toMatchSnapshot('copia')
+    expect(r.completo.texto).toMatchSnapshot('completo')
+  })
+})
