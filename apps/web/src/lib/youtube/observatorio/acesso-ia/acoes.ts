@@ -32,6 +32,8 @@ export interface Pedido {
   inicio: number
   /** A7b: a `marca` que a Cobertura devolveu na janela anterior (8 hex, mais `p` se uma janela anterior perdeu conteúdo); vem só quando a IA a repete. */
   marca?: string
+  /** A5 F1b: `tabela` devolve CSV por tabela (listar_canais, destaques, mudancas); padrão `texto`. */
+  saida: 'texto' | 'tabela'
 }
 
 /* ------------------------------------------------------------------ esquema */
@@ -49,6 +51,8 @@ const formato = z.enum(['todos', 'longos', 'shorts'])
 const aPartirDaLinha = z.preprocess((v) => (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(100_000)).optional()
 /** 8 hex da lista; o 9º caractere `p` diz que uma janela anterior perdeu parte do conteúdo (a IA o repete como veio). */
 const marca = z.string().regex(/^[0-9a-f]{8}p?$/).optional()
+/** A5 F1b: só as três listas aceitam `saida`; `comparar` não (D10). */
+const saida = z.enum(['texto', 'tabela']).optional()
 
 const dataReal = (s: string): boolean => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
@@ -64,13 +68,13 @@ const parametros = z
 
 export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('definicoes') }).strict(),
-  z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
+  z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('canal'), canal_id: id, janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('video'), video_id: id }).strict(),
   z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
-  z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
+  z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional() }).strict(),
-  z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
+  z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
 ])
@@ -78,8 +82,8 @@ export type Entrada = z.infer<typeof ENTRADA>
 
 /* ------------------------------------------------------------------ o mapa */
 
-export type CampoDeEntrada = 'a_partir_da_linha' | 'marca' | 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
-type PedidoBase = Omit<Pedido, 'inicio' | 'marca'>
+export type CampoDeEntrada = 'a_partir_da_linha' | 'marca' | 'saida' | 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
+type PedidoBase = Omit<Pedido, 'inicio' | 'marca' | 'saida'>
 type Resultado = { ok: true; pedido: PedidoBase } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
 type ResultadoFinal = { ok: true; pedido: Pedido } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
 type Sp = Record<string, string | undefined>
@@ -257,6 +261,6 @@ export function traduzir(entrada: Entrada): ResultadoFinal {
   const tradutor = TRADUTORES[entrada.acao] as (e: Entrada) => Resultado
   const r = tradutor(entrada)
   if (!r.ok) return r
-  const e = entrada as { a_partir_da_linha?: number; marca?: string }
-  return { ok: true, pedido: { ...r.pedido, inicio: e.a_partir_da_linha ?? 1, ...(e.marca !== undefined ? { marca: e.marca } : {}) } }
+  const e = entrada as { a_partir_da_linha?: number; marca?: string; saida?: 'texto' | 'tabela' }
+  return { ok: true, pedido: { ...r.pedido, inicio: e.a_partir_da_linha ?? 1, saida: e.saida ?? 'texto', ...(e.marca !== undefined ? { marca: e.marca } : {}) } }
 }

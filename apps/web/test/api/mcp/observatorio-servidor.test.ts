@@ -404,3 +404,13 @@ describe('A7e T7: pela ferramenta registrada, janela numérica chega ao responde
     expect(DESCRICAO.length).toBeLessThanOrEqual(2_000)
   })
 })
+
+describe('A5 F1b T6: saida pela ferramenta registrada', () => {
+  it.each(['listar_canais', 'destaques', 'mudancas'])('%s com saida tabela chega ao responder com saida', async (acao) => {
+    const espiao = vi.fn<Responder>(respondeOk)
+    const { client } = await conectar(espiao)
+    await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao, saida: 'tabela' } }))
+    expect(espiao).toHaveBeenCalledTimes(1)
+    expect((espiao.mock.calls[0]![0] as { saida?: string }).saida).toBe('tabela')
+  })
+})

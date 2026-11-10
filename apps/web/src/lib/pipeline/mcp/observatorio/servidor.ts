@@ -51,6 +51,7 @@ const FORMA = {
   nicho: z.string().optional(),
   a_partir_da_linha: z.union([z.number(), z.string()]).optional().describe('listar_canais, destaques, mudancas: a 1ª linha desta janela (padrão 1); a seção Cobertura diz qual pedir a seguir.'),
   marca: z.string().optional().describe('devolvida pela Cobertura; repita na janela seguinte.'),
+  saida: z.string().optional().describe('listar_canais, destaques e mudancas: "tabela" devolve CSV para gráfico e planilha; padrão "texto".'),
   de: z.string().optional().describe('serie: AAAA-MM-DD.'),
   ate: z.string().optional().describe('serie: AAAA-MM-DD.'),
   grao: z.string().optional().describe('serie: dia ou semana.'),
