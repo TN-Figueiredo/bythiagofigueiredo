@@ -13,6 +13,7 @@ import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observato
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { runCardText, runDefinition } from '@/lib/youtube/observatorio/test-run'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import { imageLetters } from '../_chrome/version-span'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
@@ -56,6 +57,9 @@ export interface EffectView {
   caveats: string[]; notCause: 'Não prova causa'
   fallback: string | null; collected: number; afterNeeded: number; spark: SparkView | null
   rows: null | { observed: string; observedFrom: string; observedTo: string; expected: string; iqr: [string, string] | null; n: number; band: string; methodShort: string }
+  /** A5 F0.5a: o número de máquina de `rows`, na unidade do título da coluna: percentuais em PONTOS (o motor guarda fração: ×100), views/dia como vêm. `pp` em `ppN`. */
+  rowsN: null | { observed: number | null; observedFrom: number | null; observedTo: number | null; expected: number | null; iqr: [number | null, number | null] | null }
+  ppN: number | null
   footTitle: string | null
 }
 export interface Hero {
@@ -83,7 +87,7 @@ export interface Hero {
   /** key = the competitor_changes version key; null when this (legacy) change cannot be resolved to a row (R41). */
   swipe: { saved: boolean; label: string; key: string | null }
 }
-export interface LedgerRow { type: ChangeType; typeLabel: string; median: string | null; n: number; range: string | null; few: boolean; text: string }
+export interface LedgerRow { type: ChangeType; typeLabel: string; median: string | null; /** A5 F0.5a: `median` em pontos (o mesmo número que `F.pp` escreve). */ medianN: number | null; n: number; poolN: number; range: string | null; few: boolean; text: string }
 export interface MudancasView {
   filters: MudancasFilters
   heroes: Hero[]
@@ -359,26 +363,34 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
     caveats: e.inconclusiveKind === 'troca-seguinte' ? [] : obs.caveats(c.id), notCause: 'Não prova causa' as const, collected: e.collected ?? e.afterDays ?? 0, afterNeeded: obs.RULES.effect.afterDays,
   }
   if (e.status === 'sem-antes' || e.status === 'sem-serie') {
-    return { ...base, icon: 'none', label: e.label, numbers: null, pp: null, detail: F.labelReason(e.label, e.reason, { sentence: true }), wait: null, spark: null, rows: null, footTitle: null }
+    return { ...base, icon: 'none', label: e.label, numbers: null, pp: null, ppN: null, rowsN: null, detail: F.labelReason(e.label, e.reason, { sentence: true }), wait: null, spark: null, rows: null, footTitle: null }
   }
   if (e.status === 'aguardando') {
     const wait = e.waitText ?? F.labelReason(e.label, e.reason, { sentence: true })
-    return { ...base, icon: 'clock', label: 'Aguardando', numbers: null, pp: null, detail: wait, wait, spark: sparkView(obs, e), rows: null, footTitle: null }
+    return { ...base, icon: 'clock', label: 'Aguardando', numbers: null, pp: null, ppN: null, rowsN: null, detail: wait, wait, spark: sparkView(obs, e), rows: null, footTitle: null }
   }
   const [icon, label] = VERDICT[e.status] ?? ['help', cap(e.label)]
-  const rows = e.observed != null ? {
-    observed: F.pct(e.observed), observedFrom: F.num(e.beforeAvg ?? null), observedTo: F.num(e.afterAvg ?? null),
-    expected: F.pct(e.expected ?? null), iqr: e.expected != null && e.iqr ? [F.pct(e.iqr[0]), F.pct(e.iqr[1])] as [string, string] : null,
-    n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
+  // Uma condição só para as duas formas (texto e gêmeo numérico): não há como uma existir sem a outra.
+  const par = e.observed != null ? {
+    rows: {
+      observed: F.pct(e.observed), observedFrom: F.num(e.beforeAvg ?? null), observedTo: F.num(e.afterAvg ?? null),
+      expected: F.pct(e.expected ?? null), iqr: e.expected != null && e.iqr ? [F.pct(e.iqr[0]), F.pct(e.iqr[1])] as [string, string] : null,
+      n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
+    },
+    rowsN: {
+      observed: gemeo(e.observed * 100), observedFrom: gemeo(e.beforeAvg ?? null), observedTo: gemeo(e.afterAvg ?? null),
+      expected: e.expected != null ? gemeo(e.expected * 100) : null, iqr: e.expected != null && e.iqr ? [e.iqr[0] != null ? gemeo(e.iqr[0] * 100) : null, e.iqr[1] != null ? gemeo(e.iqr[1] * 100) : null] as [number | null, number | null] : null,
+    },
   } : null
+  const rows = par?.rows ?? null, rowsN = par?.rowsN ?? null
   return {
-    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, wait: null,
+    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, ppN: gemeo(e.effectPp ?? null), wait: null,
     // V9 (R53: one text on both screens): the peers of an effect are the channel's N most recent only (R119), so a pinned
     // video outside them rarely has any in its age band. Say that, in place of the engine's "poucos vídeos (n = …)".
     detail: v.pinned === true && !v.tracked && e.inconclusiveKind === 'outro' && e.observed != null && (e.n ?? 0) < obs.RULES.effect.minN
       ? 'Faltam vídeos na mesma faixa de idade entre os ' + obs.channel(c.ch)!.video_limit + ' mais recentes do canal para comparar. É o que costuma acontecer com um vídeo fixado antigo.'
       : cap(e.reason),
-    spark: rows ? sparkView(obs, e) : null, rows,
+    spark: rows ? sparkView(obs, e) : null, rows, rowsN,
     footTitle: rows ? 'Esperado: ' + pl(e.n ?? 0, 'vídeo', 'vídeos') + ' ' + (v.fmt === 'long' ? 'longos' : 'Shorts') + ' sem troca de ' + obs.channel(c.ch)!.name + ' com ' + (e.band ?? '') : null,
   }
 }
@@ -486,6 +498,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   const decided = (c: ObsChange) => DECIDED.includes(eff(obs, c).status)
   const rangeTxt = (vals: number[]) => { const a = [...vals].sort((x, y) => x - y); return a.length === 1 ? F.pp(a[0]!) : 'de ' + F.pp(a[0]!).replace(' pp', '') + ' a ' + F.pp(a[a.length - 1]!) }
   const medians: LedgerRow[] = TYPES.map(([type, typeLabel]) => {
+    const poolN = pool.filter(c => c.type === type).length
     const m = pool.filter(c => c.type === type && !c.revertTo && !hasCav(c) && decided(c))
     const w = m.filter(c => eff(obs, c).status === 'ganhou').length, l = m.filter(c => eff(obs, c).status === 'perdeu').length, fl = m.length - w - l
     const vals = m.map(c => eff(obs, c).effectPp).filter((x): x is number => x != null)
@@ -494,7 +507,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     const range = vals.length ? rangeTxt(vals) : null
     const text = !m.length ? 'nada com veredito, pouco para concluir'
       : counts + (few ? '; ' + (m.length === 1 ? range + ', caso isolado, pouco para concluir' : 'faixa ' + range + ', pouco para concluir') : '')
-    return { type, typeLabel, median: med != null ? F.pp(med) : null, n: m.length, range, few, text }
+    return { type, typeLabel, median: med != null ? F.pp(med) : null, medianN: gemeo(med), n: m.length, poolN, range, few, text }
   })
   const reverts = pool.filter(c => c.revertTo && decided(c))
   const withCav = pool.filter(c => !c.revertTo && hasCav(c) && decided(c))

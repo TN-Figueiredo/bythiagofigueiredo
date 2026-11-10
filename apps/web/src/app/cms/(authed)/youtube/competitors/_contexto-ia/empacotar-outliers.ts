@@ -83,7 +83,7 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'groups[].cards[].id': ID, 'groups[].cards[].main': CTRL, 'groups[].cards[].title': 'terceiros', 'groups[].cards[].channel': 'terceiros', 'groups[].cards[].channelFull': REP,
   'groups[].cards[].channelHref': END, 'groups[].cards[].niche': ID, 'groups[].cards[].nicheLabel': 'rotulo',
   'groups[].cards[].age': 'base', 'groups[].cards[].ageTitle': REP, 'groups[].cards[].ageShort': REP,
-  'groups[].cards[].mult': 'numero', 'groups[].cards[].multLabel': 'base', 'groups[].cards[].method': REP, 'groups[].cards[].tier': APAR,
+  'groups[].cards[].mult': 'numero', 'groups[].cards[].multN': REP, 'groups[].cards[].viewsN': REP, 'groups[].cards[].vpdShortN': REP, 'groups[].cards[].multLabel': 'base', 'groups[].cards[].method': REP, 'groups[].cards[].tier': APAR,
   'groups[].cards[].weak': CTRL, 'groups[].cards[].stale': CTRL, 'groups[].cards[].neutral': CTRL,
   'groups[].cards[].views': 'numero', 'groups[].cards[].vpd7': REP, 'groups[].cards[].vpdText': REP, 'groups[].cards[].vpdTitle': REP,
   'groups[].cards[].vpdShort': 'numero', 'groups[].cards[].vpdShortNote': 'base',
@@ -93,7 +93,7 @@ export const INVENTARIO_OUTLIERS: Inventario = {
   'derivado.groups[].cards[].why': 'base',
   'groups[].cards[].flags[]': 'base', 'groups[].cards[].why': REP, 'groups[].cards[].reuse': CTRL,
   'groups[].cards[].phase.id': ID, 'groups[].cards[].phase.label': 'rotulo', 'groups[].cards[].phase.tone': APAR, 'groups[].cards[].showPhase': CTRL, 'groups[].cards[].phaseWhy': 'base',
-  'groups[].cards[].reuse.month': 'base', 'groups[].cards[].reuse.vpd7': 'numero', 'groups[].cards[].reuse.median': 'numero',
+  'groups[].cards[].reuse.month': 'base', 'groups[].cards[].reuse.vpd7': 'numero', 'groups[].cards[].reuse.median': 'numero', 'groups[].cards[].reuse.vpd7N': REP, 'groups[].cards[].reuse.medianN': REP,
   'groups[].cards[].ruler*': APAR,
   'paginado.mostrados': CTRL, 'paginado.total': CTRL,
   more: CTRL, 'more.href': END, 'more.label': CTRL, 'more.note': 'base',
@@ -143,16 +143,34 @@ const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto,
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 
 /** O texto que o modelo escreveu para um número. "—" e nulo são "não medido", sem motivo no modelo. */
-function celulaDoNumero(texto: string | number | null, origem: string, motivo: string = A_TELA_NAO_INFORMA_O_MOTIVO): Celula {
+function celulaDoNumero(texto: string | number | null, origem: string, motivo: string = A_TELA_NAO_INFORMA_O_MOTIVO, x: number | null = typeof texto === 'number' ? texto : null): Celula {
   if (texto === null || texto === '—') return { papel: 'numero', estado: 'nao_medido', motivo, origem }
   const t = String(texto)
-  if (t === '0') return { papel: 'numero', estado: 'zero_medido', texto: t, x: 0, origem }
-  return { papel: 'numero', estado: 'medido', texto: t, x: null, origem }
+  // A5 F0.5a: o estado continua decidido pelo texto (`'0'`), como antes; o `x` vem do número do modelo (gêmeo ou o próprio número), nunca do texto.
+  if (t === '0') return { papel: 'numero', estado: 'zero_medido', texto: t, x, origem }
+  return { papel: 'numero', estado: 'medido', texto: t, x, origem }
 }
+/** Medido SEM `x`, com o motivo: a tela escreve palavras no lugar do número ("menos de 1 dia no ar"). O estado não muda (`medido`); o zero nunca é inventado. */
+const medidoSemX = (texto: string, origem: string, motivo: string): Celula => ({ papel: 'numero', estado: 'medido', texto, origem, semXMotivo: motivo })
 const baseOuNaoMedido = (texto: string | null, origem: string): Celula => (texto === null ? celulaDoNumero(null, origem) : base(texto, origem))
 
-const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
-const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
+/** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
+const CHAVES: Record<string, string[]> = {
+  'idades': ['faixa_de_idade', 'outliers'],
+  'grupos': ['grupo', 'outliers'],
+  'grupos-notas': ['grupo', 'nota'],
+  'outliers': ['grupo', 'video', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'],
+  'outliers-avisos': ['video', 'aviso'],
+  'outliers-reuso': ['video', 'mes_do_assunto', 'views_dia_7d', 'mediana_do_canal_views_dia'],
+  'canais-com-problema': ['canal', 'situacao'],
+  'forja-desde-entao': ['leitura', 'desde_entao'],
+  'forja-do-site': ['leitura', 'do_site'],
+}
+/** A5: gráfico sugerido (D1). Faixas de idade se sobrepõem (nenhum); a pizza dos grupos só entra com a prova da T5. */
+const GRAFICO: Record<string, Tabela['grafico']> = { idades: 'nenhum', outliers: 'barra' }
+const comChaves = (t: Tabela): Tabela => ({ ...t, chaves: CHAVES[t.id], ...(GRAFICO[t.id] ? { grafico: GRAFICO[t.id] } : {}) })
+const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
+const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => comChaves({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
 
 // ───────────────────────── tabelas
 const cartoes = (m: ModeloOutliers): Array<{ g: number; i: number; c: OutlierCardView; grupo: OutlierGroupView }> =>
@@ -185,6 +203,13 @@ function tabelaDeGrupos(m: ModeloOutliers): Tabela[] {
   return saida
 }
 
+/** Views/dia do cartão: o número do modelo (`vpdShortN`); quando a tela escreve palavras ("sem views/dia recentes", "menos de 1 dia no ar"), medido sem `x` e com o motivo. */
+function vpdDoCartao(c: OutlierCardView, p: string): Celula {
+  const origem = `${p}.vpdShort`
+  if (c.vpdShortN !== null || c.vpdShort === '—') return celulaDoNumero(c.vpdShort, origem, undefined, c.vpdShortN)
+  return medidoSemX(c.vpdShort, origem, `a tela escreve "${c.vpdShort}" no lugar do número`)
+}
+
 function tabelaDeOutliers(m: ModeloOutliers): Tabela[] {
   const todos = cartoes(m)
   if (todos.length === 0) return []
@@ -196,7 +221,7 @@ function tabelaDeOutliers(m: ModeloOutliers): Tabela[] {
       return [
         rotulo(grupo.label, `${o}[${g}].label`), terceiros(c.title, `${p}.title`), terceiros(c.channel, `${p}.channel`),
         c.nicheLabel === null ? celulaDoNumero(null, `${p}.nicheLabel`) : rotulo(c.nicheLabel, `${p}.nicheLabel`),
-        celulaDoNumero(c.mult, `${p}.mult`), base(c.multLabel, `${p}.multLabel`), celulaDoNumero(c.views, `${p}.views`), celulaDoNumero(c.vpdShort, `${p}.vpdShort`),
+        celulaDoNumero(c.mult, `${p}.mult`, undefined, c.multN), base(c.multLabel, `${p}.multLabel`), celulaDoNumero(c.views, `${p}.views`, undefined, c.viewsN), vpdDoCartao(c, p),
         base(c.age, `${p}.age`), baseOuNaoMedido(c.dur, `${p}.dur`),
       ]
     }))]
@@ -214,7 +239,7 @@ function tabelaDeOutliers(m: ModeloOutliers): Tabela[] {
   const reuso = todos.flatMap(({ g, i, c }) => {
     if (c.reuse === null) return []
     const p = `${o}[${g}].cards[${i}]`
-    return [[terceiros(c.title, `${p}.title`), base(c.reuse.month, `${p}.reuse.month`), celulaDoNumero(c.reuse.vpd7, `${p}.reuse.vpd7`), celulaDoNumero(c.reuse.median, `${p}.reuse.median`)]]
+    return [[terceiros(c.title, `${p}.title`), base(c.reuse.month, `${p}.reuse.month`), celulaDoNumero(c.reuse.vpd7, `${p}.reuse.vpd7`, undefined, c.reuse.vpd7N), celulaDoNumero(c.reuse.median, `${p}.reuse.median`, undefined, c.reuse.medianN)]]
   })
   if (reuso.length) saida.push(tabelaLista('outliers-reuso', 'Assuntos antigos que ainda rendem, contra a mediana do canal', 'tabela de assuntos antigos', ['Vídeo', 'Mês do assunto', 'Views/dia (7 dias)', 'Mediana do canal (views/dia)'], reuso))
   return saida

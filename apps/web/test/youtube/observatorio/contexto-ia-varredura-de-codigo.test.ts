@@ -145,3 +145,24 @@ describe('pendências do pacote da IA (Yannis, 17/10)', () => {
     expect(achadas.sort()).toEqual(['direcaoNicho*', 'groups[].cards[].idade*', 'idade*'])
   })
 })
+
+describe('A5 F0.5a: o x nasce do número do modelo, nunca do texto', () => {
+  // o `+` só conta como conversão quando é unário (depois de operador ou `return`): `a + r.texto` é concatenação
+  const PROIBIDO = /\b(parseFloat|parseInt|Number)\s*\([^)]*\b(texto|big|mult|pw|subs|observed)\b|(?:^|[=(,:?&|!]|\breturn)\s*\+\s*\w+\.(texto|big|mult|pw|subs|observed)\b/
+  // M6: os modelos onde o gêmeo nasce também não leem o texto. T2/T3 acrescentam `_outliers/view-model.ts` e `_mudancas/view-model.ts` aqui.
+  const MODELOS_COM_GEMEO = ['_canais/view-model.ts', '_canais/ri-model.ts', '_outliers/view-model.ts', '_mudancas/view-model.ts'].map((f) => join(C, f))
+  const alvo = [...arquivos(L), ...arquivos(join(C, '_contexto-ia')), ...MODELOS_COM_GEMEO]
+  it('nenhum arquivo de contexto-ia/ nem de _contexto-ia/ converte o texto de uma célula em número', () => {
+    expect(alvo.filter((p) => PROIBIDO.test(semComentarios(ler(p)))).map(nome)).toEqual([])
+  })
+  it('controle negativo: um caso positivo por nome (a rede pega cada um)', () => {
+    for (const n of ['texto', 'big', 'mult', 'pw', 'subs', 'observed']) {
+      expect(PROIBIDO.test(`const x = Number(c.${n})`), `Number(${n})`).toBe(true)
+      expect(PROIBIDO.test(`const x = parseFloat(l.${n}.replace(',', '.'))`), `parseFloat(${n})`).toBe(true)
+      expect(PROIBIDO.test(`const x = +r.${n}`), `+${n}`).toBe(true)
+    }
+    expect(PROIBIDO.test('const x = Number(r.subs_total)')).toBe(false)
+    expect(PROIBIDO.test("r.texto.charAt(0) + r.texto.slice(1)"), 'concatenação não é + unário').toBe(false)
+    expect(PROIBIDO.test('const x = Number(v.toPrecision(12))')).toBe(false)
+  })
+})

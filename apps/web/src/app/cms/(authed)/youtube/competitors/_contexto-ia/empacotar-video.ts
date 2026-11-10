@@ -113,7 +113,7 @@ export const INVENTARIO_VIDEO: Inventario = {
   'comparisons[].effect.status': CTRL, 'comparisons[].effect.demoted': CTRL, 'comparisons[].effect.noBase': 'base', 'comparisons[].effect.method': REP,
   'comparisons[].effect.fallback': 'base', 'comparisons[].effect.caveats[]': 'base', 'comparisons[].effect.notCause': 'base', 'comparisons[].effect.collected': CTRL,
   'comparisons[].effect.afterNeeded': CTRL, 'comparisons[].effect.icon': APAR, 'comparisons[].effect.label': 'base', 'comparisons[].effect.numbers': REP,
-  'comparisons[].effect.pp': REP, 'comparisons[].effect.detail': 'base', 'comparisons[].effect.wait': 'base', 'comparisons[].effect.spark': GEO,
+  'comparisons[].effect.pp': REP, 'comparisons[].effect.ppN': REP, 'comparisons[].effect.rowsN': CTRL, 'comparisons[].effect.rowsN.*': REP, 'comparisons[].effect.rowsN.iqr[]': REP, 'comparisons[].effect.detail': 'base', 'comparisons[].effect.wait': 'base', 'comparisons[].effect.spark': GEO,
   'comparisons[].effect.spark.*': GEO, 'comparisons[].effect.spark.before[]': GEO, 'comparisons[].effect.spark.after[]': GEO,
   'comparisons[].effect.rows': CTRL, 'comparisons[].effect.rows.*': REP, 'comparisons[].effect.rows.iqr[]': REP, 'comparisons[].effect.footTitle': REP,
   'comparisons[].chip': 'base', 'comparisons[].ba': CTRL, 'comparisons[].ba[].thumb': IMG, 'comparisons[].ba[].thumb.*': IMG, 'comparisons[].ba[].title': 'terceiros',

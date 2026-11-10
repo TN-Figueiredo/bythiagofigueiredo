@@ -1,0 +1,197 @@
+## padrão
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMZM 11|5|6|6|1|0|18
+grupos/Grupo: ... ||
+grupos/Outliers: MMM 4|6|1
+grupos-notas/Grupo: ... ||
+grupos-notas/Nota: ... ||
+outliers/Grupo: ........... ||||||||||
+outliers/Vídeo: ........... ||||||||||
+outliers/Canal: ........... ||||||||||
+outliers/Nicho: ........... ||||||||||
+outliers/Múltiplo: MMMMMMMMMMM 6,0×|3,7×|2,5×|2,5×|5,2×|4,2×|4,0×|3,9×|3,1×|2,7×|3,2×
+outliers/Base do múltiplo: ........... ||||||||||
+outliers/Views: MMMMMMMMMMM 500 mil|112,4 mil|58 mil|207,6 mil|353,3 mil|101,2 mil|1,2 mi|3,9 mi|2,1 mi|1,8 mi|484,3 mil
+outliers/Views/dia (7 dias): MMMMMMMMMMM 9,5 mil|5,3 mil|2,2 mil|7,1 mil|1,8 mil|629|14,2 mil|23,1 mil|28,8 mil|11,4 mil|sem views/dia recentes
+outliers/Publicado: ........... ||||||||||
+outliers/Duração: ........... ||||||||||
+outliers-avisos/Vídeo: ... ||
+outliers-avisos/Aviso: ... ||
+canais-com-problema/Canal: ... ||
+canais-com-problema/Situação: ... ||
+forja-desde-entao/Leitura: .. |
+forja-desde-entao/Desde então: .. |
+forja-do-site/Leitura: ..... ||||
+forja-do-site/Do site: ..... ||||
+
+## Viagem, longos
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMZM 5|1|4|3|1|0|9
+grupos/Grupo: .. |
+grupos/Outliers: MM 4|1
+grupos-notas/Grupo: .. |
+grupos-notas/Nota: .. |
+outliers/Grupo: ..... ||||
+outliers/Vídeo: ..... ||||
+outliers/Canal: ..... ||||
+outliers/Nicho: ..... ||||
+outliers/Múltiplo: MMMMM 4,0×|3,9×|3,1×|2,7×|3,2×
+outliers/Base do múltiplo: ..... ||||
+outliers/Views: MMMMM 1,2 mi|3,9 mi|2,1 mi|1,8 mi|484,3 mil
+outliers/Views/dia (7 dias): MMMMM 14,2 mil|23,1 mil|28,8 mil|11,4 mil|sem views/dia recentes
+outliers/Publicado: ..... ||||
+outliers/Duração: ..... ||||
+outliers-avisos/Vídeo: .. |
+outliers-avisos/Aviso: .. |
+canais-com-problema/Canal: .. |
+canais-com-problema/Situação: .. |
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: ... ||
+forja-do-site/Do site: ... ||
+
+## IA, Shorts, 181–365 dias (vazio)
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMZZZZM 1|1|0|0|0|0|1
+canais-com-problema/Canal: . 
+canais-com-problema/Situação: . 
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: .. |
+forja-do-site/Do site: .. |
+
+## múltiplo mínimo 0
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMMM 31|8|23|34|47|31|143
+grupos-notas/Grupo: ... ||
+grupos-notas/Nota: ... ||
+outliers/Grupo: ................................. ||||||||||||||||||||||||||||||||
+outliers/Vídeo: ................................. ||||||||||||||||||||||||||||||||
+outliers/Canal: ................................. ||||||||||||||||||||||||||||||||
+outliers/Nicho: ................................. ||||||||||||||||||||||||||||||||
+outliers/Múltiplo: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 4,2×|1,8×|1,5×|1,5×|1,4×|1,4×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,2×|1,2×|1,2×|1,2×|1,1×|1,1×|1,1×|1,1×|1,1×|1,0×|1,0×|1,0×|0,9×|0,9×|0,9×|0,9×|0,8×|0,8×|0,7×|0,7×
+outliers/Base do múltiplo: ................................. ||||||||||||||||||||||||||||||||
+outliers/Views: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 101,2 mil|3,4 mi|1 mi|1,5 mi|135,2 mil|406,5 mil|238,7 mil|1,4 mi|2,6 mi|238 mil|1,3 mi|105 mil|251,6 mil|39,7 mil|802,4 mil|109,9 mil|811,5 mil|26,6 mil|74,9 mil|1,1 mi|716,3 mil|136,6 mil|36,9 mil|32,8 mil|153,5 mil|48,4 mil|365,8 mil|547,8 mil|705,3 mil|27,9 mil|19,8 mil|92,7 mil|49,5 mil
+outliers/Views/dia (7 dias): MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 629|14,1 mil|4,4 mil|6,5 mil|menos de 1 dia no ar|4,1 mil|sem views/dia recentes|13,1 mil|20,8 mil|50,2 mil|9,8 mil|1,8 mil|9,7 mil|176|8,3 mil|menos de 1 dia no ar|19,8 mil|107|415|16,4 mil|11,4 mil|1,2 mil|7,3 mil|129|sem views/dia recentes|217|26,9 mil|48,1 mil|24,8 mil|1,4 mil|200|1,1 mil|729
+outliers/Publicado: ................................. ||||||||||||||||||||||||||||||||
+outliers/Duração: ................................. ||||||||||||||||||||||||||||||||
+outliers-avisos/Vídeo: .............. |||||||||||||
+outliers-avisos/Aviso: .............. |||||||||||||
+canais-com-problema/Canal: ... ||
+canais-com-problema/Situação: ... ||
+forja-desde-entao/Leitura: .. |
+forja-desde-entao/Desde então: .. |
+forja-do-site/Leitura: ..... ||||
+forja-do-site/Do site: ..... ||||
+
+## todas as idades, base fraca
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMMM 288|82|206|261|254|83|886
+grupos-notas/Grupo: .... |||
+grupos-notas/Nota: .... |||
+outliers/Grupo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Vídeo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Canal: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Nicho: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Múltiplo: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 6,0×|5,2×|4,5×|4,2×|4,0×|3,9×|3,7×|3,4×|3,2×|3,2×|3,1×|3,1×|2,8×|2,7×|2,7×|2,5×|2,5×|2,5×|1,9×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,5×|1,5×|1,5×|1,5×|1,5×
+outliers/Base do múltiplo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Views: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 500 mil|353,3 mil|7,4 mi|101,2 mil|1,2 mi|3,9 mi|112,4 mil|382 mil|484,3 mil|530,8 mil|2,1 mi|10,9 mi|150,3 mil|1,8 mi|556,4 mil|58 mil|2,7 mi|207,6 mil|62,6 mil|918,8 mil|2 mi|135,5 mil|4,4 mi|374,5 mil|6,2 mi|94,1 mil|3,4 mi|4,2 mi|2,1 mi|847,3 mil|4,1 mi|187,7 mil|9,2 mi|445,6 mil|4 mi|1,8 mi|836,2 mil|2,9 mi|598,4 mil|66,4 mil|213,2 mil|587,1 mil|2,8 mi|3,9 mi|1,7 mi|3,9 mi|8,8 mi|2,8 mi|85,5 mil|423,9 mil|1,7 mi|570 mil|1,7 mi|263,3 mil|5,5 mi|409,1 mil|1 mi|2,5 mi|1,6 mi|3,7 mi
+outliers/Views/dia (7 dias): MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 9,5 mil|1,8 mil|14,7 mil|629|14,2 mil|23,1 mil|5,3 mil|1 mil|sem views/dia recentes|1,4 mil|28,8 mil|30,7 mil|518|11,4 mil|1,5 mil|2,2 mil|8,5 mil|7,1 mil|1 mil|1,7 mil|3,5 mil|280|5 mil|641|10,3 mil|198|14,1 mil|4,9 mil|3,3 mil|1,7 mil|5 mil|360|11,4 mil|686|4,6 mil|3,5 mil|1,7 mil|5,8 mil|sem views/dia recentes|menos de 1 dia no ar|915|sem views/dia recentes|5,6 mil|4,4 mil|3,2 mil|4,8 mil|11,2 mil|4,7 mil|205|666|3 mil|sem views/dia recentes|3 mil|619|10,7 mil|639|4,4 mil|5,1 mil|3,3 mil|5,3 mil
+outliers/Publicado: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Duração: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers-avisos/Vídeo: .......... |||||||||
+outliers-avisos/Aviso: .......... |||||||||
+canais-com-problema/Canal: ... ||
+canais-com-problema/Situação: ... ||
+forja-desde-entao/Leitura: .. |
+forja-desde-entao/Desde então: .. |
+forja-do-site/Leitura: ..... ||||
+forja-do-site/Do site: ..... ||||
+
+## IA, por views
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMZZM 6|4|2|3|0|0|9
+grupos/Grupo: .. |
+grupos/Outliers: MM 4|2
+grupos-notas/Grupo: .. |
+grupos-notas/Nota: .. |
+outliers/Grupo: ...... |||||
+outliers/Vídeo: ...... |||||
+outliers/Canal: ...... |||||
+outliers/Nicho: ...... |||||
+outliers/Múltiplo: MMMMMM 6,0×|3,7×|2,5×|2,5×|5,2×|4,2×
+outliers/Base do múltiplo: ...... |||||
+outliers/Views: MMMMMM 500 mil|112,4 mil|58 mil|207,6 mil|353,3 mil|101,2 mil
+outliers/Views/dia (7 dias): MMMMMM 9,5 mil|5,3 mil|2,2 mil|7,1 mil|1,8 mil|629
+outliers/Publicado: ...... |||||
+outliers/Duração: ...... |||||
+outliers-avisos/Vídeo: .. |
+outliers-avisos/Aviso: .. |
+canais-com-problema/Canal: . 
+canais-com-problema/Situação: . 
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: .. |
+forja-do-site/Do site: .. |
+
+## Viagem, assunto antigo que ainda rende
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMMM 95|20|75|89|166|83|433
+grupos-notas/Grupo: .... |||
+grupos-notas/Nota: .... |||
+outliers/Grupo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Vídeo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Canal: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Nicho: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Múltiplo: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 4,5×|4,0×|3,9×|3,2×|3,1×|3,1×|2,7×|2,7×|2,5×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,8×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,7×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,6×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,4×|1,4×|1,4×|1,4×|1,4×
+outliers/Base do múltiplo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Views: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 7,4 mi|1,2 mi|3,9 mi|484,3 mil|2,1 mi|10,9 mi|1,8 mi|556,4 mil|2,7 mi|918,8 mil|2 mi|4,4 mi|374,5 mil|6,2 mi|3,4 mi|4,2 mi|2,1 mi|847,3 mil|4,1 mi|9,2 mi|445,6 mil|4 mi|1,8 mi|836,2 mil|2,9 mi|598,4 mil|66,4 mil|587,1 mil|2,8 mi|3,9 mi|1,7 mi|3,9 mi|8,8 mi|2,8 mi|423,9 mil|1,7 mi|570 mil|1,7 mi|5,5 mi|409,1 mil|1 mi|2,5 mi|1,6 mi|3,7 mi|2,5 mi|546,1 mil|3,6 mi|1,5 mi|309,1 mil|3,6 mi|2,4 mi|729,8 mil|2,4 mi|2,5 mi|301,5 mil|7,9 mi|135,2 mil|7,8 mi|4,9 mi|1,4 mi
+outliers/Views/dia (7 dias): MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 14,7 mil|14,2 mil|23,1 mil|sem views/dia recentes|28,8 mil|30,7 mil|11,4 mil|1,5 mil|8,5 mil|1,7 mil|3,5 mil|5 mil|641|10,3 mil|14,1 mil|4,9 mil|3,3 mil|1,7 mil|5 mil|11,4 mil|686|4,6 mil|3,5 mil|1,7 mil|5,8 mil|sem views/dia recentes|menos de 1 dia no ar|sem views/dia recentes|5,6 mil|4,4 mil|3,2 mil|4,8 mil|11,2 mil|4,7 mil|666|3 mil|sem views/dia recentes|3 mil|10,7 mil|639|4,4 mil|5,1 mil|3,3 mil|5,3 mil|5,1 mil|sem views/dia recentes|4,3 mil|6,5 mil|682|4,9 mil|4,3 mil|1,6 mil|4,3 mil|5,7 mil|587|11,6 mil|menos de 1 dia no ar|11,7 mil|10,5 mil|13,8 mil
+outliers/Publicado: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Duração: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers-avisos/Vídeo: .............. |||||||||||||
+outliers-avisos/Aviso: .............. |||||||||||||
+canais-com-problema/Canal: .. |
+canais-com-problema/Situação: .. |
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: ... ||
+forja-do-site/Do site: ... ||
+
+## IA, assunto antigo com a mediana do canal
+idades/Faixa de idade: ....... ||||||
+idades/Outliers: MMMMMZM 193|62|131|172|88|0|453
+grupos-notas/Grupo: .... |||
+grupos-notas/Nota: .... |||
+outliers/Grupo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Vídeo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Canal: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Nicho: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Múltiplo: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 6,0×|5,2×|4,2×|3,7×|3,4×|3,2×|2,8×|2,5×|2,5×|1,9×|1,8×|1,8×|1,7×|1,6×|1,6×|1,6×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,5×|1,4×|1,4×|1,4×|1,4×|1,4×|1,4×|1,4×|1,4×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,3×|1,2×
+outliers/Base do múltiplo: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Views: MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 500 mil|353,3 mil|101,2 mil|112,4 mil|382 mil|530,8 mil|150,3 mil|58 mil|207,6 mil|62,6 mil|135,5 mil|94,1 mil|187,7 mil|213,2 mil|85,5 mil|263,3 mil|50,6 mil|194,5 mil|101,1 mil|162,8 mil|162,4 mil|189,7 mil|244,3 mil|244,2 mil|20,7 mil|235,6 mil|24,1 mil|103,5 mil|10,7 mil|102,7 mil|73,3 mil|227,3 mil|99,8 mil|44,1 mil|99,6 mil|173,6 mil|10,3 mil|147,9 mil|71,2 mil|70,7 mil|44,4 mil|144,4 mil|18,9 mil|217,2 mil|216,4 mil|42,3 mil|14,5 mil|5,8 mil|141,6 mil|213,8 mil|5,8 mil|213,5 mil|105 mil|30,2 mil|13,7 mil|28,8 mil|13,7 mil|13,6 mil|92,9 mil|13,6 mil
+outliers/Views/dia (7 dias): MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 9,5 mil|1,8 mil|629|5,3 mil|1 mil|1,4 mil|518|2,2 mil|7,1 mil|1 mil|280|198|360|915|205|619|111|795|409|328|313|962|618|668|412|635|1,2 mil|203|sem views/dia recentes|289|158|536|205|172|214|1,6 mil|sem views/dia recentes|307|161|152|102|321|3,2 mil|548|595|359|5,1 mil|sem views/dia recentes|330|602|sem views/dia recentes|507|1,8 mil|157|sem views/dia recentes|518|sem views/dia recentes|sem views/dia recentes|187|sem views/dia recentes
+outliers/Publicado: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers/Duração: ............................................................ |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+outliers-avisos/Vídeo: ..................... ||||||||||||||||||||
+outliers-avisos/Aviso: ..................... ||||||||||||||||||||
+outliers-reuso/Vídeo: ......... ||||||||
+outliers-reuso/Mês do assunto: ......... ||||||||
+outliers-reuso/Views/dia (7 dias): MMMMMMMMM 203|158|536|152|102|548|595|507|187
+outliers-reuso/Mediana do canal (views/dia): MMMMMMMMM 205|159|602|159|104|602|602|602|205
+canais-com-problema/Canal: . 
+canais-com-problema/Situação: . 
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: .. |
+forja-do-site/Do site: .. |
+
+## leitura da forja de IA
+idades/Faixa de idade: ..... ||||
+idades/Outliers: ZZZZZ 0|0|0|0|0
+canais-com-problema/Canal: . 
+canais-com-problema/Situação: . 
+forja-desde-entao/Leitura: . 
+forja-desde-entao/Desde então: . 
+forja-do-site/Leitura: .. |
+forja-do-site/Do site: .. |

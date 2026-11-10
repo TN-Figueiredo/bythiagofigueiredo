@@ -20,6 +20,7 @@ import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventar
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
 import { celulaAusente } from './celula-ausente'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import { fraseAgendadoIa } from '../_canais/remover-model'
 
 const JANELA = MEASURE_RULES.direction.windowDays
@@ -122,25 +123,25 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.dicas.*`]: 'base',
   
   [`${r}.cells.cadence.kind`]: CTRL, [`${r}.cells.cadence.weeks[].*`]: APAR,
-  [`${r}.cells.cadence.label`]: REP, [`${r}.cells.cadence.pw`]: 'numero', [`${r}.cells.cadence.unit`]: 'rotulo', [`${r}.cells.cadence.sub`]: 'base', [`${r}.cells.cadence.paused`]: 'base',
+  [`${r}.cells.cadence.label`]: REP, [`${r}.cells.cadence.pw`]: 'numero', [`${r}.cells.cadence.pwN`]: REP, [`${r}.cells.cadence.unit`]: 'rotulo', [`${r}.cells.cadence.sub`]: 'base', [`${r}.cells.cadence.paused`]: 'base',
   [`${r}.cells.cadence.text`]: 'motivo', [`${r}.cells.cadence.title`]: REP,
   // a nota do ritmo (base menor que 13 semanas, ou canal abaixo do piso): o sufixo e a causa do ⓘ vão à tabela de notas
   [`${r}.cells.cadence.nota`]: CTRL, [`${r}.cells.cadence.nota.tipo`]: CTRL, [`${r}.cells.cadence.nota.corte`]: CTRL,
   [`${r}.cells.cadence.nota.sufixo`]: 'base', [`${r}.cells.cadence.nota.causa`]: 'base', [`${r}.cells.cadence.nota.titulo`]: REP, [`${r}.cells.cadence.nota.frase`]: REP,
   [`${r}.cells.cadence2.kind`]: CTRL, [`${r}.cells.cadence2.weeks[].*`]: APAR,
-  [`${r}.cells.cadence2.label`]: REP, [`${r}.cells.cadence2.pw`]: 'numero', [`${r}.cells.cadence2.unit`]: 'rotulo', [`${r}.cells.cadence2.sub`]: 'base', [`${r}.cells.cadence2.paused`]: 'base',
+  [`${r}.cells.cadence2.label`]: REP, [`${r}.cells.cadence2.pw`]: 'numero', [`${r}.cells.cadence2.pwN`]: REP, [`${r}.cells.cadence2.unit`]: 'rotulo', [`${r}.cells.cadence2.sub`]: 'base', [`${r}.cells.cadence2.paused`]: 'base',
   [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP, [`${r}.cells.cadence2.nota`]: CTRL,
   ...Object.fromEntries(['vpd', 'vpd2'].flatMap((k) => [
-    [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.n`, 'numero'],
+    [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.bigN`, REP], [`${r}.cells.${k}.absN`, REP], [`${r}.cells.${k}.n`, 'numero'],
     [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL], [`${r}.cells.${k}.ausencia`, CTRL],
   ])),
   ...Object.fromEntries(['out', 'out2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.videoTitle`, 'terceiros'], [`${r}.cells.${k}.thumb`, IMG], [`${r}.cells.${k}.thumb.*`, IMG],
-    [`${r}.cells.${k}.mult`, 'numero'], [`${r}.cells.${k}.tier`, CTRL], [`${r}.cells.${k}.vs`, 'base'], [`${r}.cells.${k}.n`, 'numero'], [`${r}.cells.${k}.published`, 'base'],
+    [`${r}.cells.${k}.mult`, 'numero'], [`${r}.cells.${k}.multN`, REP], [`${r}.cells.${k}.tier`, CTRL], [`${r}.cells.${k}.vs`, 'base'], [`${r}.cells.${k}.n`, 'numero'], [`${r}.cells.${k}.published`, 'base'],
     [`${r}.cells.${k}.publishedTitle`, REP], [`${r}.cells.${k}.count`, 'base'], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.weak`, 'base'], [`${r}.cells.${k}.upnext`, 'base'], [`${r}.cells.${k}.falta`, CTRL],
   ])),
   [`${r}.cells.swap.kind`]: CTRL, [`${r}.cells.swap.n`]: 'numero', [`${r}.cells.swap.last`]: 'base', [`${r}.cells.swap.lastTitle`]: REP, [`${r}.cells.swap.text`]: 'motivo',
-  [`${r}.cells.growth.kind`]: CTRL, [`${r}.cells.growth.big`]: 'numero', [`${r}.cells.growth.cap`]: 'base', [`${r}.cells.growth.text`]: 'motivo', [`${r}.cells.growth.title`]: REP,
+  [`${r}.cells.growth.kind`]: CTRL, [`${r}.cells.growth.big`]: 'numero', [`${r}.cells.growth.growthPctN`]: REP, [`${r}.cells.growth.cap`]: 'base', [`${r}.cells.growth.text`]: 'motivo', [`${r}.cells.growth.title`]: REP,
   [`${r}.cells.growth.motivo`]: CTRL, [`${r}.cells.growth.fechaEm`]: CTRL, [`${r}.cells.growth.dias`]: CTRL, [`${r}.cells.growth.limite`]: REP, [`${r}.cells.growth.antes`]: REP, [`${r}.cells.growth.depois`]: REP,
   [`${r}.cells.growth.de`]: REP, [`${r}.cells.growth.ate`]: REP, [`${r}.cells.growth.atrasadoAte`]: REP, [`${r}.cells.growth.abs`]: REP, [`${r}.cells.growth.passo`]: REP, [`${r}.cells.growth.pct`]: REP,
   [`${r}.cells.sync.state`]: CTRL, [`${r}.cells.sync.label`]: 'base', [`${r}.cells.sync.labelTitle`]: REP, [`${r}.cells.sync.cov`]: 'base', [`${r}.cells.sync.covTitle`]: REP,
@@ -165,8 +166,8 @@ const RI_SECAO = (r: string, linha: 'ref' | 'ins'): Inventario => ({
   [`${r}.linhas[].pilula`]: CTRL, [`${r}.linhas[].pilula.tipo`]: CTRL, [`${r}.linhas[].pilula.texto`]: REP,
   [`${r}.linhas[].sub`]: 'base',
   ...(linha === 'ref'
-    ? { [`${r}.linhas[].valor`]: 'numero', [`${r}.linhas[].marca`]: APAR, [`${r}.linhas[].faixa`]: APAR, [`${r}.linhas[].faixa.de`]: APAR, [`${r}.linhas[].faixa.ate`]: APAR, [`${r}.linhas[].provisoria`]: CTRL }
-    : { [`${r}.linhas[].pct`]: 'numero', [`${r}.linhas[].classe`]: CTRL, [`${r}.linhas[].barra`]: APAR, [`${r}.linhas[].barra.pct`]: APAR, [`${r}.linhas[].barra.abs`]: APAR, [`${r}.linhas[].nota`]: 'base' }),
+    ? { [`${r}.linhas[].valor`]: 'numero', [`${r}.linhas[].valorN`]: REP, [`${r}.linhas[].marca`]: APAR, [`${r}.linhas[].faixa`]: APAR, [`${r}.linhas[].faixa.de`]: APAR, [`${r}.linhas[].faixa.ate`]: APAR, [`${r}.linhas[].provisoria`]: CTRL }
+    : { [`${r}.linhas[].pct`]: 'numero', [`${r}.linhas[].pctN`]: REP, [`${r}.linhas[].classe`]: CTRL, [`${r}.linhas[].barra`]: APAR, [`${r}.linhas[].barra.pct`]: APAR, [`${r}.linhas[].barra.abs`]: APAR, [`${r}.linhas[].nota`]: 'base' }),
 })
 
 export const INVENTARIO_CANAIS: Inventario = {
@@ -242,6 +243,11 @@ export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
   'list.ranked[].semFormato.n',
   'list.unranked[].cells.cadence2.label',
   'list.unranked[].cells.cadence2.pw',
+  'list.unranked[].cells.cadence2.pwN',
+  'list.unranked[].cells.vpd2.bigN',
+  'list.unranked[].cells.vpd2.absN',
+  'list.unranked[].cells.out.multN',
+  'list.unranked[].cells.out2.multN',
   'list.unranked[].cells.cadence2.unit',
   'list.unranked[].cells.cadence2.sub',
   'list.unranked[].cells.cadence2.paused',
@@ -306,33 +312,78 @@ export const NAO_COBERTO = ['drawer'] as const
 const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', texto, origem })
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
-const medido = (texto: string, origem: string): Celula => (texto === '0' ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
+/**
+ * `x` (A5 F0.5a) é o gêmeo numérico que o MODELO da tela já carrega, na unidade do título da coluna; nunca se lê do texto. A decisão do zero continua
+ * sendo `texto === '0'` (a F0.5 não muda estado). `null` = o modelo não trouxe o número (defeito do modelo: o gerador conta em `sem_x`).
+ */
+const medido = (texto: string, origem: string, x: number | null): Celula => (texto === '0' ? { papel: 'numero', estado: 'zero_medido', texto, x, origem } : { papel: 'numero', estado: 'medido', texto, x, origem })
+/** Medido SEM `x` e com o motivo (D11: "sem variação" dentro do arredondamento do YouTube). Nunca `medido(..., 0)`: zero seria um número inventado. */
+const medidoSemX = (texto: string, origem: string, motivo: string): Celula => ({ papel: 'numero', estado: 'medido', texto, origem, semXMotivo: motivo })
 const naoMedido = (motivo: string | null, origem: string): Celula => ({ papel: 'numero', estado: 'nao_medido', motivo: motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem })
 
-const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada, colunas, linhas })
-const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, linhas })
+/** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
+const CHAVES: Record<string, string[]> = {
+  'canais': ['posicao', 'canal', 'id', 'inscritos', 'direcao_pct', 'ritmo_por_semana', '<views_dia>', 'maior_outlier_mult', 'trocas', 'crescimento_pct', 'sincronizacao'],
+  'canais-nicho': ['canal', 'nicho'],
+  'canais-direcao-numeros': ['canal', `views_ultimos_${JANELA}_dias`, `views_${JANELA}_dias_anteriores`],
+  'canais-views-por-dia': ['canal', 'views_dia_valor_absoluto', 'videos_na_base'],
+  'canais-maior-outlier': ['canal', 'video', 'videos_comparados', 'publicado', 'contagem'],
+  'canais-outliers-contagem': ['canal', 'contagem'],
+  'canais-shorts': ['canal', 'ritmo_shorts', 'views_dia_shorts', 'outliers_shorts'],
+  'canais-shorts-views-por-dia': ['canal', 'views_dia_shorts_valor_absoluto', 'videos_na_base_shorts'],
+  'canais-estado': ['canal', 'estado'],
+  'canais-notas': ['canal', 'nota'],
+  'canais-dicas': ['canal', 'dica'],
+  'canais-resumo-direcao': ['direcao', 'canais'],
+  'canais-resumo-estado': ['estado', 'canais'],
+  'canais-resumo-base': ['estado', 'base'],
+  'canais-referencias': ['canal', 'views_video_tipico'],
+  'canais-referencias-notas': ['canal', 'nota'],
+  'canais-inscritos': ['canal', 'ganho_28_dias_pct'],
+  'canais-inscritos-notas': ['canal', 'nota'],
+}
+function chavesDe(id: string, colunas: string[]): string[] {
+  const ch = CHAVES[id.replace(/^privado-/, '')]
+  if (!ch) throw new Error(`empacotar-canais: tabela ${id} sem chaves`)
+  return ch.map((k) => (k === '<views_dia>' ? (colunas.includes(VPD_POR_MIL) ? 'views_dia_por_mil' : 'views_dia_mediana') : k))
+}
+const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
+const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
 
 // ───────────────────────── a lista de canais
 type Linha = { r: CanaisRow; p: string; dl: DerivadoLinha; dp: string }
 
 const textos = (xs: ReadonlyArray<[string | null | undefined, string]>): Array<[string, string]> => xs.filter((x): x is [string, string] => typeof x[0] === 'string' && x[0] !== '')
 
+/**
+ * D12: a direção exata, `(recente − anterior) / anterior × 100`; o texto da tela é esse número arredondado. Só a célula `medido` tem esta conta
+ * (base zero não é medida). Sem base positiva cai no `pct` da tela, que já está em pontos (exceção declarada).
+ */
+function direcaoX(d: Extract<CanaisRow['direcao'], { tipo: 'medido' }>): number | null {
+  return d.ganhoAnterior > 0 ? gemeo(((d.ganhoRecente - d.ganhoAnterior) / d.ganhoAnterior) * 100) : gemeo(d.pct)
+}
+/** D11: "sem variação" com o arredondamento do YouTube maior que zero não tem número (o crescimento pode ser qualquer um dentro de ±N): sai vazio, com o motivo. A decisão é do modelo (`growthPctN === null` em `flat`), só ela. */
+function celulaDoCrescimento(g: Exclude<CanaisRow['cells']['growth'], { kind: 'na' }>, origem: string): Celula {
+  if (g.kind === 'flat' && g.growthPctN === null) return medidoSemX(g.big, origem, `dentro do arredondamento do YouTube (±${g.limite.toLocaleString('pt-BR')} inscritos)`)
+  return medido(g.big, origem, g.growthPctN)
+}
+
 /** A linha com as colunas fixas: o que a tela não mostra naquele caso vira "não medido" com o motivo que a tela escreve. */
 function celulasDaLinha(l: Linha): Celula[] {
   const { r, p, dl, dp } = l, c = r.cells, d = dp
   const dir = r.direcao
-  const ritmo = c.cadence.kind === 'ok' ? medido(c.cadence.pw, `${p}.cells.cadence.pw`) : naoMedido(c.cadence.text, `${p}.cells.cadence.text`)
+  const ritmo = c.cadence.kind === 'ok' ? medido(c.cadence.pw, `${p}.cells.cadence.pw`, c.cadence.pwN) : naoMedido(c.cadence.text, `${p}.cells.cadence.text`)
   return [
-    dl.posicao !== null ? medido(dl.posicao, `${d}.posicao`) : naoMedido(dl.semPosicao, `${d}.semPosicao`),
+    dl.posicao !== null && r.numero ? medido(dl.posicao, `${d}.posicao`, r.numero.pos) : naoMedido(dl.semPosicao, `${d}.semPosicao`),
     terceiros(r.name, `${p}.name`),
     base(r.id, `${p}.id`),
-    dl.subsOcultos !== null ? naoMedido(dl.subsOcultos, `${d}.subsOcultos`) : medido(r.subs, `${p}.subs`),
-    dir.tipo === 'medido' ? medido(dir.texto, `${p}.direcao.texto`) : dir.tipo === 'nao_carregou' ? celulaAusente('falhou', dl.direcaoNaoCarregou, `${d}.direcaoNaoCarregou`) : naoMedido(dir.longa, `${p}.direcao.longa`),
+    dl.subsOcultos !== null ? naoMedido(dl.subsOcultos, `${d}.subsOcultos`) : medido(r.subs, `${p}.subs`, gemeo(r.valor.subs)),
+    dir.tipo === 'medido' ? medido(dir.texto, `${p}.direcao.texto`, direcaoX(dir)) : dir.tipo === 'nao_carregou' ? celulaAusente('falhou', dl.direcaoNaoCarregou, `${d}.direcaoNaoCarregou`) : naoMedido(dir.longa, `${p}.direcao.longa`),
     ritmo,
-    c.vpd.kind === 'ok' ? medido(c.vpd.big, `${p}.cells.vpd.big`) : celulaAusente(c.vpd.kind === 'na' ? c.vpd.ausencia : null, c.vpd.text, `${p}.cells.vpd.text`),
-    c.out.kind === 'ok' ? medido(c.out.mult, `${p}.cells.out.mult`) : naoMedido(c.out.text, `${p}.cells.out.text`),
-    c.swap.kind === 'ok' ? medido(String(c.swap.n), `${p}.cells.swap.n`) : naoMedido(c.swap.text, `${p}.cells.swap.text`),
-    c.growth.kind === 'na' ? naoMedido(c.growth.text, `${p}.cells.growth.text`) : medido(c.growth.big, `${p}.cells.growth.big`),
+    c.vpd.kind === 'ok' ? medido(c.vpd.big, `${p}.cells.vpd.big`, c.vpd.bigN) : celulaAusente(c.vpd.kind === 'na' ? c.vpd.ausencia : null, c.vpd.text, `${p}.cells.vpd.text`),
+    c.out.kind === 'ok' ? medido(c.out.mult, `${p}.cells.out.mult`, c.out.multN) : naoMedido(c.out.text, `${p}.cells.out.text`),
+    c.swap.kind === 'ok' ? medido(String(c.swap.n), `${p}.cells.swap.n`, c.swap.n) : naoMedido(c.swap.text, `${p}.cells.swap.text`),
+    c.growth.kind === 'na' ? naoMedido(c.growth.text, `${p}.cells.growth.text`) : celulaDoCrescimento(c.growth, `${p}.cells.growth.big`),
     base(c.sync.label, `${p}.cells.sync.label`),
   ]
 }
@@ -353,15 +404,15 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 
   const dirN = ls.filter(({ r }) => r.direcaoNumeros)
   out.push(tabelaLista(`${pre}canais-direcao-numeros`, `Views da direção: ${JANELA} dias contra os ${JANELA} anteriores${suf}`, nome('tabela dos números da direção'), ['Canal', `Views nos últimos ${JANELA} dias`, `Views nos ${JANELA} dias anteriores`],
-    dirN.map(({ r, p }) => [terceiros(r.name, `${p}.name`), medido(r.direcaoNumeros!.recente, `${p}.direcaoNumeros.recente`), medido(r.direcaoNumeros!.anterior, `${p}.direcaoNumeros.anterior`)]), privada))
+    dirN.map(({ r, p }) => [terceiros(r.name, `${p}.name`), medido(r.direcaoNumeros!.recente, `${p}.direcaoNumeros.recente`, r.direcao.tipo === 'medido' ? gemeo(r.direcao.ganhoRecente) : null), medido(r.direcaoNumeros!.anterior, `${p}.direcaoNumeros.anterior`, r.direcao.tipo === 'medido' ? gemeo(r.direcao.ganhoAnterior) : null)]), privada))
 
   const vpdN = ls.filter(({ r }) => r.cells.vpd.kind === 'ok' && r.cells.vpd.abs !== null)
   out.push(tabelaLista(`${pre}canais-views-por-dia`, `A base das views por dia${suf}`, nome('tabela da base das views por dia'), ['Canal', 'Views por dia, valor absoluto', 'Vídeos na base'],
-    vpdN.map(({ r, p }) => { const v = r.cells.vpd; return v.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd.abs`), medido(String(v.n), `${p}.cells.vpd.n`)] : [] }), privada))
+    vpdN.map(({ r, p }) => { const v = r.cells.vpd; return v.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd.abs`, v.absN), medido(String(v.n), `${p}.cells.vpd.n`, v.n)] : [] }), privada))
 
   const outN = ls.filter(({ r }) => r.cells.out.kind === 'ok')
   if (modelo.fmt !== 'todos') out.push(tabelaLista(`${pre}canais-maior-outlier`, `O maior outlier de cada canal${suf}`, nome('tabela do maior outlier'), ['Canal', 'Vídeo', 'Vídeos comparados', 'Publicado', 'Contagem'],
-    outN.map(({ r, p }) => { const o = r.cells.out; return o.kind === 'ok' ? [terceiros(r.name, `${p}.name`), terceiros(o.videoTitle, `${p}.cells.out.videoTitle`), medido(String(o.n), `${p}.cells.out.n`), base(o.published, `${p}.cells.out.published`), base(o.count, `${p}.cells.out.count`)] : [] }), privada))
+    outN.map(({ r, p }) => { const o = r.cells.out; return o.kind === 'ok' ? [terceiros(r.name, `${p}.name`), terceiros(o.videoTitle, `${p}.cells.out.videoTitle`), medido(String(o.n), `${p}.cells.out.n`, o.n), base(o.published, `${p}.cells.out.published`), base(o.count, `${p}.cells.out.count`)] : [] }), privada))
   if (modelo.fmt === 'todos') out.push(tabelaLista(`${pre}canais-outliers-contagem`, `Quantos outliers tem cada canal${suf}`, nome('tabela da contagem de outliers'), ['Canal', 'Contagem'],
     outN.map(({ r, p }) => { const o = r.cells.out; return o.kind === 'ok' ? [terceiros(r.name, `${p}.name`), base(o.count, `${p}.cells.out.count`)] : [] }), privada))
 
@@ -371,13 +422,13 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
       sh.map(({ r, p }) => {
         const k = r.cells.cadence2!, v = r.cells.vpd2!, o = r.cells.out2!
         return [terceiros(r.name, `${p}.name`),
-          k.kind === 'ok' ? medido(k.pw, `${p}.cells.cadence2.pw`) : naoMedido(k.text, `${p}.cells.cadence2.text`),
-          v.kind === 'ok' ? medido(v.big, `${p}.cells.vpd2.big`) : celulaAusente(v.kind === 'na' ? v.ausencia : null, v.text, `${p}.cells.vpd2.text`),
-          o.kind === 'ok' ? medido(o.mult, `${p}.cells.out2.mult`) : naoMedido(o.text, `${p}.cells.out2.text`)]
+          k.kind === 'ok' ? medido(k.pw, `${p}.cells.cadence2.pw`, k.pwN) : naoMedido(k.text, `${p}.cells.cadence2.text`),
+          v.kind === 'ok' ? medido(v.big, `${p}.cells.vpd2.big`, v.bigN) : celulaAusente(v.kind === 'na' ? v.ausencia : null, v.text, `${p}.cells.vpd2.text`),
+          o.kind === 'ok' ? medido(o.mult, `${p}.cells.out2.mult`, o.multN) : naoMedido(o.text, `${p}.cells.out2.text`)]
       }), privada))
     const shV = ls.filter(({ r }) => r.cells.vpd2?.kind === 'ok' && r.cells.vpd2.abs !== null)
     out.push(tabelaLista(`${pre}canais-shorts-views-por-dia`, `A base das views por dia dos Shorts${suf}`, nome('tabela da base dos Shorts'), ['Canal', 'Views por dia dos Shorts, valor absoluto', 'Vídeos na base dos Shorts'],
-      shV.map(({ r, p }) => { const v = r.cells.vpd2; return v?.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd2.abs`), medido(String(v.n), `${p}.cells.vpd2.n`)] : [] }), privada))
+      shV.map(({ r, p }) => { const v = r.cells.vpd2; return v?.kind === 'ok' ? [terceiros(r.name, `${p}.name`), medido(v.abs!, `${p}.cells.vpd2.abs`, v.absN), medido(String(v.n), `${p}.cells.vpd2.n`, v.n)] : [] }), privada))
   }
 
   const estado: Celula[][] = []
@@ -419,7 +470,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 function tabelasDoResumo(m: ModeloCanais): Tabela[] {
   const out: Tabela[] = []
   const { casas, filtros } = m.resumo
-  const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem))
+  const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem, n))
   if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
     casas.map((c, i) => [rotulo(c.palavra, `modelo.resumo.casas[${i}].palavra`), num(c.n, `modelo.resumo.casas[${i}].n`)])))
   if (filtros.length) out.push(tabelaFixa('canais-resumo-estado', 'Quantos canais em cada estado', nome0('tabela do resumo do estado'), ['Estado', 'Canais'],
@@ -450,7 +501,7 @@ function tabelasDeReferenciasEInscritos(m: ModeloCanais): Tabela[] {
     const ordem = naOrdem<RiLinhaRef>(R.linhas, R.ordens[ri.ordem.ref].ids)
     out.push(tabelaLista('canais-referencias', 'Referências: o vídeo típico em 90 dias', 'tabela de referências', ['Canal', 'Views do vídeo típico'],
       ordem.map(({ l, k }) => [terceiros(l.nome, `modelo.ri.referencias.linhas[${k}].nome`),
-        l.valor !== null ? medido(l.valor, `modelo.ri.referencias.linhas[${k}].valor`) : naoMedido(m.derivado.ri.referencias[k]!.motivo, `modelo.derivado.ri.referencias[${k}].motivo`)])))
+        l.valor !== null ? medido(l.valor, `modelo.ri.referencias.linhas[${k}].valor`, l.valorN) : naoMedido(m.derivado.ri.referencias[k]!.motivo, `modelo.derivado.ri.referencias[${k}].motivo`)])))
     const notas: Celula[][] = []
     for (const { l, k } of ordem) {
       const d = m.derivado.ri.referencias[k]!
@@ -464,7 +515,7 @@ function tabelasDeReferenciasEInscritos(m: ModeloCanais): Tabela[] {
     const medida = (l: RiLinhaIns) => l.classe != null && l.barra != null
     out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', 'Ganho em 28 dias'],
       ordem.map(({ l, k }) => [terceiros(l.nome, `modelo.ri.inscritos.linhas[${k}].nome`),
-        medida(l) && l.pct !== null ? medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
+        medida(l) && l.pct !== null ? (l.classe === 'eq' && l.pctN === null ? medidoSemX(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, 'sem percentual: o canal não tinha inscritos') : medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, l.pctN)) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
     const notas: Celula[][] = []
     for (const { l, k } of ordem) {
       const d = m.derivado.ri.inscritos[k]!
