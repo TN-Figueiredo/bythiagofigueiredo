@@ -34,12 +34,14 @@ const linhaDaTabela = (nome: string, c: Contas): string => `| ${naCelula(nome)} 
 
 /**
  * As linhas de contagem de uma tabela: uma por coluna numérica. Quais colunas aparecem se decide por TODAS as linhas da tabela (`todas`); as contagens saem das `usadas`
- * (uma por dona). `m` = linhas da principal (para "Sem linha"). Tabela sem nenhuma linha: não há como saber o tipo da coluna, então saem todas menos a 1ª (a chave), com Sem linha = M.
+ * (uma por dona). `m` = linhas da principal (para "Sem linha"). Tabela sem nenhuma linha: uma linha só (título + "sem nenhuma linha"), com Sem linha = M.
  */
 function linhasDaTabela(t: Tabela, todas: ReadonlyArray<readonly Celula[]>, usadas: ReadonlyArray<readonly Celula[]>, m: number, titulos: Map<string, number>): string[] {
+  // Tabela sem nenhuma linha: não há como saber o tipo de cada coluna; uma linha só, com o título, e Sem linha = M (nada de coluna de texto como "Medidos 0").
+  if (todas.length === 0) return [linhaDaTabela(`${t.titulo} (sem nenhuma linha)`, { ...zerada(), semLinha: m })]
   const out: string[] = []
   t.colunas.forEach((titulo, j) => {
-    if (todas.length === 0 ? j === 0 : !todas.some((l) => l[j]?.papel === 'numero')) return
+    if (!todas.some((l) => l[j]?.papel === 'numero')) return
     const c = zerada()
     for (const l of usadas) contar(c, l[j])
     c.semLinha += m - usadas.length

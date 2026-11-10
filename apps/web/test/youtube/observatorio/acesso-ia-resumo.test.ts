@@ -48,11 +48,12 @@ describe('A7c1 T10: resumoDoTodo', () => {
     expect(linhaDe(t, 'Direção')[5]).toBe('15')
   })
 
-  it('tabela coluna presente e sem nenhuma linha: cada coluna (menos a chave) sai com Sem linha = M, nunca some', () => {
-    const t = resumoDoTodo(mil(), [{ tabela: tabela('canais-views-por-dia', ['Canal', 'Views/dia', 'Vídeos na base'], []), donos: [] }], [])
-    expect(linhaDe(t, 'Views/dia')).toEqual(['0', '0', '0', '0', '0', '1000'])
-    expect(linhaDe(t, 'Vídeos na base')).toEqual(['0', '0', '0', '0', '0', '1000'])
-    expect(t).not.toContain('| Canal |')
+  it('tabela coluna sem nenhuma linha (Mudanças com trocas, nenhuma observada): UMA linha com o título e Sem linha = M, sem listar colunas (nem as de texto)', () => {
+    const vazia = tabela('canais-views-por-dia', ['Canal', 'Veredito', 'Antes', 'Depois'], [])
+    const t = resumoDoTodo(mil(), [{ tabela: vazia, donos: [] }], [])
+    expect(linhaDe(t, 'canais-views-por-dia (sem nenhuma linha)')).toEqual(['0', '0', '0', '0', '0', '1000'])
+    for (const col of ['Veredito', 'Antes', 'Depois', 'Canal']) expect(t).not.toContain(`| ${col} |`)
+    expect(t.split('\n').length).toBe(5)
   })
 
   it('tabela com linhas, mas nenhuma com dona (ou só a repetida tem número): a coluna aparece com Sem linha = M', () => {
