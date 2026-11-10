@@ -5,6 +5,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....... ||||||
+trocas/Id: ....... ||||||
 trocas/Canal: ....... ||||||
 trocas/Nicho: ....... ||||||
 trocas/Tipo: ....... ||||||
@@ -47,6 +48,7 @@ quadro-de-efeito/Com veredito (n): ZZZ 0|0|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .. |
+trocas/Id: .. |
 trocas/Canal: .. |
 trocas/Nicho: .. |
 trocas/Tipo: .. |
@@ -82,6 +84,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: . 
+trocas/Id: . 
 trocas/Canal: . 
 trocas/Nicho: . 
 trocas/Tipo: . 
@@ -117,6 +120,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .................. |||||||||||||||||
+trocas/Id: .................. |||||||||||||||||
 trocas/Canal: .................. |||||||||||||||||
 trocas/Nicho: .................. |||||||||||||||||
 trocas/Tipo: .................. |||||||||||||||||
@@ -159,6 +163,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....................... ||||||||||||||||||||||
+trocas/Id: ....................... ||||||||||||||||||||||
 trocas/Canal: ....................... ||||||||||||||||||||||
 trocas/Nicho: ....................... ||||||||||||||||||||||
 trocas/Tipo: ....................... ||||||||||||||||||||||
@@ -201,6 +206,7 @@ quadro-de-efeito/Com veredito (n): ZZZ 0|0|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ...... |||||
+trocas/Id: ...... |||||
 trocas/Canal: ...... |||||
 trocas/Nicho: ...... |||||
 trocas/Tipo: ...... |||||
@@ -243,6 +249,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....... ||||||
+trocas/Id: ....... ||||||
 trocas/Canal: ....... ||||||
 trocas/Nicho: ....... ||||||
 trocas/Tipo: ....... ||||||
@@ -278,6 +285,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .... |||
+trocas/Id: .... |||
 trocas/Canal: .... |||
 trocas/Nicho: .... |||
 trocas/Tipo: .... |||
@@ -314,6 +322,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|1|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ........... ||||||||||
+trocas/Id: ........... ||||||||||
 trocas/Canal: ........... ||||||||||
 trocas/Nicho: ........... ||||||||||
 trocas/Tipo: ........... ||||||||||
@@ -356,6 +365,7 @@ quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
 quadro-de-efeito/Mediana do efeito: nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ............ |||||||||||
+trocas/Id: ............ |||||||||||
 trocas/Canal: ............ |||||||||||
 trocas/Nicho: ............ |||||||||||
 trocas/Tipo: ............ |||||||||||

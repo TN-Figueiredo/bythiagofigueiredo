@@ -348,7 +348,8 @@ function chavesDe(id: string, colunas: string[]): string[] {
   return ch.map((k) => (k === '<views_dia>' ? (colunas.includes(VPD_POR_MIL) ? 'views_dia_por_mil' : 'views_dia_mediana') : k))
 }
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
-const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), linhas })
+/** A5 F1b (D2): só `canais-resumo-direcao` declara pizza; o gerador a rebaixa a barra se alguma parte não for medida (e `PIZZA_PERMITIDA` guarda a lista provada). */
+const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada, colunas, chaves: chavesDe(id, colunas), ...(id === 'canais-resumo-direcao' ? { grafico: 'pizza' as const } : {}), linhas })
 
 // ───────────────────────── a lista de canais
 type Linha = { r: CanaisRow; p: string; dl: DerivadoLinha; dp: string }

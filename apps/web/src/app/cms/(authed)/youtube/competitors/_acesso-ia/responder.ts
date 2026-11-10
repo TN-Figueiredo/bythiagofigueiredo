@@ -20,6 +20,7 @@ import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
+import { respostaEmTabela } from './resposta-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -397,6 +398,9 @@ function proximasDe(e: Entrada, modelo: PacoteModelo | null, agora: number, vist
   return [...janelaSeguinte, ...proximasDaAcao(e, modelo, ate90, mesmos, vistas, serie, inicio)]
 }
 
+/** A próxima chamada de uma lista em tabela continua em tabela. */
+const daSaida = (e: Entrada): Record<string, string> => ((e as { saida?: string }).saida === 'tabela' ? { saida: 'tabela' } : {})
+
 function proximasDaAcao(e: Entrada, modelo: PacoteModelo | null, ate90: { de: string; ate: string }, mesmos: (k: 'formato' | 'nicho') => Record<string, string>, vistas: number, serie: InfoSerie | undefined, inicio: number): Proxima[] {
   switch (e.acao) {
     case 'listar_canais': {
@@ -412,9 +416,9 @@ function proximasDaAcao(e: Entrada, modelo: PacoteModelo | null, ate90: { de: st
       return out
     }
     case 'destaques':
-      return e.janela === 'todas' ? [] : [{ chamada: { acao: 'destaques', janela: 'todas', ...mesmos('formato'), ...mesmos('nicho') }, para: 'ver os destaques de vídeos de todas as idades' }]
+      return e.janela === 'todas' ? [] : [{ chamada: { acao: 'destaques', janela: 'todas', ...mesmos('formato'), ...mesmos('nicho'), ...daSaida(e) }, para: 'ver os destaques de vídeos de todas as idades' }]
     case 'mudancas':
-      return e.janela === '90' || e.janela === 'todas' ? [] : [{ chamada: { acao: 'mudancas', janela: '90', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...mesmos('formato'), ...mesmos('nicho') }, para: 'ver as mudanças dos últimos 90 dias' }]
+      return e.janela === '90' || e.janela === 'todas' ? [] : [{ chamada: { acao: 'mudancas', janela: '90', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...mesmos('formato'), ...mesmos('nicho'), ...daSaida(e) }, para: 'ver as mudanças dos últimos 90 dias' }]
     case 'canal':
       return [{ chamada: { acao: 'serie', canal_id: e.canal_id, ...ate90 }, para: 'ver a série dia a dia dos últimos 90 dias deste canal' }]
     case 'video':
@@ -542,6 +546,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     let janelaDeLista = false
     let janelasAnterioresPerderam = false
     let textoFora: Cobertura['textoFora']
+    let soNoTexto: string[] = []
+    let incluiuDaTabela: boolean | null = null
+    let semXDaTabela = 0
     if (pedido.limite.tipo === 'linhas') {
       const n = pedido.limite.n
       const principal = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')
@@ -555,29 +562,56 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         }
         janelaDeLista = true
         const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, new Set<ClasseNaIa>(['geral']))
-        const j = janela(lim.modelo, ctx, pedido.inicio, n, Math.min(tetoDoTexto, ACESSO_IA_RULES.tetoDaJanela), lim.totais)
-        modelo = lim.modelo
-        const c = j.corte
-        if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
-        if (j.resumoPassou) avisar('resumo_passou', { total: totalAntes })
-        inicioDaJanela = pedido.inicio
-        marcaMudou = pedido.marca !== undefined && pedido.marca.slice(0, 8) !== j.marca
-        semDona = j.semDona
-        // o que uma janela perdeu (geral, colunas, texto, linha que não coube) viaja no 9º caractere da marca, para a última janela não dizer "viu tudo"
-        const perdeuAqui = c.estagio !== 'E2' || c.apoio.some((x) => x.saiu < x.de) || j.linhaNaoCabe
-        janelasAnterioresPerderam = pedido.inicio > 1 && (pedido.marca === undefined || pedido.marca.endsWith(MARCA_PERDEU))
-        if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca + (perdeuAqui || janelasAnterioresPerderam ? MARCA_PERDEU : '') }
-        cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
-        feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
-        doCorte = { linhas: j.k, total: totalAntes }
-        numeros = c.texto.numerosNoTexto
-        // as tabelas de texto retiradas de propósito (notas, dicas) têm linha própria na Cobertura; aqui só o corte real
-        rotulos = c.texto.cortes.map((x) => x.rotulo).filter((r) => !r.startsWith('a tabela "'))
-        if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
-        const cortadas = c.apoio.filter((x) => x.saiu < x.de)
-        apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
-        if (j.textoFora.linhas > 0) textoFora = { ...TEXTO_FORA[montado.modelo.tela as keyof typeof TEXTO_FORA], linhas: j.textoFora.linhas }
-        lista = { titulo: principal.titulo, de: pedido.inicio, ate: pedido.inicio + j.k - 1, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+        const tetoDaJanela = Math.min(tetoDoTexto, ACESSO_IA_RULES.tetoDaJanela)
+        // A5 F1b: o modo tabela monta a mesma janela (mesma marca, mesmo `k` por tamanho) em CSV; principal sem `chaves` não tem modo tabela
+        const emTabela = pedido.saida === 'tabela' && principal.chaves !== undefined
+        if (pedido.saida === 'tabela' && !emTabela) avisar('tabela_sem_chaves', { tabela: principal.id })
+        if (emTabela) {
+          const r = respostaEmTabela(lim.modelo, ctx, { inicio: pedido.inicio, n }, tetoDaJanela, lim.totais)
+          for (const a of r.avisos) avisar(a.passo, a.extra)
+          modelo = lim.modelo
+          inicioDaJanela = pedido.inicio
+          marcaMudou = pedido.marca !== undefined && pedido.marca.slice(0, 8) !== r.marca
+          semDona = r.semDona
+          const perdeuAqui = r.apoio.cortadas.length > 0 || r.linhaNaoCabe || r.soNoTexto.length > 0
+          janelasAnterioresPerderam = pedido.inicio > 1 && (pedido.marca === undefined || pedido.marca.endsWith(MARCA_PERDEU))
+          if (pedido.inicio + r.linhasDaPrincipal <= totalAntes) proxima = { proximo: pedido.inicio + r.linhasDaPrincipal, marca: r.marca + (perdeuAqui || janelasAnterioresPerderam ? MARCA_PERDEU : '') }
+          if (r.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: r.linhasDaPrincipal, total: totalAntes })
+          feito = { texto: cabeEm(r.texto, tetoDoTexto), primeira: r.primeira, degrau: null }
+          doCorte = { linhas: r.linhasDaPrincipal, total: totalAntes }
+          numeros = r.numeros
+          rotulos = r.rotulos
+          apoio = r.apoio
+          soNoTexto = r.soNoTexto
+          incluiuDaTabela = r.incluiuPrivado
+          semXDaTabela = r.semX
+          if (r.textoFora.linhas > 0) textoFora = { ...TEXTO_FORA[montado.modelo.tela as keyof typeof TEXTO_FORA], linhas: r.textoFora.linhas }
+          lista = { titulo: principal.titulo, de: pedido.inicio, ate: pedido.inicio + r.linhasDaPrincipal - 1, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+        } else {
+          const j = janela(lim.modelo, ctx, pedido.inicio, n, tetoDaJanela, lim.totais)
+          modelo = lim.modelo
+          const c = j.corte
+          if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
+          if (j.resumoPassou) avisar('resumo_passou', { total: totalAntes })
+          inicioDaJanela = pedido.inicio
+          marcaMudou = pedido.marca !== undefined && pedido.marca.slice(0, 8) !== j.marca
+          semDona = j.semDona
+          // o que uma janela perdeu (geral, colunas, texto, linha que não coube) viaja no 9º caractere da marca, para a última janela não dizer "viu tudo"
+          const perdeuAqui = c.estagio !== 'E2' || c.apoio.some((x) => x.saiu < x.de) || j.linhaNaoCabe
+          janelasAnterioresPerderam = pedido.inicio > 1 && (pedido.marca === undefined || pedido.marca.endsWith(MARCA_PERDEU))
+          if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca + (perdeuAqui || janelasAnterioresPerderam ? MARCA_PERDEU : '') }
+          cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
+          feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
+          doCorte = { linhas: j.k, total: totalAntes }
+          numeros = c.texto.numerosNoTexto
+          // as tabelas de texto retiradas de propósito (notas, dicas) têm linha própria na Cobertura; aqui só o corte real
+          rotulos = c.texto.cortes.map((x) => x.rotulo).filter((r) => !r.startsWith('a tabela "'))
+          if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
+          const cortadas = c.apoio.filter((x) => x.saiu < x.de)
+          apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
+          if (j.textoFora.linhas > 0) textoFora = { ...TEXTO_FORA[montado.modelo.tela as keyof typeof TEXTO_FORA], linhas: j.textoFora.linhas }
+          lista = { titulo: principal.titulo, de: pedido.inicio, ate: pedido.inicio + j.k - 1, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+        }
       } else {
         // sem lista principal (ou vazia): o corte por estágios de antes; a frase do vazio ou o geral na janela única
         const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
@@ -609,21 +643,22 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       numeros = f.numeros
       rotulos = f.rotulos
     }
-    const incluiu = privadoIncluido(modelo)
+    const incluiu = incluiuDaTabela ?? privadoIncluido(modelo)
     const { texto, primeira } = feito
     const fora = montado.modelo.paginado
     const cob: Cobertura = {
       ...(lista ? { lista } : {}),
       ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
-      ...(textoFora ? { textoFora } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}), ...(janelasAnterioresPerderam ? { janelasAnterioresPerderam: true } : {}),
+      ...(textoFora ? { textoFora } : {}), ...(soNoTexto.length > 0 ? { soNoTexto } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}), ...(janelasAnterioresPerderam ? { janelasAnterioresPerderam: true } : {}),
       ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
       ...(vazio && pedido.limite.tipo === 'pontos' ? { serieAusente: true } : {}),
       proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie, inicioDaJanela, proxima),
     }
     if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
     return comCobertura(cabeEm(comTopo(texto, topo, primeira), tetoFinal), cob, {
-      ...params, privado: modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
+      ...params, privado: incluiuDaTabela ?? modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
+      ...(pedido.saida === 'tabela' ? { saida: 'tabela' as const, sem_x: semXDaTabela } : {}),
       ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
       ...(janelaDeLista ? { a_partir_da_linha: inicioDaJanela, sem_dona: semDona, ...(pedido.marca !== undefined ? { marca_mudou: marcaMudou } : {}) } : {}),
     }, t0, incluiu)

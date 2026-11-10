@@ -217,6 +217,35 @@ export interface JanelaDaLista {
 const chaveDeOrigem = (l: readonly Celula[]): string | null => l.find((c) => c.papel === 'terceiros')?.origem ?? null
 const nomeDaLinha = (l: readonly Celula[]): string | null => { const c = l.find((x) => x.papel === 'terceiros'); return c && c.papel === 'terceiros' ? c.texto : null }
 
+/**
+ * A dona de cada linha de apoio (tabelas de classe coluna, texto e por-nome): posição 0-based na principal, ou -1 (sem dona; nome repetido também).
+ * Casa pela `origem` da 1ª célula `terceiros` (coluna, texto) ou pelo nome (por-nome). Fonte única da janela do texto e do modo tabela (A5 F1b).
+ */
+export function donosDasLinhas(modelo: PacoteModelo): Map<string, number[]> {
+  const classe = (t: Tabela): ClasseNaIa => classeDa(modelo.tela, t)
+  const principal = modelo.tabelas.find((t) => classe(t) === 'principal')
+  const donos = new Map<string, number[]>()
+  if (!principal) return donos
+  const posDaChave = new Map<string, number>()
+  const posDoNome = new Map<string, number[]>()
+  principal.linhas.forEach((l, i) => {
+    const k = chaveDeOrigem(l)
+    if (k !== null && !posDaChave.has(k)) posDaChave.set(k, i)
+    const nome = nomeDaLinha(l)
+    if (nome !== null) posDoNome.set(nome, [...(posDoNome.get(nome) ?? []), i])
+  })
+  for (const t of modelo.tabelas) {
+    const c = classe(t)
+    if (t.tipo !== 'lista' || c === 'principal' || c === 'geral') continue
+    donos.set(t.id, t.linhas.map((l) => {
+      if (c === 'por_nome') { const nome = nomeDaLinha(l); const ps = nome === null ? undefined : posDoNome.get(nome); return ps && ps.length === 1 ? ps[0]! : -1 }
+      const k = chaveDeOrigem(l)
+      return k === null ? -1 : (posDaChave.get(k) ?? -1)
+    }))
+  }
+  return donos
+}
+
 /** A chave de cada linha da principal: a célula da coluna Id (se há), senão o texto da 1ª célula `terceiros`. */
 export function marcaDaPrincipal(t: Tabela): string {
   const col = t.colunas.indexOf('Id')
@@ -248,25 +277,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
   const marca = marcaDaPrincipal(principal)
   const degraus = degrausDoLimite(n)
 
-  // quem é a dona de cada linha de apoio: posição (0-based) na principal, ou -1 (sem dona; nome repetido também)
-  const posDaChave = new Map<string, number>()
-  const posDoNome = new Map<string, number[]>()
-  principal.linhas.forEach((l, i) => {
-    const k = chaveDeOrigem(l)
-    if (k !== null && !posDaChave.has(k)) posDaChave.set(k, i)
-    const nome = nomeDaLinha(l)
-    if (nome !== null) posDoNome.set(nome, [...(posDoNome.get(nome) ?? []), i])
-  })
-  const donos = new Map<string, number[]>()
-  for (const t of modelo.tabelas) {
-    const c = classe(t)
-    if (t.tipo !== 'lista' || c === 'principal' || c === 'geral') continue
-    donos.set(t.id, t.linhas.map((l) => {
-      if (c === 'por_nome') { const nome = nomeDaLinha(l); const ps = nome === null ? undefined : posDoNome.get(nome); return ps && ps.length === 1 ? ps[0]! : -1 }
-      const k = chaveDeOrigem(l)
-      return k === null ? -1 : (posDaChave.get(k) ?? -1)
-    }))
-  }
+  const donos = donosDasLinhas(modelo)
   const soltos = modelo.citados.filter((b) => !b.linha)
   // A7c1: o resumo do todo, uma vez, sobre a principal inteira e as tabelas coluna inteiras (antes de qualquer janela); a janela só o carrega
   const categoriasDoResumo = (CATEGORIAS_NO_RESUMO[tela as TelaComLista] ?? []).filter((c) => !(c === 'Tipo' && modelo.tabelas.some((t) => t.id === 'quadro-de-efeito')))

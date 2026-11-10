@@ -147,3 +147,17 @@ describe('secaoDeCobertura', () => {
     expect(secaoDeCobertura(base({ vazio: true }))).toContain('A lista está vazia neste recorte; vazio não é zero.')
   })
 })
+
+describe('A5 F1b: tabelas que só existem no modo texto', () => {
+  const sem = ['tabela de avisos dos outliers', 'tabela de notas']
+  it('a linha cita as tabelas, diz como ver e torna a lista incompleta', () => {
+    const c = base({ soNoTexto: sem })
+    expect(secaoDeCobertura(c)).toContain('- Só no modo texto (peça sem saida tabela): tabela de avisos dos outliers; tabela de notas.')
+    expect(coberturaCompleta(c)).toBe(false)
+    expect(coberturaCompleta(base({ soNoTexto: [] }))).toBe(true)
+    expect(secaoDeCobertura(base({}))).not.toContain('Só no modo texto')
+  })
+  it('mais de 3 vira "mais N"', () => {
+    expect(secaoDeCobertura(base({ soNoTexto: ['a', 'b', 'c', 'd', 'e'] }))).toContain('a; b; c, mais 2.')
+  })
+})

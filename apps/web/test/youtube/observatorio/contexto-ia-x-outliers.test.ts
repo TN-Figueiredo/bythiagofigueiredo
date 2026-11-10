@@ -59,8 +59,8 @@ describe('outliers: o formatador da unidade da coluna aplicado a x dá o texto (
     ;(card as { multN: number | null }).multN = 4.2
     const t = empacotarOutliers(caso.modelo).tabelas.find((x) => x.id === 'outliers')!
     const lin = t.linhas[0]! as unknown as Cel[]
-    expect(lin[4]).toMatchObject({ texto: '4,2×', x: 4.2 })
-    expect(Number.isInteger((lin[6] as Cel).x)).toBe(true)
+    expect(lin[5]).toMatchObject({ texto: '4,2×', x: 4.2 })
+    expect(Number.isInteger((lin[7] as Cel).x)).toBe(true)
   })
 })
 
@@ -73,9 +73,9 @@ describe('outliers: x é o número do modelo (3)', () => {
       const t = caso.pacote.tabelas.find((x) => x.id === 'outliers')
       if (t) t.linhas.forEach((l, i) => {
         const card = cards[i]!, v = OBS.video(card.id)!
-        expect((l[4] as Cel).x, `mult ${card.id}`).toBe(Number((card.multN as number).toPrecision(12))); vistos.mult += 1
-        expect((l[6] as Cel).x, `views ${card.id}`).toBe(v.views); vistos.views += 1
-        const vpd = (l[7] as Cel).x
+        expect((l[5] as Cel).x, `mult ${card.id}`).toBe(Number((card.multN as number).toPrecision(12))); vistos.mult += 1
+        expect((l[7] as Cel).x, `views ${card.id}`).toBe(v.views); vistos.views += 1
+        const vpd = (l[8] as Cel).x
         if (typeof vpd === 'number') { expect(vpd, `vpd ${card.id}`).toBe(Number(((v.vpd7 ?? v.vpd) as number).toPrecision(12))); vistos.vpd += 1 }
       })
       const idades = caso.pacote.tabelas.find((x) => x.id === 'idades')
@@ -91,7 +91,7 @@ describe('outliers: views/dia que a tela escreve em palavras (D11 de Destaques)'
     for (const caso of CASOS) {
       const t = caso.pacote.tabelas.find((x) => x.id === 'outliers')
       t?.linhas.forEach((l) => {
-        const c = l[7] as Cel & { estado: string }
+        const c = l[8] as Cel & { estado: string }
         if (/^(sem views\/dia recentes|menos de 1 dia no ar)$/.test(c.texto)) {
           expect(c.estado).toBe('medido'); expect(c.x).toBeUndefined(); expect(c.semXMotivo, c.texto).toMatch(/\S/)
           achadas.push(c.texto)
@@ -141,6 +141,7 @@ describe('outliers: chaves (4)', () => {
         "outliers": [
           "grupo",
           "video",
+          "id",
           "canal",
           "nicho",
           "multiplicador",
@@ -165,7 +166,7 @@ describe('outliers: chaves (4)', () => {
   })
   it('a principal tem as chaves do plano e o gráfico sugerido de cada tabela numérica', () => {
     const p = CASOS[0]!.pacote
-    expect(p.tabelas.find((x) => x.id === 'outliers')!.chaves).toEqual(['grupo', 'video', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'])
+    expect(p.tabelas.find((x) => x.id === 'outliers')!.chaves).toEqual(['grupo', 'video', 'id', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'])
     expect(Object.fromEntries(p.tabelas.map((t) => [t.id, t.grafico]))).toMatchObject({ outliers: 'barra', idades: 'nenhum' })
   })
 })

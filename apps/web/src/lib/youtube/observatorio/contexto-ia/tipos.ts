@@ -6,8 +6,9 @@ export type TelaId =
 
 export type Celula =
   // A5: `x` ausente (`undefined`) só com `semXMotivo` ("sem variação" dentro do arredondamento: sem número, com o motivo); `null` = o modelo não trouxe o número.
+  // `nota` (A5 F1b, M3): ressalva sobre um número medido ("média de 4 dias"); o modo texto a diz em outra tabela, o CSV a leva em `motivos`.
   // `origem` é o caminho CONCRETO da folha no modelo, com o índice: 'pack.canais[2].numeros.medianaViews'
-  | { papel: 'numero'; estado: 'medido' | 'zero_medido'; texto: string; x: number | null; origem: string; semXMotivo?: never }
+  | { papel: 'numero'; estado: 'medido' | 'zero_medido'; texto: string; x: number | null; origem: string; semXMotivo?: never; nota?: string }
   | { papel: 'numero'; estado: 'medido'; texto: string; x?: never; origem: string; semXMotivo: string }
   | { papel: 'numero'; estado: 'nao_medido'; motivo: string; origem: string; causa?: 'diminuiu' }
   // decisão 75: as mesmas palavras da pastilha da tela. `falhou` = a leitura ou a conferência de permissão falhou; `restrito` = acesso negado com certeza.
