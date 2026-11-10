@@ -430,7 +430,8 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
   }
   const ks = (rs: Resp[]): number[] => rs.map((r) => Number(r.params.linhas))
 
-  it.each([[34, [34]], [60, [60]], [75, [69, 6]], [200, [69, 68, 63]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
+  // A7c1: o resumo do todo (~2.200 caracteres) fica no topo de toda janela; k cai 1 a 3 linhas (75: 69 -> 68; 200: 69,68,63 -> 68,66,64,2). A7c1 rodada 2: o resumo completo só na janela 1, nas outras uma linha que aponta para ele (200: 68,67,65; 75: 68,7).
+  it.each([[34, [34]], [60, [60]], [75, [68, 7]], [200, [68, 67, 65]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
     dobra('canais', modeloDe(n))
     const rs = await lerTudo({ acao: 'listar_canais' })
     expect(ks(rs)).toEqual(esperado)
@@ -495,7 +496,7 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
       expect(nome, l.slice(0, 80)).toBeDefined()
       for (const a of antes) expect(l.includes(a) && !daJanela.has(a) && !l.includes([...daJanela].find((x) => l.includes(x))!)).toBe(false)
     }
-    expect(k).toBe(68)
+    expect(k).toBe(67)
   }, 60_000)
 
   it('(c) linha de apoio sem dona: só na janela 1 e contada em sem_dona', async () => {
@@ -600,6 +601,25 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     expect(Number(w1.params.sem_dona)).toBeGreaterThanOrEqual(2)
   }, 60_000)
 
+  it('A7c1: a janela 1 de 200 canais leva o resumo calculado sobre os 200 (soma de cada coluna = 200); as outras levam uma linha que aponta para ele, com a marca', async () => {
+    dobra('canais', modeloDe(200))
+    const rs = await lerTudo({ acao: 'listar_canais' })
+    expect(rs.length).toBeGreaterThan(1)
+    const blocoDe = (t: string): string => { const i = t.indexOf('## Resumo do todo'); return i < 0 ? '' : t.slice(i, t.indexOf('\n\n', i)) }
+    const primeiro = blocoDe(rs[0]!.texto)
+    expect(primeiro).toContain('calculado sobre as 200 linhas do pacote')
+    for (const r of rs.slice(1)) {
+      const b = blocoDe(r.texto)
+      expect(b.startsWith('## Resumo do todo: o da janela 1 (mesma lista de 200 linhas, marca ')).toBe(true)
+      expect(b.split('\n').length).toBe(1)
+      expect(b).toMatch(/marca [0-9a-f]{8}\)$/)
+    }
+    const linhasDeContagem = primeiro.split('\n').filter((l) => /^\| .+ \| (\d+ \| ){5}\d+ \|$/.test(l))
+    expect(linhasDeContagem.length).toBeGreaterThan(3)
+    for (const l of linhasDeContagem) expect(l.split('|').slice(2, -1).map(Number).reduce((a, b) => a + b, 0), l).toBe(200)
+    for (const r of rs) expect(r.texto.length).toBeLessThanOrEqual(45_000 + 2_000)
+  }, 60_000)
+
   it('(m) notas e dicas não mexem em k: 60 canais com 300 dicas e 140 notas a mais dão o mesmo k; a Cobertura diz "0 de N"', async () => {
     const mod = modeloDe(200)
     const sem: PacoteModelo = { ...mod, tabelas: mod.tabelas.filter((t) => t.id !== 'canais-dicas' && t.id !== 'canais-notas') }
@@ -609,8 +629,8 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     const a = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     dobra('canais', com)
     const b = await responder({ acao: 'listar_canais' }, abrir, AGORA)
-    expect(a.params.linhas).toBe(69)
-    expect(b.params.linhas).toBe(69)
+    expect(a.params.linhas).toBe(68)
+    expect(b.params.linhas).toBe(68)
     expect(a.texto).not.toContain('### A dica de cada medida')
     expect(b.texto).not.toContain('### A dica de cada medida')
     expect(secaoDe(a.texto)).not.toContain('Notas e dicas')

@@ -358,6 +358,10 @@ describe('A7d T5: as instructions do servidor e a frase na descrição', () => {
     expect(INSTRUCOES).toContain('Cobertura')
     expect(INSTRUCOES).toContain('não são zero')
   })
+  it('(3) A7c1: o item do "Resumo do todo" está ligado, só enquanto o resumo existir no texto', () => {
+    expect(INSTRUCOES).toContain('Resumo do todo')
+    expect(instrucoesDe(new Set(['T5', 'T6', 'T9']))).not.toContain('Resumo do todo')
+  })
   it('(3) cada item só aparece com a fatia dele ligada, e a numeração é contígua', () => {
     expect(instrucoesDe(new Set(['T5'])).split('\n').filter((l) => /^\d+\. /.test(l)).map((l) => l.split('.')[0])).toEqual(['1', '2'])
     const tudo = instrucoesDe(new Set(todas))

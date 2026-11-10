@@ -72,6 +72,8 @@ export interface PacoteModelo {
   listasCompletas: boolean
   /** A7d: só quando a tela pagina (mostra menos do que o recorte tem); números do modelo, nunca extraídos de frase. */
   paginado?: { mostrados: number; total: number }
+  /** A7c1: o resumo do todo (contagens sobre todas as linhas, antes da janela), só no acesso pela IA; vira um segmento da parte 1 sem corte. Ausente = não sai. */
+  resumoDoTodo?: string
 }
 
 export interface ContextoDoPacote {

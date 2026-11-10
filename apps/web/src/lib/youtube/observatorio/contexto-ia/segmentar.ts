@@ -254,6 +254,8 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
     F.dadoMaisRecente(c.recente === null ? null : naCelula(c.recente)),
     F.versaoDoFormato(CONTEXTO_IA_RULES.versaoDoFormato),
   ])))
+  // 1b. o resumo do todo (A7c1): só no acesso pela IA, sem corte, medido junto com o resto
+  if (m.resumoDoTodo) segmentos.push(seg(1, bloco(m.resumoDoTodo.split('\n'))))
 
   // 2. como ler
   segmentos.push(seg(2, bloco([F.COMO_LER_TITULO, ...F.COMO_LER_LINHAS])))
@@ -263,8 +265,10 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
 
   // 4. os números
   segmentos.push(seg(4, F.NUMEROS_TITULO))
-  if (m.tabelas.length === 0) segmentos.push(seg(4, bloco([F.nenhumaTabela(m.vazio === null ? F.A_TELA_NAO_INFORMA_O_MOTIVO : motivoDe(m.vazio))])))
-  for (const t of m.tabelas) segmentos.push(...segmentosDaTabela(t, m.citados))
+  // lista sem nenhuma linha não aparece (A7c1: o empacotador a manda para o resumo contar "Sem linha"; o texto da tela não muda)
+  const aparecem = m.tabelas.filter((t) => !(t.tipo === 'lista' && t.linhas.length === 0))
+  if (aparecem.length === 0) segmentos.push(seg(4, bloco([F.nenhumaTabela(m.vazio === null ? F.A_TELA_NAO_INFORMA_O_MOTIVO : motivoDe(m.vazio))])))
+  for (const t of aparecem) segmentos.push(...segmentosDaTabela(t, m.citados))
   let ordem = 0
   for (const b of m.citados) if (!b.linha) segmentos.push(blocoCitado(b, { classe: 'bloco_sem_linha', ordem: (ordem += 1) }))
   if (m.privado.estado === 'excluido') segmentos.push(seg(4, bloco([textoDoPrivadoExcluido(m.privado)])))
@@ -292,7 +296,7 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
     geradoEm: hora.iso,
     janela: naCelula(m.janela),
     segmentos,
-    tabelas: m.tabelas.map((t) => ({ id: t.id, titulo: naCelula(t.titulo), nomeNoCorte: t.nomeNoCorte, tipo: t.tipo })),
+    tabelas: aparecem.map((t) => ({ id: t.id, titulo: naCelula(t.titulo), nomeNoCorte: t.nomeNoCorte, tipo: t.tipo })),
     // `naoMedidos` soma falhou e restrito: o registro de acesso (contexto-ia-actions) segue com o mesmo nome e o mesmo schema
     numeros: { medidos: n.medidos, zerosMedidos: n.zerosMedidos, naoMedidos: n.naoMedidos + n.falhou + n.restrito, falhou: n.falhou, restrito: n.restrito, privadosMedidos: n.privadosMedidos },
     privado: m.privado,

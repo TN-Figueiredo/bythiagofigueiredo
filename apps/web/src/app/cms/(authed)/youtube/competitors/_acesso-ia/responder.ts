@@ -557,6 +557,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         modelo = lim.modelo
         const c = j.corte
         if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
+        if (j.resumoPassou) avisar('resumo_passou', { total: totalAntes })
         inicioDaJanela = pedido.inicio
         marcaMudou = pedido.marca !== undefined && pedido.marca.slice(0, 8) !== j.marca
         semDona = j.semDona
