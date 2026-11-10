@@ -624,6 +624,7 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
 const FEITAS: Readonly<Record<string, string>> = {
   'e18p2-cob-d14': '2026-11-07',
   'e18p2-d0': '2026-11-07',
+  'e18p2-d1': '2026-11-10', // 08/11: compactacao.feita 1 = canais, compactadas 34 (36 vídeos), K2 0, confirmadas 107 = 07/11
   'e20-segundo-cron': '2026-10-14',
   'e1e2-d1': '2026-10-14',
   'e6-p2-primeira-execucao': '2026-10-14',
