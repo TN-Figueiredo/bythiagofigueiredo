@@ -351,9 +351,10 @@ describe('A7d T5: as instructions do servidor e a frase na descrição', () => {
     expect(INSTRUCOES).toBeTypeOf('string')
     expect(instrucoesDe(new Set(todas)).length).toBeLessThanOrEqual(1_200)
   })
-  it('(3) todo nome de campo citado pelos itens ligados existe no esquema; a lista da T5 não cita a_partir_da_linha', () => {
+  it('(3) todo nome de campo citado pelos itens ligados existe no esquema; a_partir_da_linha entra com a fatia T9 (A7b)', () => {
     for (const nome of snake(INSTRUCOES)) expect(nome === NOME_DA_FERRAMENTA || campos.has(nome), nome).toBe(true)
-    expect(INSTRUCOES).not.toContain('a_partir_da_linha')
+    expect(instrucoesDe(new Set(['T5', 'T6']))).not.toContain('a_partir_da_linha')
+    expect(INSTRUCOES).toContain('a_partir_da_linha')
     expect(INSTRUCOES).toContain('Cobertura')
     expect(INSTRUCOES).toContain('não são zero')
   })

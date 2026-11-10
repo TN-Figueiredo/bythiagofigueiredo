@@ -31,7 +31,7 @@ export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeIn
   { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: ele foi calculado sobre todas as linhas, não só as que vieram.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
-const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6'])
+const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9'])
 
 export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
   const itens = ITENS_DE_INSTRUCAO.filter((i) => ligadas.has(i.fatia))

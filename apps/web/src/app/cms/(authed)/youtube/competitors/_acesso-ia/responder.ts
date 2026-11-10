@@ -18,7 +18,7 @@ import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
-import { classeDa, degrausDoLimite, escolherCorte } from './corte-da-ia'
+import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -148,6 +148,13 @@ function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>
 
 /* ------------------------------------------------------------------ limites próprios */
 
+/** A7b: a linha da Cobertura para as tabelas de texto que ficam fora de toda janela de lista. */
+const TEXTO_FORA = {
+  canais: { rotulo: 'Notas e dicas', comoVer: 'para um canal, peça canal com o Id' },
+  outliers: { rotulo: 'Avisos de cada outlier', comoVer: 'o detalhe aparece na tela Destaques' },
+  mudancas: { rotulo: 'Notas, títulos, imagens e descrições das trocas', comoVer: 'o detalhe aparece na tela Mudanças' },
+} as const
+
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
 
 /** `serie`: o que o recorte da série fez, para a Cobertura (números do próprio recorte). `convertida`: passou ao grão semana por tamanho. */
@@ -160,13 +167,14 @@ export { degrausDoLimite }
  * Linhas de tabela do tipo `lista`: as `n` primeiras (limite da ação), na ordem da tela. Transitório até a T9 (janelas): o corte por tamanho agora é do
  * `escolherCorte`, que fixa a principal. A principal é a tabela de classe `principal` (`classeDa`), não "a 1ª lista". O bloco citado de linha cortada sai junto.
  */
-function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes): { modelo: PacoteModelo; totais: Map<string, number>; avisoDaPrincipal: string | null } {
+function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes, soClasses?: ReadonlySet<ClasseNaIa>): { modelo: PacoteModelo; totais: Map<string, number>; avisoDaPrincipal: string | null } {
   const avisos = [...m.avisos]
   const cortadas = new Map<string, number>()
   const totais = new Map<string, number>()
   let avisoDaPrincipal: string | null = null
   const tabelas = m.tabelas.map((t): Tabela => {
     if (t.tipo !== 'lista' || t.linhas.length <= n) return t
+    if (soClasses && !soClasses.has(classeDa(m.tela, t))) return t // a janela cuida da principal, das colunas e do por-nome
     cortes.n += 1
     cortadas.set(t.id, n)
     totais.set(t.id, t.linhas.length)
@@ -363,28 +371,37 @@ function validas(candidatas: readonly Proxima[]): Proxima[] {
 }
 
 /** Os Ids das `n` primeiras linhas da lista principal, como o texto os mostra (coluna "Id"). */
-function idsDaPrincipal(m: PacoteModelo, n: number): string[] {
+function idsDaPrincipal(m: PacoteModelo, n: number, desde = 0): string[] {
   const t = m.tabelas.find((x) => classeDa(m.tela, x) === 'principal')
   const col = t?.colunas.indexOf('Id') ?? -1
   if (!t || col < 0) return []
-  return t.linhas.slice(0, n).flatMap((l) => { const c = l[col]; return c && c.papel !== 'numero' ? [c.texto.trim()] : [] })
+  return t.linhas.slice(desde, desde + n).flatMap((l) => { const c = l[col]; return c && c.papel !== 'numero' ? [c.texto.trim()] : [] })
 }
 
 /** Até 3 chamadas que aprofundam o que a resposta mostrou. Só com id que a própria resposta mostra (ou que a pessoa mandou); `definicoes`, `sugestoes` e `pacote_da_tela` não têm. */
-function proximasDe(e: Entrada, modelo: PacoteModelo | null, agora: number, vistas: number, serie: InfoSerie | undefined): Proxima[] {
+function proximasDe(e: Entrada, modelo: PacoteModelo | null, agora: number, vistas: number, serie: InfoSerie | undefined, inicio = 1, resto: { proximo: number; marca: string } | null = null): Proxima[] {
   const hoje = hojeSp(agora)
   const ate90 = { de: somaDias(hoje, -89), ate: hoje }
   const mesmos = (k: 'formato' | 'nicho'): Record<string, string> => { const v = (e as Record<string, unknown>)[k]; return typeof v === 'string' ? { [k]: v } : {} }
+  // A7b: a próxima janela da mesma lista vem primeiro, com os mesmos filtros
+  const janelaSeguinte: Proxima[] = resto === null ? [] : [{
+    chamada: { ...Object.fromEntries(Object.entries(e).filter(([k]) => k !== 'a_partir_da_linha' && k !== 'marca')), a_partir_da_linha: resto.proximo, marca: resto.marca },
+    para: `ver a próxima janela da lista, da linha ${resto.proximo} em diante`,
+  }]
+  return [...janelaSeguinte, ...proximasDaAcao(e, modelo, ate90, mesmos, vistas, serie, inicio)]
+}
+
+function proximasDaAcao(e: Entrada, modelo: PacoteModelo | null, ate90: { de: string; ate: string }, mesmos: (k: 'formato' | 'nicho') => Record<string, string>, vistas: number, serie: InfoSerie | undefined, inicio: number): Proxima[] {
   switch (e.acao) {
     case 'listar_canais': {
       if (!modelo) return []
-      const [a, b] = idsDaPrincipal(modelo, Math.min(2, vistas))
+      const [a, b] = idsDaPrincipal(modelo, Math.min(2, vistas), inicio - 1)
       if (!a) return []
       const doProprio = modelo.tabelas.some((t) => t.id === 'privado-canais')
-      const out: Proxima[] = [{ chamada: { acao: 'canal', canal_id: a }, para: 'ver o canal da linha 1 com todas as medidas' }]
+      const out: Proxima[] = [{ chamada: { acao: 'canal', canal_id: a }, para: `ver o canal da linha ${inicio} com todas as medidas` }]
       if (b || doProprio) {
         const ids = [...(doProprio ? ['proprio'] : []), a, ...(b ? [b] : [])]
-        if (ids.length >= 2) out.push({ chamada: { acao: 'comparar', canal_ids: ids }, para: doProprio ? 'comparar o seu canal com os das linhas 1 e 2' : 'comparar os canais das linhas 1 e 2' })
+        if (ids.length >= 2) out.push({ chamada: { acao: 'comparar', canal_ids: ids }, para: doProprio ? `comparar o seu canal com os das linhas ${inicio} e ${inicio + 1}` : `comparar os canais das linhas ${inicio} e ${inicio + 1}` })
       }
       return out
     }
@@ -512,30 +529,65 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     let lista: Cobertura['lista']
     let apoio: Cobertura['apoio'] = { inteiras: 0, total: 0, cortadas: [] }
     let vazio = montado.modelo.vazio !== null
+    let proxima: { proximo: number; marca: string } | null = null
+    let inicioDaJanela = 1
+    let marcaMudou = false
+    let semDona = 0
+    let janelaDeLista = false
+    let textoFora: Cobertura['textoFora']
     if (pedido.limite.tipo === 'linhas') {
-      // o corte por tamanho começa pelo que repete (notas, dicas) e só no último estágio chega à lista principal (E3, rede de segurança até a T9)
       const n = pedido.limite.n
       const principal = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')
       const totalAntes = principal?.linhas.length ?? 0
-      const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
-      modelo = lim.modelo
-      const c = escolherCorte(modelo, { geradoEm: agora, recente: montado.recente }, n, tetoDoTexto, lim.totais, lim.avisoDaPrincipal)
-      cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
-      if (c.principalCortada) {
-        cortes.n += 1
-        avisar('principal_cortada', { linhas: c.linhasDaPrincipal, total: totalAntes })
-      }
-      feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
-      doCorte = { linhas: c.linhasDaPrincipal, total: totalAntes }
-      numeros = c.texto.numerosNoTexto
-      rotulos = c.texto.cortes.map((x) => x.rotulo)
-      if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
-      const cortadas = c.apoio.filter((x) => x.saiu < x.de)
-      apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
+      const ctx = { geradoEm: agora, recente: montado.recente }
       const nomeDaTela = TELAS_IA[montado.modelo.tela]?.nome ?? montado.modelo.tela
-      if (principal) lista = { titulo: principal.titulo, de: c.linhasDaPrincipal > 0 ? 1 : 0, ate: c.linhasDaPrincipal, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
-      else if (vazio) lista = { titulo: nomeDaTela, de: 0, ate: 0, total: 0 }
-      if (principal && totalAntes === 0) vazio = true // vazio nunca é completo, mesmo que o empacotador não tenha dito o motivo
+      if (principal && totalAntes > 0) {
+        // A7b: a janela da lista principal. O limite da ação (n) é o máximo de linhas POR JANELA; só o `geral` ainda é cortado em n linhas.
+        if (pedido.inicio > totalAntes) {
+          return resp('pedido_invalido', fraseDeRecusa(entrada.acao, `a_partir_da_linha: a lista tem ${totalAntes} linhas agora; use de 1 a ${totalAntes}`), { ...params, campos_invalidos: ['a_partir_da_linha'] })
+        }
+        janelaDeLista = true
+        const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes, new Set<ClasseNaIa>(['geral']))
+        const j = janela(lim.modelo, ctx, pedido.inicio, n, tetoDoTexto, lim.totais)
+        modelo = lim.modelo
+        const c = j.corte
+        if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
+        inicioDaJanela = pedido.inicio
+        marcaMudou = pedido.marca !== undefined && pedido.marca !== j.marca
+        semDona = j.semDona
+        if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca }
+        cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
+        feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
+        doCorte = { linhas: j.k, total: totalAntes }
+        numeros = c.texto.numerosNoTexto
+        // as tabelas de texto retiradas de propósito (notas, dicas) têm linha própria na Cobertura; aqui só o corte real
+        rotulos = c.texto.cortes.map((x) => x.rotulo).filter((r) => !r.startsWith('a tabela "'))
+        if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
+        const cortadas = c.apoio.filter((x) => x.saiu < x.de)
+        apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
+        if (j.textoFora.linhas > 0) textoFora = { ...TEXTO_FORA[montado.modelo.tela as keyof typeof TEXTO_FORA], linhas: j.textoFora.linhas }
+        lista = { titulo: principal.titulo, de: pedido.inicio, ate: pedido.inicio + j.k - 1, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+      } else {
+        // sem lista principal (ou vazia): o corte por estágios de antes; a frase do vazio ou o geral na janela única
+        const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
+        modelo = lim.modelo
+        const c = escolherCorte(modelo, ctx, n, tetoDoTexto, lim.totais, lim.avisoDaPrincipal)
+        cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
+        if (c.principalCortada) {
+          cortes.n += 1
+          avisar('principal_cortada', { linhas: c.linhasDaPrincipal, total: totalAntes })
+        }
+        feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
+        doCorte = { linhas: c.linhasDaPrincipal, total: totalAntes }
+        numeros = c.texto.numerosNoTexto
+        rotulos = c.texto.cortes.map((x) => x.rotulo)
+        if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
+        const cortadas = c.apoio.filter((x) => x.saiu < x.de)
+        apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
+        if (principal) lista = { titulo: principal.titulo, de: c.linhasDaPrincipal > 0 ? 1 : 0, ate: c.linhasDaPrincipal, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+        else if (vazio) lista = { titulo: nomeDaTela, de: 0, ate: 0, total: 0 }
+        if (principal && totalAntes === 0) vazio = true // vazio nunca é completo, mesmo que o empacotador não tenha dito o motivo
+      }
     } else {
       if (pedido.limite.tipo === 'pontos') {
         modelo = recortarSerie(modelo, pedido, agora, cortes)
@@ -553,14 +605,16 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       ...(lista ? { lista } : {}),
       ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
+      ...(textoFora ? { textoFora } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}),
       ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
       ...(vazio && pedido.limite.tipo === 'pontos' ? { serieAusente: true } : {}),
-      proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie),
+      proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie, inicioDaJanela, proxima),
     }
     if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
     return comCobertura(cabeEm(comTopo(texto, topo, primeira), tetoFinal), cob, {
       ...params, privado: modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
       ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
+      ...(janelaDeLista ? { a_partir_da_linha: inicioDaJanela, sem_dona: semDona, ...(pedido.marca !== undefined ? { marca_mudou: marcaMudou } : {}) } : {}),
     }, t0, incluiu)
   } catch {
     // sem a mensagem da exceção, sem o pedido, sem o pacote

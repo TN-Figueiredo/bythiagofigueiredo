@@ -163,23 +163,30 @@ describe('responder: o limite próprio de cada ação', () => {
     dobra('canais', lista('canais', n))
     const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     expect(linhasDe(r.texto, 'Item')).toBe(saem)
-    if (frase) expect(r.texto).toContain('há 201 canais; saíram 200')
-    else expect(r.texto).not.toMatch(/há \d+ canais; saíram/)
-    expect(r.params.cortes).toBe(frase ? 1 : 0)
+    // A7b: 200 é o máximo POR JANELA; o 201º vem pela próxima janela, não é cortado
+    if (frase) {
+      expect(r.texto).toContain('linhas 1–200 de 201')
+      expect(r.texto).toContain('"a_partir_da_linha":201')
+    } else expect(r.texto).toContain('linhas 1–200 de 200')
+    expect(r.texto).not.toMatch(/há \d+ canais; saíram/)
+    expect(r.params.cortes).toBe(0)
+    expect(r.params.total).toBe(n)
   })
   it.each([[51, 50, true], [50, 50, false]])('destaques com %i vídeos: saem %i', async (n, saem, frase) => {
     dobra('outliers', lista('outliers', n, 'outliers'))
     const r = await responder({ acao: 'destaques' }, abrir, AGORA)
     expect(linhasDe(r.texto, 'Item')).toBe(saem)
-    if (frase) expect(r.texto).toContain('há 51 vídeos; saíram 50')
-    else expect(r.texto).not.toMatch(/saíram/)
+    if (frase) expect(r.texto).toContain('linhas 1–50 de 51')
+    expect(r.texto).not.toMatch(/saíram/)
+    expect(r.params.total).toBe(n)
   })
   it.each([[101, 100, true], [100, 100, false]])('mudancas com %i: saem %i', async (n, saem, frase) => {
     dobra('mudancas', lista('trocas', n, 'mudancas'))
     const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
     expect(linhasDe(r.texto, 'Item')).toBe(saem)
-    if (frase) expect(r.texto).toContain('há 101 mudanças; saíram 100')
-    else expect(r.texto).not.toMatch(/saíram/)
+    if (frase) expect(r.texto).toContain('linhas 1–100 de 101')
+    expect(r.texto).not.toMatch(/saíram/)
+    expect(r.params.total).toBe(n)
   })
   it('o corte por tamanho cai abaixo do limite da ação: o aviso diz quantas linhas o texto levou, e o texto leva essas (I-1)', async () => {
     const t: Tabela = {
@@ -188,21 +195,24 @@ describe('responder: o limite próprio de cada ação', () => {
     }
     dobra('canais', { ...comTela(modeloCheio(), 'canais'), tabelas: [t] })
     const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
-    const k = Number(/há 300 canais; saíram (\d+), na ordem da tela/.exec(r.texto)?.[1])
+    // A7b: `k` exato (o maior que cabe); o resto vem pela próxima janela, a partir da linha k + 1
+    const k = Number(/linhas 1–(\d+) de 300/.exec(r.texto)?.[1])
     expect(k).toBeGreaterThan(25)
     expect(k).toBeLessThan(200)
-    expect(r.texto).toContain('o limite da ação é 200; o resto não coube no tamanho')
+    expect(r.texto).toContain(`"a_partir_da_linha":${k + 1}`)
+    expect(r.params.linhas).toBe(k)
     expect(linhasDe(r.texto, 'Item')).toBe(k)
     expect(r.texto.length).toBeLessThanOrEqual(ACESSO_IA_RULES.tetoPorAcao)
   })
-  it('bloco citado ligado a linha cortada sai junto (o pacote continua válido)', async () => {
+  it('bloco citado ligado a uma linha da principal é texto: fora da janela, com o aviso (o pacote continua válido)', async () => {
     const modelo = lista('trocas', 105, 'mudancas')
     modelo.citados = [1, 100, 101, 105].map((p) => ({ rotulo: `bloco ${p}`, texto: `texto ${p}`, origem: `p.c[${p}]`, linha: { tabela: 'trocas', posicao: p } }))
     dobra('mudancas', modelo)
     const r = await responder({ acao: 'mudancas' }, abrir, AGORA)
     expect(r.desfecho).toBe('ok')
-    expect(r.texto).toContain('texto 100')
+    expect(r.texto).not.toContain('texto 100')
     expect(r.texto).not.toContain('texto 101')
+    expect(r.texto).toContain('descrições de 2 mudanças não couberam')
   })
 })
 
@@ -772,7 +782,8 @@ describe('A7d T4: números, tamanho e registro', () => {
     const r2 = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     expect(r2.params.cortes).toBeGreaterThan(0)
     expect(secaoDe(r2.texto)).toContain('0 falharam')
-    expect(secaoDe(r2.texto)).toContain('"A dica de cada medida"')
+    // as dicas ficam fora de toda janela de lista; a Cobertura diz quantas linhas elas têm (sem dona na principal, todas vêm contadas na janela 1)
+    expect(secaoDe(r2.texto)).toContain('Notas e dicas: 0 de 300 linhas')
   })
   it('(5) o pior caso fica no teto; completa, ms e fora_do_pacote gravados; ms vem do relógio', async () => {
     vi.useFakeTimers()
