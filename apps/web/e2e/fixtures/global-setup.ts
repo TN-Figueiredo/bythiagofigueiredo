@@ -9,6 +9,8 @@ export const E2E_PASSWORDS = {
   admin:    process.env.E2E_ADMIN_PASSWORD    ?? 'E2e@Admin2026!',
   editor:   process.env.E2E_EDITOR_PASSWORD   ?? 'E2e@Editor2026!',
   reporter: process.env.E2E_REPORTER_PASSWORD ?? 'E2e@Reporter2026!',
+  /** A2: `reporter` COM a concessão do desempenho privado (site_private_viewers). A `e2e-reporter` segue sem concessão. */
+  leitora:  process.env.E2E_LEITORA_PASSWORD  ?? 'E2e@Leitora2026!',
 } as const
 
 async function waitForSupabase(url: string, serviceKey: string, maxAttempts = 20): Promise<void> {
@@ -38,13 +40,14 @@ async function createTestUsers(): Promise<void> {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   const supabase = createClient(supabaseUrl, serviceKey)
 
-  const { data: existing } = await supabase.auth.admin.listUsers()
+  const { data: existing } = await supabase.auth.admin.listUsers({ perPage: 1000 })
   const existingEmails = new Set(existing?.users.map(u => u.email) ?? [])
 
   const users = [
     { email: 'e2e-admin@test.local',    password: E2E_PASSWORDS.admin },
     { email: 'e2e-editor@test.local',   password: E2E_PASSWORDS.editor },
     { email: 'e2e-reporter@test.local', password: E2E_PASSWORDS.reporter },
+    { email: 'e2e-leitora@test.local',  password: E2E_PASSWORDS.leitora },
     { email: 'e2e-invite@test.local',   password: 'E2e@Invite2026!' },
   ]
 
@@ -59,7 +62,7 @@ async function createTestUsers(): Promise<void> {
     }
   }
 
-  const { data: allUsers } = await supabase.auth.admin.listUsers()
+  const { data: allUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 })
   const userMap = new Map(allUsers?.users.map(u => [u.email, u.id]) ?? [])
 
   const { data: masterOrg, error: orgError } = await supabase
@@ -79,9 +82,10 @@ async function createTestUsers(): Promise<void> {
   const adminId    = userMap.get('e2e-admin@test.local')
   const editorId   = userMap.get('e2e-editor@test.local')
   const reporterId = userMap.get('e2e-reporter@test.local')
+  const leitoraId  = userMap.get('e2e-leitora@test.local')
 
-  if (!adminId || !editorId || !reporterId) {
-    throw new Error(`Test users not found in DB after creation — admin:${adminId} editor:${editorId} reporter:${reporterId}`)
+  if (!adminId || !editorId || !reporterId || !leitoraId) {
+    throw new Error(`Test users not found in DB after creation — admin:${adminId} editor:${editorId} reporter:${reporterId} leitora:${leitoraId}`)
   }
 
   const { error: adminErr } = await supabase.from('organization_members').upsert(
@@ -101,6 +105,20 @@ async function createTestUsers(): Promise<void> {
     { onConflict: 'site_id,user_id' },
   )
   if (reporterErr) throw new Error(`Failed to assign reporter role: ${reporterErr.message}`)
+
+  // A2: a leitora é `reporter` + concessão ativa; a e2e-reporter NÃO tem concessão (proprio-a4-seguranca.spec.ts depende disso).
+  const { error: leitoraErr } = await supabase.from('site_memberships').upsert(
+    { site_id: site.id, user_id: leitoraId, role: 'reporter' },
+    { onConflict: 'site_id,user_id' },
+  )
+  if (leitoraErr) throw new Error(`Failed to assign leitora role: ${leitoraErr.message}`)
+  const { error: grantErr } = await supabase.from('site_private_viewers').upsert(
+    { site_id: site.id, user_id: leitoraId, granted_by: adminId, revoked_at: null, revoked_by: null },
+    { onConflict: 'site_id,user_id' },
+  )
+  if (grantErr) throw new Error(`Failed to grant private viewer to leitora: ${grantErr.message}`)
+  const { error: semErr } = await supabase.from('site_private_viewers').delete().eq('site_id', site.id).eq('user_id', reporterId)
+  if (semErr) throw new Error(`Failed to keep e2e-reporter without grant: ${semErr.message}`)
 }
 
 export default async function globalSetup(_config: FullConfig): Promise<void> {

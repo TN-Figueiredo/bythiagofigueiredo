@@ -46,6 +46,11 @@ setup('authenticate as reporter', async ({ page }) => {
   await page.context().storageState({ path: path.join(AUTH_DIR, 'reporter.json') })
 })
 
+setup('authenticate as leitora', async ({ page }) => {
+  await loginAs(page, 'cms', 'e2e-leitora@test.local', E2E_PASSWORDS.leitora)
+  await page.context().storageState({ path: path.join(AUTH_DIR, 'leitora.json') })
+})
+
 setup('save public state', async ({ page }) => {
   await page.goto('/')
   await page.context().storageState({ path: path.join(AUTH_DIR, 'public.json') })
