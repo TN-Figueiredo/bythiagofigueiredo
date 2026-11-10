@@ -104,16 +104,8 @@ export const foraComentariosNaoCarregou = '- Texto de comentários: a tela não 
 export const foraComentariosIncluido = (n: number) => `- Texto de comentários: incluído, sem o nome de quem escreveu (${milhar(n)}).` // do mockup
 export const foraComentariosExcluido = (n: number) => `- Texto de comentários: NÃO incluído. Há ${milhar(n)} comentários que não foram incluídos.` // do mockup
 export const FORA_CHAVES = '- Chaves, senhas e links de acesso ao site: nunca entram.' // do mockup
-// A7a: no modo `ia` a 2ª linha de "Por tamanho" não promete o arquivo .md (a IA não o tem) nem seção que ainda não existe.
-/** A 2ª linha de "Por tamanho" no modo `ia`: Canais tem ação por item (canal/video); Destaques e Mudanças não têm id de item, só a tela. */
-export function fraseForaFatia1(tela: string): string {
-  const base = '  O que não saiu aqui foi cortado por tamanho;'
-  if (tela === 'canais') return `${base} peça a ação canal (ou video) com o id para ver um item inteiro.`
-  if (tela === 'outliers') return `${base} o detalhe aparece na tela Destaques.`
-  if (tela === 'mudancas') return `${base} o detalhe aparece na tela Mudanças.`
-  return '  O que não saiu aqui foi cortado por tamanho.'
-}
-export const RESTO_NA_COBERTURA = '  O que não saiu aqui está na seção "Cobertura", no fim, com a chamada que traz o resto.'
+// A7d: no modo `ia` a 2ª linha de "Por tamanho" não promete o arquivo .md (a IA não o tem): manda para a seção "Cobertura", que toda resposta traz no fim.
+export const RESTO_NA_COBERTURA = '  O que não saiu aqui está contado na seção "Cobertura", no fim.'
 export const ESTRUTURADO_TITULO = '## 8. Bloco estruturado' // do mockup
 export const PERGUNTA_TITULO = '## 9. Minha pergunta' // do mockup
 export const PERGUNTA_ROTULO = 'Minha pergunta:' // do mockup
@@ -161,7 +153,7 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'aviso-regra-youtube', origem: 'novo', parte: 'segmentar', fragmentos: [AVISO_REGRA_NOVA_DO_YOUTUBE] },
   { id: 'aviso-horarios', origem: 'novo', parte: 'segmentar', fragmentos: [AVISO_HORARIOS] },
   { id: 'fora', origem: 'mockup', parte: 'montagem', fragmentos: [FORA_TITULO, '- Por tamanho: nada. O pacote tem ', ' de ', ' caracteres.', '- Por tamanho: cortei ', ' caracteres: ', '. Definições e avisos não saem.', COMPLETO_LEVA_TUDO, '  O arquivo completo (.md) leva ', ' caracteres não saem de jeito nenhum.'] },
-  { id: 'fora-ia', origem: 'novo', parte: 'montagem', fragmentos: [fraseForaFatia1('canais'), fraseForaFatia1('outliers'), fraseForaFatia1('mudancas')] },
+  { id: 'fora-ia', origem: 'novo', parte: 'montagem', fragmentos: [RESTO_NA_COBERTURA] },
   { id: 'fora-privado', origem: 'mockup', parte: 'montagem', fragmentos: [foraPrivadoNa, '- Dado privado do canal: incluído (', '- Dado privado do canal: NÃO incluído (', '). Sem o direito.'] },
   { id: 'fora-privado-novos', origem: 'novo', parte: 'montagem', fragmentos: ['). Não foi possível conferir o direito agora.', '). A leitura falhou agora.'] },
   { id: 'fora-comentarios', origem: 'mockup', parte: 'montagem', fragmentos: [foraComentariosNa, '- Texto de comentários: incluído, sem o nome de quem escreveu (', '- Texto de comentários: NÃO incluído. Há ', ' comentários que não foram incluídos.'] },

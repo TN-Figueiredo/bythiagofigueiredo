@@ -9,6 +9,7 @@
 import { CONTEXTO_IA_RULES } from './regras'
 import * as F from './frases'
 import type { PacoteSerializado, Segmento } from './segmentar'
+import type { Celula } from './tipos'
 import { formatarJson, naCelula, noJson } from './terceiros'
 
 export interface TextoMontado {
@@ -194,25 +195,41 @@ interface Plano {
   numerosNoTexto: PacoteSerializado['numeros']
 }
 
-/** Recontagem dos números sobre os segmentos que ficaram, lida do bloco estruturado de cada segmento (o estado de cada célula numérica). */
+/**
+ * Recontagem dos números sobre os segmentos que ficaram, lida do bloco estruturado de cada segmento (o estado de cada célula numérica).
+ * Switch fechado (M3 do Yannis): um estado novo no tipo `Celula` não compila aqui, e um estado desconhecido no JSON lança (não some da conta).
+ * A marca de dado privado vale por tabela (o id da tabela do segmento), lida do título que abre a tabela; não vaza para o que vem depois.
+ */
+type EstadoNumerico = Extract<Celula, { papel: 'numero' }>['estado']
+const ESTADOS_NUMERICOS: ReadonlySet<string> = new Set<EstadoNumerico>(['medido', 'zero_medido', 'nao_medido', 'falhou', 'restrito'])
 function contarNoTexto(mantidos: readonly Segmento[]): PacoteSerializado['numeros'] {
   const n = { medidos: 0, zerosMedidos: 0, naoMedidos: 0, falhou: 0, restrito: 0, privadosMedidos: 0 }
-  let privada = false
-  const contar = (v: unknown): void => {
-    const estado = typeof v === 'object' && v !== null ? (v as { estado?: unknown }).estado : undefined
-    if (estado === 'medido') { n.medidos += 1; if (privada) n.privadosMedidos += 1 }
-    else if (estado === 'zero_medido') { n.zerosMedidos += 1; if (privada) n.privadosMedidos += 1 }
-    else if (estado === 'nao_medido') n.naoMedidos += 1
-    else if (estado === 'falhou') n.falhou += 1
-    else if (estado === 'restrito') n.restrito += 1
+  const privadaDa = new Map<string, boolean>()
+  let pendente: boolean | null = null
+  const contar = (v: unknown, privada: boolean): void => {
+    if (typeof v !== 'object' || v === null || !('estado' in v)) return
+    const estado = (v as { estado: unknown }).estado
+    if (typeof estado !== 'string' || !ESTADOS_NUMERICOS.has(estado)) throw new Error('contarNoTexto: estado de célula desconhecido')
+    const e = estado as EstadoNumerico
+    switch (e) {
+      case 'medido': n.medidos += 1; if (privada) n.privadosMedidos += 1; break
+      case 'zero_medido': n.zerosMedidos += 1; if (privada) n.privadosMedidos += 1; break
+      case 'nao_medido': n.naoMedidos += 1; break
+      case 'falhou': n.falhou += 1; break
+      case 'restrito': n.restrito += 1; break
+      default: { const nunca: never = e; throw new Error(`contarNoTexto: ${String(nunca)}`) }
+    }
   }
   for (const s of mantidos) {
-    if (s.texto.startsWith('### ')) privada = (s.texto.split('\n')[0] ?? '').endsWith(F.MARCA_PRIVADO)
-    const valores = s.linhaDoJson?.valores
-    if (!valores) continue
+    if (s.texto.startsWith('### ')) pendente = (s.texto.split('\n')[0] ?? '').endsWith(F.MARCA_PRIVADO)
+    const j = s.linhaDoJson
+    if (!j) continue
+    if (!privadaDa.has(j.tabela) && pendente !== null) { privadaDa.set(j.tabela, pendente); pendente = null }
+    const privada = privadaDa.get(j.tabela) ?? false
+    const valores = j.valores
     if (s.corte?.classe === 'dia_a_dia' && Array.isArray(valores.linhas)) {
-      for (const linha of valores.linhas as unknown[]) if (typeof linha === 'object' && linha !== null) Object.values(linha).forEach(contar)
-    } else Object.values(valores).forEach(contar)
+      for (const linha of valores.linhas as unknown[]) if (typeof linha === 'object' && linha !== null) Object.values(linha).forEach((v) => contar(v, privada))
+    } else Object.values(valores).forEach((v) => contar(v, privada))
   }
   return { ...n, naoMedidos: n.naoMedidos + n.falhou + n.restrito }
 }
@@ -321,7 +338,7 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
   // Com tabelas já tiradas pelo chamador (modo ia), o plano 0 não é "nada": ele diz o que saiu antes, e o total sem corte soma o que saiu.
   const semNada = ia && antes.length > 0
   if (semNada) total += somaAntes
-  const linhas0 = semNada ? linhasDeTamanho([...antes], somaAntes, { caracteres: 0, naoSaem: 0 }, null, F.fraseForaFatia1(p.tela)) : [F.porTamanhoNada(total, limite)]
+  const linhas0 = semNada ? linhasDeTamanho([...antes], somaAntes, { caracteres: 0, naoSaem: 0 }, null, F.RESTO_NA_COBERTURA) : [F.porTamanhoNada(total, limite)]
   const caracteres0 = semNada ? inteiro.semParte7 + parte7(p, linhas0).length : total
   const planos: Plano[] = [{
     passo: passos[0]!, mantidos: inteiro.mantidos, linhasDeTamanho: linhas0, caracteres: caracteres0, totalSemCorte: total, cortes: semNada ? [...antes] : [],
@@ -331,7 +348,7 @@ function candidatos(p: PacoteSerializado, perguntaBruta: string, limite: number,
     const completo = ia || limite === CONTEXTO_IA_RULES.limiteCompleto ? null : escolhida(candidatos(p, perguntaBruta, CONTEXTO_IA_RULES.limiteCompleto, 'um_por_vez', CONTEXTO_IA_RULES.degrausDeLinhas))
     const linhasPara = (piso: boolean) => (cortes: Array<{ rotulo: string; caracteres: number }>, liquido: number): string[] => {
       const marca = piso ? { total, limite } : null
-      if (ia) return linhasDeTamanho(cortes, liquido, { caracteres: 0, naoSaem: 0 }, marca, F.fraseForaFatia1(p.tela))
+      if (ia) return linhasDeTamanho(cortes, liquido, { caracteres: 0, naoSaem: 0 }, marca, F.RESTO_NA_COBERTURA)
       if (completo) return linhasDeTamanho(cortes, liquido, { caracteres: completo.caracteres, naoSaem: completo.cabe ? 0 : completo.totalSemCorte - completo.caracteres }, marca)
       // o próprio arquivo completo: o que ele leva é o que sobrou; o que não sai é o que ele cortou
       return linhasDeTamanho(cortes, liquido, { caracteres: total - liquido, naoSaem: liquido }, marca)

@@ -11,7 +11,7 @@ import { ehDoPerfil, type ChaveLida } from '@/lib/pipeline/chave'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { comContextoDoObservatorio } from '@/lib/pipeline/mcp/observatorio/contexto'
 import type { Responder } from '@/lib/pipeline/mcp/observatorio/executar'
-import { registrarServidorDoObservatorio } from '@/lib/pipeline/mcp/observatorio/servidor'
+import { INSTRUCOES, registrarServidorDoObservatorio } from '@/lib/pipeline/mcp/observatorio/servidor'
 import { abrirPorta } from '@/lib/youtube/observatorio/acesso-ia/porta'
 import { houveRecusaRecente, registrarRecusaDaPorta } from '@/lib/youtube/observatorio/acesso-ia/registrar'
 import { FRASES } from '@/lib/youtube/observatorio/acesso-ia/frases'
@@ -44,7 +44,7 @@ const handler = createMcpHandler(
 const responderDaRota: Responder = (e, c, agora) => responder(e, abridorDaChave(c.prova, c.acesso), agora)
 const handlerDoObservatorio = createMcpHandler(
   (server) => registrarServidorDoObservatorio(server, responderDaRota),
-  {},
+  { instructions: INSTRUCOES },
   { basePath: '/api', maxDuration: 60, verboseLogs: false },
 )
 

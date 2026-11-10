@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { segmentar, type PacoteSerializado } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { medidaConfere, medir, montarTexto, resumir } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
-import { milhar, fraseForaFatia1, ESTRUTURADO_TITULO, PERGUNTA_TITULO } from '@/lib/youtube/observatorio/contexto-ia/frases'
+import { milhar, RESTO_NA_COBERTURA, ESTRUTURADO_TITULO, PERGUNTA_TITULO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import {
   CONTEXTO, SENTINELA, modeloCheio, modeloComComentarios, modeloComZero, modeloEstresse, modeloEstresseMudancas, modeloEstresseVideo, modeloMagro,
@@ -526,32 +526,19 @@ describe('A7a T1: modo ia no montarTexto', () => {
     ['outliers', () => ({ ...modeloEstresse(), tela: 'outliers' as const })],
     ['mudancas', () => modeloEstresseMudancas()],
   ]
-  const EXATO = {
-    canais: '  O que não saiu aqui foi cortado por tamanho; peça a ação canal (ou video) com o id para ver um item inteiro.',
-    outliers: '  O que não saiu aqui foi cortado por tamanho; o detalhe aparece na tela Destaques.',
-    mudancas: '  O que não saiu aqui foi cortado por tamanho; o detalhe aparece na tela Mudanças.',
-  } as const
-
-  it.each(casos)('modo ia (%s): sem parte 8, sem parte 9 e sem a frase do .md; a frase certa da tela', (tela, fazer) => {
+  it.each(casos)('modo ia (%s): sem parte 8, sem parte 9 e sem a frase do .md; a frase manda para a Cobertura', (tela, fazer) => {
     const t = montarTexto(pac(fazer()), 'Qual cresce mais?', 5_000, 'todos', undefined, IA)
     expect(t.texto).not.toContain(ESTRUTURADO_TITULO)
     expect(t.texto).not.toContain(PERGUNTA_TITULO)
     expect(t.texto).not.toContain('arquivo completo (.md)')
     expect(t.texto).not.toContain('Qual cresce mais?')
-    expect(t.texto).not.toContain('Cobertura')
-    expect(fraseForaFatia1(tela)).toBe(EXATO[tela])
-    expect(t.texto).toContain(EXATO[tela])
+    expect(t.texto).toContain(RESTO_NA_COBERTURA)
+    expect(RESTO_NA_COBERTURA).toBe('  O que não saiu aqui está contado na seção "Cobertura", no fim.')
     expect(medidaConfere(t)).toBe(true)
     expect(t.caracteres).toBeLessThanOrEqual(5_000)
     expect(t.cortes.length).toBeGreaterThan(0)
     // o JSON não entra na conta do "cortei N": a soma dos cortes é o que o texto deixou de levar, contado sem o JSON
     expect(t.cortes.reduce((a, c) => a + c.caracteres, 0)).toBe(t.totalSemCorte - t.caracteres)
-  })
-
-  it('Destaques e Mudanças não citam ação nem id; Canais cita a ação canal', () => {
-    expect(fraseForaFatia1('outliers')).not.toMatch(/ação|\bid\b/i)
-    expect(fraseForaFatia1('mudancas')).not.toMatch(/ação|\bid\b/i)
-    expect(fraseForaFatia1('canais')).toContain('ação canal')
   })
 
   it('totalSemCorte e tirado não incluem o JSON: sem corte, o texto ia é o texto normal menos as partes 8 e 9', () => {
@@ -577,5 +564,24 @@ describe('A7a T1: modo ia no montarTexto', () => {
     expect(t.numerosNoTexto.medidos).toBeLessThan(p.numeros.medidos)
     const inteiro = montarTexto(p, '', L200, 'todos', undefined, IA)
     expect(inteiro.numerosNoTexto).toEqual(p.numeros)
+  })
+
+  // M3 do Yannis (A7d): a recontagem tem switch fechado e a marca de privado vale por tabela
+  it('M3: estado de célula desconhecido no bloco estruturado lança, em vez de sumir da conta', () => {
+    const p = pac(modeloCheio())
+    const seg = p.segmentos.find((x) => x.linhaDoJson && Object.values(x.linhaDoJson.valores).some((v) => typeof v === 'object' && v !== null && 'estado' in v))!
+    const chave = Object.keys(seg.linhaDoJson!.valores).find((k) => typeof seg.linhaDoJson!.valores[k] === 'object' && 'estado' in (seg.linhaDoJson!.valores[k] as object))!
+    seg.linhaDoJson!.valores[chave] = { estado: 'estado_novo', texto: '1' }
+    expect(() => montarTexto(p, '', L200, 'todos', undefined, IA)).toThrow(/estado de célula desconhecido/)
+  })
+  it('M3: a marca de privado não vaza da tabela privada para a tabela pública que vem depois', () => {
+    const priv = modeloPrivadoIncluido()
+    const publica = priv.tabelas.find((t) => !t.privada && t.tipo === 'lista')!
+    const m = { ...priv, tabelas: [...priv.tabelas.filter((t) => t.privada), publica] }
+    const p = pac(m)
+    const t = montarTexto(p, '', L200, 'todos', undefined, IA)
+    expect(t.numerosNoTexto.privadosMedidos).toBe(p.numeros.privadosMedidos)
+    expect(p.numeros.privadosMedidos).toBeGreaterThan(0)
+    expect(p.numeros.medidos + p.numeros.zerosMedidos).toBeGreaterThan(p.numeros.privadosMedidos)
   })
 })

@@ -33,6 +33,13 @@ describe('as formas novas', () => {
     expect(ruim).not.toHaveProperty('linhas')
     expect(ruim).not.toHaveProperty('total')
   })
+  it('A7d: completa é booleano; ms e fora_do_pacote são contadores; texto e negativo saem', async () => {
+    const ok = await inserido({ completa: false, ms: 123, fora_do_pacote: 28 })
+    expect(ok).toMatchObject({ completa: false, ms: 123, fora_do_pacote: 28 })
+    const ruim = await inserido({ completa: 'sim', ms: -4, fora_do_pacote: 'muitos' })
+    for (const k of ['completa', 'ms', 'fora_do_pacote']) expect(ruim).not.toHaveProperty(k)
+    for (const k of ['completa', 'ms', 'fora_do_pacote']) expect(CHAVES_COM_FORMA_DE_PARAMS).toContain(k)
+  })
   const inserido = async (params: Record<string, unknown>) => {
     const linhas: Array<Record<string, unknown>> = []
     const sb = { from: () => ({ insert: (l: Record<string, unknown>) => { linhas.push(l); return { abortSignal: async () => ({ error: null }) } } }) }

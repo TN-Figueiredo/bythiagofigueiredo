@@ -20,7 +20,8 @@ import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 import { comContextoDoObservatorio, contextoDoObservatorio, type ContextoDoObservatorio } from '@/lib/pipeline/mcp/observatorio/contexto'
 import { executarChamada, type Responder, type Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
-import { NOME_DA_FERRAMENTA, registrarServidorDoObservatorio } from '@/lib/pipeline/mcp/observatorio/servidor'
+import { NOME_DA_FERRAMENTA, registrarServidorDoObservatorio, INSTRUCOES, ITENS_DE_INSTRUCAO, instrucoesDe, DESCRICAO } from '@/lib/pipeline/mcp/observatorio/servidor'
+import { ENTRADA } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { createPipelineMcpServer } from '@/lib/pipeline/mcp'
 
 const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
@@ -336,5 +337,41 @@ describe('executarChamada: o prazo único, contado do início da requisição', 
     const m = /export const maxDuration = (\d+)/.exec(texto)
     expect(m).not.toBeNull()
     expect(Number(m![1]) * 1000).toBe(ACESSO_IA_RULES.tetoDaRequisicaoMs)
+  })
+})
+
+describe('A7d T5: as instructions do servidor e a frase na descrição', () => {
+  const campos = new Set<string>(ENTRADA.options.flatMap((o) => Object.keys(o.shape)))
+  const todas = new Set(ITENS_DE_INSTRUCAO.map((i) => i.fatia))
+  const snake = (t: string): string[] => t.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []
+
+  it('(3) com TODOS os itens ligados cabe em 1.200 caracteres', () => {
+    expect(INSTRUCOES).toBeTypeOf('string')
+    expect(instrucoesDe(new Set(todas)).length).toBeLessThanOrEqual(1_200)
+  })
+  it('(3) todo nome de campo citado pelos itens ligados existe no esquema; a lista da T5 não cita a_partir_da_linha', () => {
+    for (const nome of snake(INSTRUCOES)) expect(nome === NOME_DA_FERRAMENTA || campos.has(nome), nome).toBe(true)
+    expect(INSTRUCOES).not.toContain('a_partir_da_linha')
+    expect(INSTRUCOES).toContain('Cobertura')
+    expect(INSTRUCOES).toContain('não são zero')
+  })
+  it('(3) cada item só aparece com a fatia dele ligada, e a numeração é contígua', () => {
+    expect(instrucoesDe(new Set(['T5'])).split('\n').filter((l) => /^\d+\. /.test(l)).map((l) => l.split('.')[0])).toEqual(['1', '2'])
+    const tudo = instrucoesDe(new Set(todas))
+    expect(tudo).toContain('a_partir_da_linha')
+    expect(tudo.split('\n').filter((l) => /^\d+\. /.test(l)).map((l) => Number(l.split('.')[0]))).toEqual(ITENS_DE_INSTRUCAO.map((_, i) => i + 1))
+    // um item do meio desligado não deixa buraco: 1, 2, 3 e não 1, 3, 5
+    const sem = instrucoesDe(new Set(['T5', 'T9']))
+    expect(sem.split('\n').filter((l) => /^\d+\. /.test(l)).map((l) => Number(l.split('.')[0]))).toEqual([1, 2, 3])
+  })
+  it('(4) a descrição tem até 2.000 caracteres e leva a frase da Cobertura', () => {
+    expect(DESCRICAO).toBeTypeOf('string')
+    expect(DESCRICAO.length).toBeLessThanOrEqual(2_000)
+    expect(DESCRICAO).toContain('Toda resposta termina com "Cobertura" (quanto você viu e as próximas chamadas): diga a cobertura antes de recomendar e ofereça aprofundar.')
+  })
+  it('(4) a descrição que o cliente recebe em tools/list é essa', async () => {
+    const { client } = await conectar(respondeOk)
+    const lista = await client.listTools()
+    expect(lista.tools[0]!.description).toBe(DESCRICAO)
   })
 })

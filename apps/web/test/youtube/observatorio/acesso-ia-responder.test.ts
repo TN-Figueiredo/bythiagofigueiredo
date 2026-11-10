@@ -3,7 +3,7 @@
  * A5 · E17 degrau 2, Tarefa 10: `responder`, da ação ao texto. `EMPACOTAR` é simulado com `PacoteModelo` de fixture: o que se prova aqui é o que o
  * `responder` faz com o modelo (limite próprio, corte por tamanho, grão semana, "não encontrado", falha sem sentinela), não o dado das telas.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
   empacotar: {} as Record<string, ReturnType<typeof import('vitest')['vi']['fn']>>,
@@ -21,6 +21,7 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
+import { ENTRADA, traduzir } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { AGORA, SENTINELA, medido, modeloCheio, modeloComComentarios, modeloPrivadoExcluido, modeloPrivadoIncluido, modeloVazio, naoMedido, rotulo, terceiros, base } from './contexto-ia-fixture'
 
 const abrir = ABRIDOR_DE_SESSAO
@@ -90,7 +91,7 @@ describe('responder: o texto do pacote da tela certa', () => {
     expect(r.desfecho).toBe('ok')
     const teto = entrada.acao === 'pacote_da_tela' ? ACESSO_IA_RULES.tetoPacoteDaTela : ACESSO_IA_RULES.tetoPorAcao
     const ve = r.texto.includes('Não aplicado') || r.texto.includes('Janela usada')
-    if (!ve) expect(r.texto).toBe(esperado(modelo, teto))
+    if (!ve) expect(r.texto.startsWith(esperado(modelo, teto - 1_802))).toBe(true) // o resto é a Cobertura (teste (1) da T4)
     for (const t of TELAS) if (!telas.includes(t)) expect(m.empacotar[t]).not.toHaveBeenCalled()
     expect(m.empacotar[telas[0]!]).toHaveBeenCalledTimes(1)
   })
@@ -625,5 +626,263 @@ describe('responder: o rótulo dd/mm da série que os empacotadores emitem é li
     const datas = t.linhas.map((l) => diaDaLinha(l, AGORA))
     expect(datas.filter((d) => d === null)).toHaveLength(0)
     expect(datas[0]).toBe('2026-10-13')
+  })
+})
+
+/* ------------------------------------------------------------------ A7d T4: a Cobertura em toda resposta ok */
+
+const U1 = 'c0000001-0000-4000-8000-000000000001'
+const U2 = 'c0000002-0000-4000-8000-000000000002'
+const U3 = 'c0000003-0000-4000-8000-000000000003'
+const falhou = (origem: string): Celula => ({ papel: 'numero', estado: 'falhou', motivo: 'leitura falhou', origem })
+const secaoDe = (texto: string): string => texto.slice(texto.lastIndexOf('\n## Cobertura') + 1)
+const chamadasDe = (texto: string): Array<Record<string, unknown>> =>
+  secaoDe(texto).split('\n').filter((l) => l.startsWith('- {')).map((l) => JSON.parse(l.slice(2, l.lastIndexOf('} :') + 1)) as Record<string, unknown>)
+
+/** Canais com a coluna Id; `privado` põe a tabela do canal próprio. */
+function canaisComId(linhas = 3, privado = false): PacoteModelo {
+  const ids = [U1, U2, U3]
+  const tab = (id: string): Tabela => ({
+    id, titulo: 'Os canais acompanhados', tipo: 'lista', nomeNoCorte: 'tabela de canais', privada: id.startsWith('privado-'), colunas: ['Canal', 'Id', 'Inscritos'],
+    linhas: Array.from({ length: linhas }, (_, i) => [terceiros(`Canal ${i + 1}`, `p.c[${i}].n`), base(ids[i] ?? `c000${i}-0000-4000-8000-0000000000${String(i).padStart(2, '0')}`, `p.c[${i}].id`), medido(`${i + 1}`, i + 1, `p.c[${i}].v`)]),
+  })
+  return { ...comTela(modeloCheio(), 'canais'), tabelas: privado ? [tab('canais'), tab('privado-canais')] : [tab('canais')], ...(privado ? { privado: { estado: 'incluido' as const, itens: 'views por dia do canal' } } : {}) }
+}
+
+describe('A7d T4: toda resposta ok termina na Cobertura', () => {
+  const casos: Array<[string, Record<string, unknown>, TelaId[]]> = [
+    ['listar_canais', { acao: 'listar_canais' }, ['canais']],
+    ['canal', { acao: 'canal', canal_id: C1 }, ['canal']],
+    ['video', { acao: 'video', video_id: V1 }, ['video']],
+    ['destaques', { acao: 'destaques' }, ['outliers']],
+    ['mudancas', { acao: 'mudancas' }, ['mudancas']],
+    ['sugestoes', { acao: 'sugestoes' }, ['sugestoes']],
+    ['pacote_da_tela', { acao: 'pacote_da_tela', tela: 'insights' }, ['insights']],
+    ['serie', SERIE, ['canal']],
+    ['comparar', { acao: 'comparar', canal_ids: [C1, C2] }, ['comparar']],
+    ['definicoes', { acao: 'definicoes' }, ['canais', 'comparar', 'outliers', 'insights', 'mudancas']],
+  ]
+  it.each(casos)('(1) %s: a última seção é a Cobertura e fecha o texto', async (_n, entrada, telas) => {
+    for (const t of telas) dobra(t, t === 'canal' && entrada.acao === 'serie' ? modeloSerie(serie(10)) : comTela(modeloCheio(), t))
+    const r = await responder(entrada, abrir, AGORA)
+    expect(r.desfecho).toBe('ok')
+    const i = r.texto.lastIndexOf('\n## Cobertura')
+    expect(i).toBeGreaterThan(0)
+    const secao = r.texto.slice(i + 1)
+    expect(secao).not.toMatch(/\n## /)
+    expect(r.texto.endsWith(secao.split('\n').at(-1)!)).toBe(true)
+    expect(typeof r.params.completa).toBe('boolean')
+    expect(typeof r.params.ms).toBe('number')
+  })
+  it('(1) pedido_invalido, nao_encontrado e falhou NÃO têm a seção', async () => {
+    expect((await responder({ acao: 'apagar' }, abrir, AGORA)).texto).not.toContain('## Cobertura')
+    expect((await responder({ acao: 'canal', canal_id: C1 }, abrir, AGORA)).texto).not.toContain('## Cobertura')
+    m.empacotar.canais = vi.fn(async () => { throw new Error('x') })
+    const f = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(f.desfecho).toBe('falhou')
+    expect(f.texto).not.toContain('## Cobertura')
+  })
+  it('(7) pacote_da_tela, sugestoes e definicoes terminam na seção sem linha de lista', async () => {
+    dobra('insights', comTela(modeloCheio(), 'insights'))
+    dobra('sugestoes', comTela(modeloCheio(), 'sugestoes'))
+    for (const e of [{ acao: 'pacote_da_tela', tela: 'insights' }, { acao: 'sugestoes' }]) {
+      const r = await responder(e, abrir, AGORA)
+      expect(secaoDe(r.texto)).not.toContain('Lista principal')
+      expect(secaoDe(r.texto)).toContain('Números nesta resposta:')
+    }
+  })
+})
+
+describe('A7d T4: as próximas chamadas', () => {
+  it('(2) listar_canais aponta o Id das linhas 1 e 2, com o valor da fixture; sem canal próprio, comparar leva só os dois', async () => {
+    dobra('canais', canaisComId(3))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    const cs = chamadasDe(r.texto)
+    expect(cs).toContainEqual({ acao: 'canal', canal_id: U1 })
+    expect(cs).toContainEqual({ acao: 'comparar', canal_ids: [U1, U2] })
+    for (const id of [U1, U2]) expect(r.texto.split('\n').some((l) => l.startsWith('| ') && l.includes(id))).toBe(true)
+  })
+  it('(2) com o canal próprio na resposta, comparar começa por proprio; sem ele, `proprio` nunca sai', async () => {
+    dobra('canais', canaisComId(3, true))
+    expect(chamadasDe((await responder({ acao: 'listar_canais' }, abrir, AGORA)).texto)).toContainEqual({ acao: 'comparar', canal_ids: ['proprio', U1, U2] })
+    dobra('canais', canaisComId(3, false))
+    expect(JSON.stringify(chamadasDe((await responder({ acao: 'listar_canais' }, abrir, AGORA)).texto))).not.toContain('proprio')
+  })
+  it('(2) uma por ação: canal, video, destaques, mudancas, serie e comparar', async () => {
+    dobra('canal', comTela(modeloCheio(), 'canal'))
+    const hoje = '2026-10-13'
+    expect(chamadasDe((await responder({ acao: 'canal', canal_id: C1 }, abrir, AGORA)).texto)).toEqual([{ acao: 'serie', canal_id: C1, de: '2026-07-16', ate: hoje }])
+    dobra('video', comTela(modeloCheio(), 'video'))
+    expect(chamadasDe((await responder({ acao: 'video', video_id: V1 }, abrir, AGORA)).texto)).toEqual([{ acao: 'serie', video_id: V1, de: '2026-07-16', ate: hoje }])
+    dobra('outliers', comTela(modeloCheio(), 'outliers'))
+    expect(chamadasDe((await responder({ acao: 'destaques', janela: '30', formato: 'shorts' }, abrir, AGORA)).texto)).toEqual([{ acao: 'destaques', janela: 'todas', formato: 'shorts' }])
+    expect(chamadasDe((await responder({ acao: 'destaques', janela: 'todas' }, abrir, AGORA)).texto)).toEqual([])
+    dobra('mudancas', comTela(modeloCheio(), 'mudancas'))
+    expect(chamadasDe((await responder({ acao: 'mudancas', janela: '7' }, abrir, AGORA)).texto)).toEqual([{ acao: 'mudancas', janela: '90' }])
+    expect(chamadasDe((await responder({ acao: 'mudancas', janela: '90' }, abrir, AGORA)).texto)).toEqual([])
+    dobra('comparar', { ...grande(300_000), tela: 'comparar' })
+    expect(chamadasDe((await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)).texto)[0]).toEqual({ acao: 'comparar', canal_ids: [C1, C2] })
+  })
+  it('(2) serie que passou ao grão semana por tamanho oferece o grão dia dos últimos 400 dias', async () => {
+    dobra('canal', modeloSerie(serie(450)))
+    const r = await responder({ ...SERIE, grao: undefined }, abrir, AGORA)
+    expect(chamadasDe(r.texto)).toEqual([{ acao: 'serie', canal_id: C1, de: '2025-09-09', ate: '2026-10-13', grao: 'dia' }])
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).toContain('Você viu só uma parte')
+  })
+  it('(3) toda chamada sugerida passa por ENTRADA e traduzir; a que falha cai e avisa proxima_invalida', async () => {
+    dobra('canais', canaisComId(3, true))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(chamadasDe(r.texto).length).toBeGreaterThan(0)
+    for (const c of chamadasDe(r.texto)) {
+      const l = ENTRADA.safeParse(c)
+      expect(l.success).toBe(true)
+      if (l.success) expect(traduzir(l.data).ok).toBe(true)
+    }
+    const real = ENTRADA.safeParse.bind(ENTRADA)
+    let n = 0
+    const espiao = vi.spyOn(ENTRADA, 'safeParse').mockImplementation((v: unknown) => (n++ === 0 ? real(v) : ({ success: false } as never)))
+    m.captured.length = 0
+    const f = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    espiao.mockRestore()
+    expect(chamadasDe(f.texto)).toEqual([])
+    expect(f.texto).not.toContain('Próximas chamadas')
+    expect(JSON.stringify(m.captured)).toContain('proxima_invalida')
+  })
+})
+
+describe('A7d T4: números, tamanho e registro', () => {
+  afterEach(() => { vi.useRealTimers() })
+  it('(4) numerosNoTexto: falhou só nas linhas cortadas não conta; falhou numa tabela de texto cortada não conta', async () => {
+    const principal: Tabela = {
+      id: 'canais', titulo: 'Os canais acompanhados', tipo: 'lista', nomeNoCorte: 'tabela de canais', privada: false, colunas: ['Canal', 'Valor'],
+      linhas: Array.from({ length: 300 }, (_, i) => [terceiros(`C${i}`, `p.c[${i}].n`), i < 200 ? medido(`${i}`, i, `p.c[${i}].v`) : falhou(`p.c[${i}].v`)]),
+    }
+    dobra('canais', { ...comTela(modeloCheio(), 'canais'), tabelas: [principal] })
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(r.params.linhas).toBe(200)
+    expect(secaoDe(r.texto)).toContain('0 falharam')
+    expect(secaoDe(r.texto)).toContain('Você viu só uma parte')
+    const dicas: Tabela = {
+      id: 'canais-dicas', titulo: 'A dica de cada medida', tipo: 'lista', nomeNoCorte: 'tabela das dicas', privada: false, colunas: ['Canal', 'Dica'],
+      linhas: Array.from({ length: 300 }, (_, i) => [terceiros(`C${i}`, `p.d[${i}].n`), i < 290 ? medido(`${i}`, i, `p.d[${i}].v`) : falhou(`p.d[${i}].v`)]),
+    }
+    dobra('canais', { ...comTela(modeloCheio(), 'canais'), tabelas: [{ ...principal, linhas: principal.linhas.slice(0, 5) }, dicas] })
+    const r2 = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(r2.params.cortes).toBeGreaterThan(0)
+    expect(secaoDe(r2.texto)).toContain('0 falharam')
+    expect(secaoDe(r2.texto)).toContain('"A dica de cada medida"')
+  })
+  it('(5) o pior caso fica no teto; completa, ms e fora_do_pacote gravados; ms vem do relógio', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(AGORA)
+    ;(m.empacotar.canal as ReturnType<typeof vi.fn>).mockImplementation(async () => { vi.advanceTimersByTime(123); return pacote({ ...grande(500_000), tela: 'canal' }) })
+    const a = await responder({ acao: 'canal', canal_id: C1 }, abrir, AGORA)
+    expect(a.texto.length).toBeLessThanOrEqual(ACESSO_IA_RULES.tetoPorAcao)
+    expect(a.params.completa).toBe(false)
+    expect(a.params.ms).toBe(123)
+    expect(a.params).not.toHaveProperty('fora_do_pacote')
+    ;(m.empacotar.outliers as ReturnType<typeof vi.fn>).mockImplementation(async () => pacote({ ...comTela(modeloCheio(), 'outliers'), paginado: { mostrados: 12, total: 40 } }))
+    const b = await responder({ acao: 'destaques' }, abrir, AGORA)
+    expect(b.params.fora_do_pacote).toBe(28)
+  })
+  it('(7) Destaques com grupo paginado: completa falso e a linha vem do número do modelo, não da frase pageNote', async () => {
+    const nota = (frase: string): Tabela => ({ id: 'grupos-notas', titulo: 'Notas dos grupos', tipo: 'fixa', nomeNoCorte: 'tabela de notas', privada: false, colunas: ['Grupo', 'Nota'], linhas: [[rotulo('Grupo A', 'p.g.l'), base(frase, 'p.g.pageNote')]] })
+    const linhas: string[] = []
+    for (const frase of ['Mostrando 12 de 40 deste grupo.', 'Uma frase qualquer que não diz número nenhum.']) {
+      dobra('outliers', { ...comTela(modeloCheio(), 'outliers'), tabelas: [nota(frase)], paginado: { mostrados: 12, total: 40 } })
+      const r = await responder({ acao: 'destaques' }, abrir, AGORA)
+      expect(r.params.completa).toBe(false)
+      linhas.push(secaoDe(r.texto).split('\n').find((l) => l.includes('A tela mostra'))!)
+    }
+    expect(linhas[0]).toContain('A tela mostra 12 de 40 outliers')
+    expect(linhas[1]).toBe(linhas[0])
+  })
+})
+
+/* ------------------------------------------------------------------ A7 Fatia 2, conserto do parecer (I1, I2, M1, M2, M3, M7), sempre pelo responder */
+
+describe('A7d Fatia 2 conserto: I1, comparar com par não encontrado', () => {
+  it('I1: comparar [C1, C2, C3] com o 2º par ausente: completa falso, "Pares sem dado: 1 de 2" e a frase de parte', async () => {
+    ;(m.empacotar.comparar as ReturnType<typeof vi.fn>).mockImplementation(async ({ sp }: { sp: Record<string, string> }) => (sp.b === C3 ? null : pacote(comTela(modeloCheio(), 'comparar'))))
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2, C3] }, abrir, AGORA)
+    expect(r.desfecho).toBe('ok')
+    expect(r.params.completa).toBe(false)
+    const s = secaoDe(r.texto)
+    expect(s).toContain('Pares sem dado: 1 de 2')
+    expect(s).toContain('Você viu só uma parte')
+    expect(s).not.toContain('Você viu tudo')
+  })
+})
+
+describe('A7d Fatia 2 conserto: I2, o dado ausente e a linha de apoio', () => {
+  it('(a) listar_canais com site sem canais: 0 de 0, frase do vazio, sem próximas, completa falso', async () => {
+    dobra('canais', modeloVazio())
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    const s = secaoDe(r.texto)
+    expect(s).toContain('0 de 0 linhas')
+    expect(s).toContain('A lista está vazia neste recorte')
+    expect(s).not.toContain('Próximas chamadas')
+    expect(r.params.completa).toBe(false)
+  })
+  it('(b) serie de um canal sem tabela dia_a_dia: a frase da série que não veio e completa falso', async () => {
+    const cheio = comTela(modeloCheio(), 'canal')
+    dobra('canal', { ...cheio, tabelas: cheio.tabelas.filter((t) => t.tipo !== 'dia_a_dia') })
+    const r = await responder(SERIE, abrir, AGORA)
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).toContain('A série não veio neste recorte; ausência não é zero.')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+  })
+  it('(c) serie com grão semana pedido e 100 dias: 15 de 15 pontos, grão semana, completa verdadeiro', async () => {
+    dobra('canal', modeloSerie(serie(100, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('Série: 15 de 15 pontos')
+    expect(secaoDe(r.texto)).toContain('grão semana')
+    expect(r.params.completa).toBe(true)
+  })
+  it('(e) "Lida às" aparece com lista parcial (200 de 300) e não aparece com a lista inteira', async () => {
+    dobra('canais', lista('canais', 300))
+    const parcial = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(parcial.texto)).toContain('Lida às 14:32.')
+    dobra('canais', lista('canais', 34))
+    const inteira = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(inteira.texto)).not.toContain('Lida às')
+  })
+  it('(f) listar_canais com a tabela privada do canal próprio: a seção cita o dado privado', async () => {
+    dobra('canais', canaisComId(3, true))
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('seu canal está na parte do dado privado')
+    dobra('canais', canaisComId(3, false))
+    expect(secaoDe((await responder({ acao: 'listar_canais' }, abrir, AGORA)).texto)).not.toContain('dado privado')
+  })
+})
+
+describe('A7d Fatia 2 conserto: M1, M2, M3', () => {
+  it('M1: principal com 0 linhas e vazio nulo: lista 0 de 0, frase do vazio, completa falso', async () => {
+    const base0 = canaisComId(0)
+    expect(base0.vazio).toBeNull()
+    dobra('canais', base0)
+    const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('0 de 0 linhas')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+    expect(r.params.completa).toBe(false)
+  })
+  it('M2: série com 2 de 3 linhas sem data: completa falso e a seção diz quantas ficaram fora', async () => {
+    const t = serie(3)
+    t.linhas = t.linhas.map((l, i) => (i === 0 ? l : [rotulo('sem data', `p.s[${i}].dia`), l[1]!]))
+    dobra('canal', modeloSerie(t))
+    const r = await responder(SERIE, abrir, AGORA)
+    expect(r.params.completa).toBe(false)
+    expect(secaoDe(r.texto)).toContain('Série: 1 de 3 pontos')
+    expect(secaoDe(r.texto)).toContain('2 linhas sem data ficaram fora')
+    expect(secaoDe(r.texto)).not.toContain('Você viu tudo')
+  })
+  it('M3: comparar com o fim do texto cortado: "Números" avisa que a contagem é de antes do corte', async () => {
+    const modelo = { ...grande(500_000), tela: 'comparar' as TelaId, avisos: ['y'.repeat(70_000)] }
+    dobra('comparar', modelo)
+    const r = await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)
+    expect(secaoDe(r.texto)).toContain('(contados antes do corte do fim)')
+    dobra('comparar', comTela(modeloCheio(), 'comparar'))
+    expect(secaoDe((await responder({ acao: 'comparar', canal_ids: [C1, C2] }, abrir, AGORA)).texto)).not.toContain('contados antes do corte')
   })
 })

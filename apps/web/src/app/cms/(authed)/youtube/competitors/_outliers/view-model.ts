@@ -127,6 +127,8 @@ export interface OutliersView {
   problems: null | { shown: Array<{ name: string; phrase: string }>; tail: string; rest: Array<{ name: string; phrase: string }>; restLabel: string; hideLabel: string }
   groups: OutlierGroupView[]
   more: null | { href: string; label: string; note: string }
+  /** Números do modelo (A7d): vídeos que a tela mostra e os que o recorte tem. Nunca lidos da frase `pageNote`. */
+  paginado: { mostrados: number; total: number }
   empty: null | { title: string; text: string; actions: OutlierEmptyAction[] }
   /** "Link da leitura de 20/10: ela via N; hoje são M" */
   asofNote: string | null
@@ -636,7 +638,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     sortOptions: opcoesDeOrdem(),
     chipsLead, chips, asofNote,
     baseText: plainOf(baseParts), baseParts, basisMore, nicheNotice,
-    problems, groups, more, empty, count: R.count, pageIds, idade,
+    problems, groups, more, paginado: { mostrados: shownN, total }, empty, count: R.count, pageIds, idade,
     ...forjaBarOf(obs, S.channel ? obs.channel(S.channel)?.niche ?? effNiche : effNiche, effFmt),
   }
 }

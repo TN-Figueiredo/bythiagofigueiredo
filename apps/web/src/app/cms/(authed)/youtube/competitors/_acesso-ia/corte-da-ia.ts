@@ -50,6 +50,8 @@ export interface Corte {
   principalCortada: boolean
   /** `PacoteSerializado.primeiraLinhaDeAviso`, para o `responder` pôr o topo depois dela. */
   primeiraLinhaDeAviso: string | null
+  /** T4: as outras listas (não a principal) e quantas linhas cada uma levou no texto; `saiu` = levadas, `de` = o que a tela tinha. */
+  apoio: Array<{ titulo: string; saiu: number; de: number }>
 }
 
 const SUBSTANTIVO: Record<TelaComLista, string> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
@@ -95,6 +97,13 @@ export function escolherCorte(modelo: PacoteModelo, ctx: ContextoDoPacote, n: nu
     const p = fixarLinhas(segmentar(m, ctx), fixos)
     return { t: montarTexto(p, '', teto, 'todos', degraus, { ia: true, cortadoAntes: antes }), p }
   }
+  /** Das listas que não são a principal: quantas linhas cada uma leva no estágio `cfg` com o degrau `g` (`saidas` = tabelas tiradas antes de segmentar). */
+  const apoioDe = (cfg: Config | null, g: number | null, saidas: readonly Tabela[]): Corte['apoio'] =>
+    modelo.tabelas.filter((t) => t.tipo === 'lista' && classe(t) !== 'principal').map((t) => {
+      const fixa = cfg !== null && cfg.fixos.includes(classe(t))
+      const levadas = saidas.includes(t) ? 0 : !fixa && g !== null && t.linhas.length > g ? g : t.linhas.length
+      return { titulo: t.titulo, saiu: levadas, de: real(t) }
+    })
   const avisoDaLimite = (t: Tabela): string => `tabela "${t.titulo}": há ${real(t)} linhas; saíram ${t.linhas.length}, na ordem da tela`
   const citadosDaPrincipal = principal ? modelo.citados.filter((b) => b.linha?.tabela === principal.id) : []
 
@@ -131,7 +140,7 @@ export function escolherCorte(modelo: PacoteModelo, ctx: ContextoDoPacote, n: nu
   const avisosE0 = avisosDasListas({ fixos: [], texto: 'dentro' }, null, modelo.tabelas)
   const inteiro = rodar({ ...modelo, avisos: [...modelo.avisos, ...avisosE0] }, new Set())
   if (inteiro.t.cabe) {
-    return { texto: inteiro.t, estagio: 'E0', avisos: avisosE0, linhasDaPrincipal: principal?.linhas.length ?? 0, totalDaPrincipal, principalCortada: false, primeiraLinhaDeAviso: inteiro.p.primeiraLinhaDeAviso }
+    return { texto: inteiro.t, estagio: 'E0', avisos: avisosE0, linhasDaPrincipal: principal?.linhas.length ?? 0, totalDaPrincipal, principalCortada: false, primeiraLinhaDeAviso: inteiro.p.primeiraLinhaDeAviso, apoio: apoioDe(null, null, []) }
   }
 
   let ultimo: Corte | null = null
@@ -171,6 +180,7 @@ export function escolherCorte(modelo: PacoteModelo, ctx: ContextoDoPacote, n: nu
       texto: f.t, estagio, avisos,
       linhasDaPrincipal: estagio === 'E3' && grau !== null ? Math.min(totalDaPrincipal, grau) : (principal?.linhas.length ?? 0),
       totalDaPrincipal, principalCortada: estagio === 'E3' && (cortouAPrincipal || f.t.pisoPassou), primeiraLinhaDeAviso: f.p.primeiraLinhaDeAviso,
+      apoio: apoioDe(cfg, grau, saidas),
     }
     if (!f.t.pisoPassou) return ultimo
   }

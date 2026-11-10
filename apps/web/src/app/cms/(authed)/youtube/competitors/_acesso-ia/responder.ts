@@ -8,6 +8,8 @@ import * as Sentry from '@sentry/nextjs'
 import type { z } from 'zod'
 import { ENTRADA, traduzir, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
+import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -19,6 +21,7 @@ import { classeDa, degrausDoLimite, escolherCorte } from './corte-da-ia'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
+type Numeros = Cobertura['numeros']
 type Tela = Pedido['telas'][number]['tela']
 
 const TAGS = { component: 'observatorio-ia', step: 'responder' } as const
@@ -127,7 +130,9 @@ function linhaDaSemana(segunda: string, linhas: ReadonlyArray<readonly Celula[]>
 
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
 
-interface Cortes { n: number }
+/** `serie`: o que o recorte da série fez, para a Cobertura (números do próprio recorte). `convertida`: passou ao grão semana por tamanho. */
+interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number }
+interface Cortes { n: number; serie?: InfoSerie }
 
 export { degrausDoLimite }
 
@@ -187,8 +192,11 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       continue
     }
     let grao = p.grao ?? 'dia'
+    let totalDaSerie = dentro.length
+    let convertida = false
     if (grao === 'dia' && dentro.length > n) {
       grao = 'semana'
+      convertida = true
       cortes.n += 1
       avisos.push(`série "${t.titulo}": ${dentro.length} pontos no grão dia passam de ${n}; mostrada no grão semana`)
     }
@@ -205,6 +213,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
         return { ...ord[0]!, linha: linhaDaSemana(segunda, ord.map((x) => x.linha), regra === 'soma'), dia: ord[0]!.dia }
       })
       dentro = escolhidas
+      if (!convertida) totalDaSerie = escolhidas.length // pediu semana: o total é de semanas
       avisos.push(regra === 'soma'
         ? `série "${t.titulo}": grão semana, regra "ganho diário": cada semana (segunda a domingo, horário de São Paulo) é a soma dos 7 dias, só quando os 7 estão medidos; senão a célula sai "não medido" com quantos dias foram medidos (nunca zero, nunca soma parcial)`
         : regra === 'ultima'
@@ -219,6 +228,10 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     }
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
+    if (!cortes.serie || totalDaSerie + semData > cortes.serie.total) {
+      const dts = dentro.map((x) => x.dia).sort()
+      cortes.serie = { pontos: dentro.length, de: dts[0] ?? de, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData }
+    }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou
   let privado = m.privado
@@ -276,12 +289,14 @@ const topoDe = (p: Pedido): string => {
 }
 
 /** Texto de um pacote dentro do teto. Se nem o piso do corte cabe, o fim é cortado e a frase diz. Devolve também a 1ª linha de aviso do pacote e o degrau de linhas usado. */
-function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[], cortes?: Cortes): { texto: string; primeira: string | null; degrau: number | null } {
+function textoDoModelo(m: PacoteModelo, recente: string | null, agora: number, teto: number, degraus?: readonly number[], cortes?: Cortes): { texto: string; primeira: string | null; degrau: number | null; numeros: Numeros; rotulos: string[] } {
   const pacote = segmentar(m, { geradoEm: agora, recente })
   const t = montarTexto(pacote, '', teto, 'todos', degraus, { ia: true })
   // A1c: o que `montarTexto` cortou por tamanho (e o piso que estourou, que vira corte do fim) chega ao registro; antes ele gravava `cortes=0` em silêncio
   if (cortes) cortes.n += t.cortes.length + (t.pisoPassou ? 1 : 0)
-  return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau }
+  const rotulos = t.cortes.map((c) => c.rotulo)
+  if (t.texto.length > teto) rotulos.push('o fim do texto')
+  return { texto: cabeEm(t.texto, teto), primeira: pacote.primeiraLinhaDeAviso, degrau: t.degrau, numeros: t.numerosNoTexto, rotulos }
 }
 
 /** As tabelas e o foco que só falam do lado A (`ehSoDoLadoA`, definido junto de onde os ids nascem): o lado A não se repete em cada par. A tabela "número a número" fica (ela põe A ao lado de B). */
@@ -304,8 +319,85 @@ const comTopo = (texto: string, topo: string, primeiraLinha: string | null): str
 
 const privadoIncluido = (m: PacoteModelo): boolean => m.privado.estado === 'incluido' || m.comentarios.estado === 'incluido'
 
+/* ------------------------------------------------------------------ a Cobertura e as próximas chamadas (A7d) */
+
+type Proxima = Cobertura['proximas'][number]
+const RESERVA_DO_RODAPE = RODAPE_MAX + 2
+const SEM_NUMEROS: Numeros = { medidos: 0, zerosMedidos: 0, naoMedidos: 0, falhou: 0, restrito: 0, privadosMedidos: 0 }
+const somarNumeros = (a: Numeros, b: Numeros): Numeros => ({
+  medidos: a.medidos + b.medidos, zerosMedidos: a.zerosMedidos + b.zerosMedidos, naoMedidos: a.naoMedidos + b.naoMedidos,
+  falhou: a.falhou + b.falhou, restrito: a.restrito + b.restrito, privadosMedidos: a.privadosMedidos + b.privadosMedidos,
+})
+const horaSp = (agora: number): string => new Date(agora - SP_MS).toISOString().slice(11, 16)
+const somaDias = (dia: string, d: number): string => iso(Date.parse(`${dia}T00:00:00Z`) + d * 86_400_000)
+
+/** Só entra no texto a chamada que o esquema e o tradutor aceitam; a que falha cai e avisa (id inventado ou campo fora do esquema nunca chega à IA). */
+function validas(candidatas: readonly Proxima[]): Proxima[] {
+  const ok: Proxima[] = []
+  for (const c of candidatas) {
+    const lida = ENTRADA.safeParse(c.chamada)
+    if (lida.success && traduzir(lida.data).ok) ok.push(c)
+    else avisar('proxima_invalida')
+  }
+  return ok
+}
+
+/** Os Ids das `n` primeiras linhas da lista principal, como o texto os mostra (coluna "Id"). */
+function idsDaPrincipal(m: PacoteModelo, n: number): string[] {
+  const t = m.tabelas.find((x) => classeDa(m.tela, x) === 'principal')
+  const col = t?.colunas.indexOf('Id') ?? -1
+  if (!t || col < 0) return []
+  return t.linhas.slice(0, n).flatMap((l) => { const c = l[col]; return c && c.papel !== 'numero' ? [c.texto.trim()] : [] })
+}
+
+/** Até 3 chamadas que aprofundam o que a resposta mostrou. Só com id que a própria resposta mostra (ou que a pessoa mandou); `definicoes`, `sugestoes` e `pacote_da_tela` não têm. */
+function proximasDe(e: Entrada, modelo: PacoteModelo | null, agora: number, vistas: number, serie: InfoSerie | undefined): Proxima[] {
+  const hoje = hojeSp(agora)
+  const ate90 = { de: somaDias(hoje, -89), ate: hoje }
+  const mesmos = (k: 'formato' | 'nicho'): Record<string, string> => { const v = (e as Record<string, unknown>)[k]; return typeof v === 'string' ? { [k]: v } : {} }
+  switch (e.acao) {
+    case 'listar_canais': {
+      if (!modelo) return []
+      const [a, b] = idsDaPrincipal(modelo, Math.min(2, vistas))
+      if (!a) return []
+      const doProprio = modelo.tabelas.some((t) => t.id === 'privado-canais')
+      const out: Proxima[] = [{ chamada: { acao: 'canal', canal_id: a }, para: 'ver o canal da linha 1 com todas as medidas' }]
+      if (b || doProprio) {
+        const ids = [...(doProprio ? ['proprio'] : []), a, ...(b ? [b] : [])]
+        if (ids.length >= 2) out.push({ chamada: { acao: 'comparar', canal_ids: ids }, para: doProprio ? 'comparar o seu canal com os das linhas 1 e 2' : 'comparar os canais das linhas 1 e 2' })
+      }
+      return out
+    }
+    case 'destaques':
+      return e.janela === 'todas' ? [] : [{ chamada: { acao: 'destaques', janela: 'todas', ...mesmos('formato'), ...mesmos('nicho') }, para: 'ver os destaques de vídeos de todas as idades' }]
+    case 'mudancas':
+      return e.janela === '90' || e.janela === 'todas' ? [] : [{ chamada: { acao: 'mudancas', janela: '90', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...mesmos('formato'), ...mesmos('nicho') }, para: 'ver as mudanças dos últimos 90 dias' }]
+    case 'canal':
+      return [{ chamada: { acao: 'serie', canal_id: e.canal_id, ...ate90 }, para: 'ver a série dia a dia dos últimos 90 dias deste canal' }]
+    case 'video':
+      return [{ chamada: { acao: 'serie', video_id: e.video_id, ...ate90 }, para: 'ver a série dia a dia dos últimos 90 dias deste vídeo' }]
+    case 'serie':
+      if (!serie?.convertida) return []
+      return [{ chamada: { acao: 'serie', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...(e.video_id ? { video_id: e.video_id } : {}), de: somaDias(e.ate, -399), ate: e.ate, grao: 'dia' }, para: 'ver os últimos 400 dias no grão dia' }]
+    default:
+      return []
+  }
+}
+
+/** A seção e os params de toda resposta `ok`: `completa`, `ms` e, quando há, `fora_do_pacote`. Nenhum é texto livre. */
+function comCobertura(corpo: string, cob: Cobertura, params: Params, t0: number, incluiuPrivado = false): Resposta {
+  const proximas = validas(cob.proximas)
+  const secao = secaoDeCobertura({ ...cob, proximas })
+  if (secao.length > RODAPE_MAX) avisar('rodape_estourou', { tamanho: secao.length })
+  return resp('ok', `${corpo}\n\n${secao}`, {
+    ...params, completa: coberturaCompleta(cob), ms: Math.max(0, Date.now() - t0),
+    ...(cob.foraDoPacote ? { fora_do_pacote: Math.max(0, cob.foraDoPacote.total - cob.foraDoPacote.mostrados) } : {}),
+  }, incluiuPrivado)
+}
+
 export async function responder(entradaCrua: unknown, abrir: Abridor, agora: number): Promise<Resposta> {
   let params: Params = {}
+  const t0 = Date.now()
   try {
     const lida = ENTRADA.safeParse(entradaCrua)
     if (!lida.success) return resp('pedido_invalido', fraseDoEsquema(lida.error))
@@ -316,12 +408,13 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const pedido = t.pedido
     const cortes: Cortes = { n: 0 }
     const topo = topoDe(pedido)
+    const tetoFinal = pedido.teto - RESERVA_DO_RODAPE
 
     /* ---- comparar: um bloco por par, com o teto dividido */
     if (entrada.acao === 'comparar') {
       const pares = pedido.telas.length
       const reserva = topo.length + 1 + 2 * (pares - 1)
-      const doPar = Math.floor((pedido.teto - reserva) / pares)
+      const doPar = Math.floor((tetoFinal - reserva) / pares)
       const achados: Array<{ a: string; b: string; montado: Awaited<ReturnType<typeof empacotar>>; faltou: FaltouNoPar }> = []
       for (const tela of pedido.telas) {
         const faltou: FaltouNoPar = {}
@@ -337,6 +430,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       const primeiro = achados.findIndex((x) => x.montado !== null)
       let privado = false
       let comentarios = false
+      let numeros = SEM_NUMEROS
+      const rotulos: string[] = []
+      let parCortado = -1
       const blocos = achados.map((x, i) => {
         const cab = `## Par ${i + 1}: canal ${x.a} contra canal ${x.b}\n`
         // `a` é o mesmo em todos os pares: se algum par saiu, o que faltou foi o `b` deste
@@ -346,10 +442,24 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         // o lado A é o mesmo em todos os pares: só o 1º bloco o descreve por inteiro (foco e tabelas só do lado A); os outros ficam com mais espaço para o lado B
         const modelo = i === primeiro ? x.montado.modelo : semOLadoA(x.montado.modelo)
         const aviso = i === primeiro ? '' : `O lado A é o mesmo do Par ${primeiro + 1} e não se repete aqui.\n`
-        return cab + aviso + textoDoModelo(modelo, x.montado.recente, agora, doPar - cab.length - aviso.length, undefined, cortes).texto
+        const f = textoDoModelo(modelo, x.montado.recente, agora, doPar - cab.length - aviso.length, undefined, cortes)
+        numeros = somarNumeros(numeros, f.numeros)
+        if (f.rotulos.length > 0 && parCortado < 0) parCortado = i
+        rotulos.push(...f.rotulos.map((r) => `Par ${i + 1}: ${r}`))
+        return cab + aviso + f.texto
       })
-      const texto = cabeEm(`${topo === '' ? '' : `${topo}\n`}${blocos.join('\n\n')}`, pedido.teto)
-      return resp('ok', texto, { ...params, privado, comentarios, cortes: cortes.n, pares }, privado || comentarios)
+      const junto = `${topo === '' ? '' : `${topo}\n`}${blocos.join('\n\n')}`
+      if (junto.length > tetoFinal) rotulos.push('o fim do texto')
+      const texto = cabeEm(junto, tetoFinal)
+      const cortado = parCortado >= 0 ? achados[parCortado]! : null
+      const faltaram = achados.filter((x) => x.montado === null).length
+      const cob: Cobertura = {
+        apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: rotulos, numeros, vazio: false,
+        ...(faltaram > 0 ? { naoEncontrados: { quantos: faltaram, de: pares } } : {}),
+        ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
+        proximas: cortado ? [{ chamada: { acao: 'comparar', canal_ids: [cortado.a === 'próprio' ? 'proprio' : cortado.a, cortado.b] }, para: 'comparar só este par, com o texto inteiro para ele' }] : [],
+      }
+      return comCobertura(texto, cob, { ...params, privado, comentarios, cortes: cortes.n, pares }, t0, privado || comentarios)
     }
 
     /* ---- definicoes: a união das cinco telas */
@@ -360,8 +470,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (m) modelos.push(m.modelo)
       }
       if (modelos.length === 0) return NAO_ENCONTRADO(params)
-      const { texto } = textoDoModelo(unirDefinicoes(modelos), null, agora, pedido.teto - (topo === '' ? 0 : topo.length + 1))
-      return resp('ok', cabeEm(comTopo(texto, topo, null), pedido.teto), { ...params, privado: false, comentarios: false, cortes: 0 })
+      const f = textoDoModelo(unirDefinicoes(modelos), null, agora, tetoFinal - (topo === '' ? 0 : topo.length + 1))
+      const cob: Cobertura = { apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: f.rotulos, numeros: f.numeros, vazio: false, proximas: [] }
+      return comCobertura(cabeEm(comTopo(f.texto, topo, null), tetoFinal), cob, { ...params, privado: false, comentarios: false, cortes: 0 }, t0)
     }
 
     /* ---- uma tela só */
@@ -370,13 +481,19 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const montado = await empacotar(tela, abrir)
     if (montado === null) return NAO_ENCONTRADO(params)
     let modelo = montado.modelo
-    const tetoDoTexto = pedido.teto - (topo === '' ? 0 : topo.length + 1)
-    let feito: ReturnType<typeof textoDoModelo>
+    const tetoDoTexto = tetoFinal - (topo === '' ? 0 : topo.length + 1)
+    let feito: { texto: string; primeira: string | null; degrau: number | null }
     let doCorte: { linhas: number; total: number } | null = null
+    let numeros = SEM_NUMEROS
+    let rotulos: string[] = []
+    let lista: Cobertura['lista']
+    let apoio: Cobertura['apoio'] = { inteiras: 0, total: 0, cortadas: [] }
+    let vazio = montado.modelo.vazio !== null
     if (pedido.limite.tipo === 'linhas') {
       // o corte por tamanho começa pelo que repete (notas, dicas) e só no último estágio chega à lista principal (E3, rede de segurança até a T9)
       const n = pedido.limite.n
-      const totalAntes = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')?.linhas.length ?? 0
+      const principal = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')
+      const totalAntes = principal?.linhas.length ?? 0
       const lim = limitarLinhas(montado.modelo, n, montado.modelo.tela, cortes)
       modelo = lim.modelo
       const c = escolherCorte(modelo, { geradoEm: agora, recente: montado.recente }, n, tetoDoTexto, lim.totais, lim.avisoDaPrincipal)
@@ -387,16 +504,41 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       }
       feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }
       doCorte = { linhas: c.linhasDaPrincipal, total: totalAntes }
+      numeros = c.texto.numerosNoTexto
+      rotulos = c.texto.cortes.map((x) => x.rotulo)
+      if (c.texto.texto.length > tetoDoTexto) rotulos.push('o fim do texto')
+      const cortadas = c.apoio.filter((x) => x.saiu < x.de)
+      apoio = { inteiras: c.apoio.length - cortadas.length, total: c.apoio.length, cortadas }
+      const nomeDaTela = TELAS_IA[montado.modelo.tela]?.nome ?? montado.modelo.tela
+      if (principal) lista = { titulo: principal.titulo, de: c.linhasDaPrincipal > 0 ? 1 : 0, ate: c.linhasDaPrincipal, total: totalAntes, ...(montado.modelo.tabelas.some((x) => x.id === 'privado-canais') ? { concorrentes: true } : {}) }
+      else if (vazio) lista = { titulo: nomeDaTela, de: 0, ate: 0, total: 0 }
+      if (principal && totalAntes === 0) vazio = true // vazio nunca é completo, mesmo que o empacotador não tenha dito o motivo
     } else {
-      if (pedido.limite.tipo === 'pontos') modelo = recortarSerie(modelo, pedido, agora, cortes)
-      feito = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, undefined, cortes)
+      if (pedido.limite.tipo === 'pontos') {
+        modelo = recortarSerie(modelo, pedido, agora, cortes)
+        vazio = cortes.serie === undefined
+      }
+      const f = textoDoModelo(modelo, montado.recente, agora, tetoDoTexto, undefined, cortes)
+      feito = f
+      numeros = f.numeros
+      rotulos = f.rotulos
     }
     const incluiu = privadoIncluido(modelo)
     const { texto, primeira } = feito
-    return resp('ok', cabeEm(comTopo(texto, topo, primeira), pedido.teto), {
+    const fora = montado.modelo.paginado
+    const cob: Cobertura = {
+      ...(lista ? { lista } : {}),
+      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
+      apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
+      ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
+      ...(vazio && pedido.limite.tipo === 'pontos' ? { serieAusente: true } : {}),
+      proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie),
+    }
+    if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
+    return comCobertura(cabeEm(comTopo(texto, topo, primeira), tetoFinal), cob, {
       ...params, privado: modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
       ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
-    }, incluiu)
+    }, t0, incluiu)
   } catch {
     // sem a mensagem da exceção, sem o pedido, sem o pacote
     avisar('responder_falhou')
