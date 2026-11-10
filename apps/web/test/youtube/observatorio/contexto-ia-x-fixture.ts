@@ -1,7 +1,7 @@
 // A5 F0.5a: fixtures compartilhadas pelos testes do `x` na origem (Canais). Constrói os pacotes com o empacotador REAL, sem desenhar a tela.
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
-import type { EstadoDoPrivado, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import type { Celula, EstadoDoPrivado, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { a3World } from './a3-fixture'
 import { medidasDoOraculo, medidasDoMotor } from './canais-e5a-fixture'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
@@ -73,3 +73,21 @@ export function casosNovosDeCanais(): CasoCanais[] {
     { nome: 'views por dia absoluto', obs: w.obs, sp: { scale: 'abs' }, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') },
   ]
 }
+
+const LETRA: Record<string, string> = { medido: 'M', zero_medido: 'Z', nao_medido: 'n', falhou: 'f', restrito: 'r' }
+const letra = (c: Celula): string => (c.papel === 'numero' ? LETRA[c.estado]! : '.')
+
+/** tabela/coluna → uma letra por linha (M medido, Z zero medido, n não medido, f falhou, r restrito, . não é número). Texto de célula medida entra junto (muda-se o estado ou o texto, cai). */
+export function mapaDeEstados(p: PacoteModelo): string[] {
+  return p.tabelas.flatMap((t) => t.colunas.map((col, j) => {
+    const letras = t.linhas.map((l) => letra(l[j]!)).join('')
+    const textos = t.linhas.map((l) => { const c = l[j]!; return c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') ? c.texto : '' }).join('|')
+    return `${t.id}/${col}: ${letras} ${textos}`
+  }))
+}
+
+/** Todas as células numéricas medidas, com o caminho `tabela/coluna/linha`. */
+export function medidas(p: PacoteModelo) {
+  return p.tabelas.flatMap((t) => t.linhas.flatMap((l, i) => l.flatMap((c, j) => (c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') ? [{ t, tabela: t.id.replace(/^privado-/, ''), coluna: t.colunas[j]!, i, j, c, caminho: `${t.id}/${t.colunas[j]}/${i + 1}` }] : []))))
+}
+export const semX = (c: Celula) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && 'semXMotivo' in c && typeof c.semXMotivo === 'string'

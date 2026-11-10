@@ -4,7 +4,7 @@
  * Gravado contra o código de ANTES do conserto; depois dele tem de continuar verde sem regravar o arquivo de estados.
  */
 import { describe, it, expect } from 'vitest'
-import { casosDeCanais, casosNovosDeCanais, mundoComCanais, pacoteDe, modeloDe, privadoDe, extrasDe, type CasoCanais } from './contexto-ia-x-fixture'
+import { casosDeCanais, casosNovosDeCanais, mundoComCanais, pacoteDe, modeloDe, privadoDe, extrasDe, mapaDeEstados, medidas, semX, type CasoCanais } from './contexto-ia-x-fixture'
 import { nbMilMi, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/formato'
 import { vpdText } from '@/app/cms/(authed)/youtube/competitors/_canal/numeros'
 import { empacotarCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
@@ -14,18 +14,6 @@ import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras
 import type { Celula, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { CONTEXTO } from './contexto-ia-fixture'
 import { a3World } from './a3-fixture'
-
-const LETRA: Record<string, string> = { medido: 'M', zero_medido: 'Z', nao_medido: 'n', falhou: 'f', restrito: 'r' }
-const letra = (c: Celula): string => (c.papel === 'numero' ? LETRA[c.estado]! : '.')
-
-/** tabela/coluna → uma letra por linha (M medido, Z zero medido, n não medido, f falhou, r restrito, . não é número). Texto de célula medida entra junto (muda-se o estado ou o texto, cai). */
-export function mapaDeEstados(p: PacoteModelo): string[] {
-  return p.tabelas.flatMap((t) => t.colunas.map((col, j) => {
-    const letras = t.linhas.map((l) => letra(l[j]!)).join('')
-    const textos = t.linhas.map((l) => { const c = l[j]!; return c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') ? c.texto : '' }).join('|')
-    return `${t.id}/${col}: ${letras} ${textos}`
-  }))
-}
 
 describe('canais: estados iguais (rede da F0.5a)', () => {
   it('o mapa tabela/coluna/linha → estado e texto das fixtures é o de antes do conserto', async () => {
@@ -83,11 +71,6 @@ describe('portão do JSON do diálogo (D3): linhas da principal que ficam no di�
 
 // ───────────────────────── o x na origem (T1: tela Canais)
 const MENOS = '\u2212'
-/** Todas as células numéricas medidas, com o caminho `tabela/coluna/linha`. */
-function medidas(p: PacoteModelo) {
-  return p.tabelas.flatMap((t) => t.linhas.flatMap((l, i) => l.flatMap((c, j) => (c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') ? [{ t, tabela: t.id.replace(/^privado-/, ''), coluna: t.colunas[j]!, i, j, c, caminho: `${t.id}/${t.colunas[j]}/${i + 1}` }] : []))))
-}
-const semX = (c: Celula) => c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && 'semXMotivo' in c && typeof c.semXMotivo === 'string'
 const todosOsCasos = (): CasoCanais[] => {
   const w60 = mundoComCanais(60)
   return [...casosDeCanais(), ...casosNovosDeCanais(),
