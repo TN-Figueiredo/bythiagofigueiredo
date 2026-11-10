@@ -73,3 +73,19 @@ describe('a recusa, pelo responder real', () => {
     expect(r.texto).not.toContain('ZZ_ESTRANHO')
   })
 })
+
+describe('A7b T8: o registro recebe a_partir_da_linha do pedido', () => {
+  it('{acao:"listar_canais", a_partir_da_linha:"41"} grava params.a_partir_da_linha === 41 (a lista vazia responde ok)', async () => {
+    m.empacotar.canais = vi.fn(async () => null)
+    const r = await responder({ acao: 'listar_canais', a_partir_da_linha: '41' }, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.params.a_partir_da_linha).toBe(41)
+  })
+  it('o exemplo de listar_canais ensina a_partir_da_linha e o formato o cita', () => {
+    expect(EXEMPLO_DA_ACAO.listar_canais).toContain('"a_partir_da_linha":41')
+    for (const a of ['listar_canais', 'destaques', 'mudancas'] as const) {
+      expect(CAMPOS_DA_ACAO[a]).toContain('a_partir_da_linha')
+      expect(FORMATO_DA_ACAO[a]).toContain('a_partir_da_linha')
+      expect(FORMATO_DA_ACAO[a]).toContain('marca')
+    }
+  })
+})

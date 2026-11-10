@@ -75,3 +75,20 @@ describe('as formas novas', () => {
   })
   it('parametros_fora tem forma', () => { expect(CHAVES_COM_FORMA_DE_PARAMS).toContain('parametros_fora') })
 })
+
+describe('A7b T8: a_partir_da_linha e marca_mudou, sem a marca', () => {
+  const grava = async (params: Record<string, unknown>) => {
+    const linhas: Array<Record<string, unknown>> = []
+    const sb = { from: () => ({ insert: (l: Record<string, unknown>) => { linhas.push(l); return { abortSignal: async () => ({ error: null }) } } }) }
+    await registrarAcessoDaChave(sb as never, { prova: fabricarProva('site-da-prova', 'user-da-prova', 'key-da-prova', new Date(Date.now() + 86_400_000).toISOString()), acao: 'listar_canais', params: { desfecho: 'ok', ...params } as never, incluiuPrivado: false, caracteres: 10, resultado: 'ok' })
+    return linhas[0]!.params as Record<string, unknown>
+  }
+  it('a_partir_da_linha é contador >= 1; marca_mudou é booleano; sem_dona é contador; a marca nunca é gravada', async () => {
+    const ok = await grava({ a_partir_da_linha: 41, marca_mudou: true, sem_dona: 2, marca: '1a2b3c4d' })
+    expect(ok).toMatchObject({ a_partir_da_linha: 41, marca_mudou: true, sem_dona: 2 })
+    expect(JSON.stringify(ok)).not.toContain('1a2b3c4d')
+    const ruim = await grava({ a_partir_da_linha: 0, marca_mudou: 'sim', sem_dona: -1 })
+    for (const k of ['a_partir_da_linha', 'marca_mudou', 'sem_dona']) expect(ruim).not.toHaveProperty(k)
+    expect(ok).not.toHaveProperty('marca')
+  })
+})

@@ -15,7 +15,13 @@ export interface Cobertura {
   /** Pediu série e ela não veio: a frase do vazio fala de série, não de lista. */
   serieAusente?: boolean
   lidaAs?: string
+  /** A7b: tabelas de texto (notas, dicas) fora de toda janela de lista: `linhas` = as que a janela teria; `comoVer` = a chamada em palavras. Informação, não torna a lista incompleta. */
+  textoFora?: { rotulo: string; linhas: number; comoVer: string }
+  /** A7b: linhas de apoio sem dona na lista principal, entregues na janela 1. */
+  semDona?: number
   marcaMudou?: boolean
+  /** Uma janela anterior da lista perdeu geral, colunas ou texto: a última não pode dizer que a tela foi vista toda. */
+  janelasAnterioresPerderam?: boolean
   vazio: boolean
   proximas: Array<{ chamada: Record<string, unknown>; para: string }>
 }
@@ -26,7 +32,7 @@ const encurta = (s: string, n: number): string => (s.length <= n ? s : `${s.slic
 
 /** Completa = sem lista ou `ate == total`, sem série parcial, apoio todo inteiro, sem corte de tamanho e sem grupo paginado pela tela. Vazia nunca é completa. */
 export function coberturaCompleta(c: Cobertura): boolean {
-  if (c.vazio) return false
+  if (c.vazio || c.marcaMudou || c.janelasAnterioresPerderam) return false
   if (c.lista && c.lista.ate !== c.lista.total) return false
   if (c.serie && (c.serie.pontos < c.serie.total || (c.serie.semData ?? 0) > 0)) return false
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) return false
@@ -65,6 +71,7 @@ const NIVEIS: Nivel[] = [
 function montar(c: Cobertura, n: Nivel): string {
   const L: string[] = ['## Cobertura']
   if (c.marcaMudou) L.push('- A lista mudou desde a janela anterior: linhas podem repetir ou faltar; refaça da linha 1.')
+  if (c.janelasAnterioresPerderam) L.push('- Uma janela anterior desta lista pode ter deixado parte do conteúdo de fora (o geral, colunas ou texto), ou a chamada veio sem a `marca` da janela anterior; sem ela não dá para garantir o que as janelas anteriores perderam.')
   if (c.lista) {
     const l = c.lista
     const trecho = l.total === 0 ? '0 de 0 linhas' : `linhas ${l.de}–${l.ate} de ${l.total}`
@@ -84,7 +91,11 @@ function montar(c: Cobertura, n: Nivel): string {
         fim = `; cortadas: ${vistas}${cort.length > 3 ? `, mais ${cort.length - 3}` : ''}`
       } else fim = `; cortadas: mais ${cort.length}`
     }
-    L.push(`- Tabelas de apoio: ${c.apoio.inteiras} de ${c.apoio.total} inteiras${fim}.`)
+    L.push(`- Tabelas de apoio: ${c.apoio.inteiras} de ${c.apoio.total} inteiras${fim}${c.semDona && c.semDona > 0 ? `; ${c.semDona} linhas sem dona na lista vieram nesta janela` : ''}.`)
+  }
+  if (c.textoFora && c.textoFora.linhas > 0) {
+    const t = c.textoFora
+    L.push(n.cortesEmContagem ? `- ${t.rotulo}: 0 de ${t.linhas} linhas.` : `- ${t.rotulo}: 0 de ${t.linhas} linhas; ${t.comoVer}.`)
   }
   if (c.foraDoPacote) L.push(`- A tela mostra ${c.foraDoPacote.mostrados} de ${c.foraDoPacote.total} outliers (cada grupo é paginado na tela); os outros não estão neste pacote.`)
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) L.push(`- Pares sem dado: ${c.naoEncontrados.quantos} de ${c.naoEncontrados.de} (canal não encontrado); a comparação não cobre esses canais.`)

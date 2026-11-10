@@ -109,6 +109,11 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   completa: (v) => (typeof v === 'boolean' ? v : undefined),
   ms: (v) => (contador(v) ? v : undefined),
   fora_do_pacote: (v) => (contador(v) ? v : undefined),
+  // A7b: a janela da lista (1ª linha pedida, >= 1), se a lista mudou entre janelas e quantas linhas de apoio ficaram sem dona; a `marca` (hash) NUNCA é gravada
+  a_partir_da_linha: (v) => (contador(v) && v >= 1 ? v : undefined),
+  marca: () => undefined, // tem forma (a entrada a aceita) mas nunca vai para a linha
+  marca_mudou: (v) => (typeof v === 'boolean' ? v : undefined),
+  sem_dona: (v) => (contador(v) ? v : undefined),
   // A7e: qual(is) campo(s) o esquema recusou (só NOMES de campo do esquema ou "(desconhecido)"; nunca o valor), até 6
   campos_invalidos: (v) => {
     if (!Array.isArray(v)) return undefined

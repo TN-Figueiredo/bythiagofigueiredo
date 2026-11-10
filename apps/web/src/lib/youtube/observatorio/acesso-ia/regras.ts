@@ -7,6 +7,8 @@ export const ACESSO_IA_RULES = {
   porMinuto: 30,
   porDia: 500,
   tetoPorAcao: 60_000,
+  /** Teto de caracteres de UMA janela de lista: ~20 mil tokens a 2,2 caracteres por token, abaixo dos ~25 mil por resultado de MCP do Claude Code. O total da ação segue coberto pela paginação. */
+  tetoDaJanela: 45_000,
   tetoPacoteDaTela: 30_000,
   canaisNaLista: 200,
   canaisNoComparar: { min: 2, max: 6 },

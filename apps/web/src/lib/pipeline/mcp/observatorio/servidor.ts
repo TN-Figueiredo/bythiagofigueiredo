@@ -31,7 +31,7 @@ export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeIn
   { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: ele foi calculado sobre todas as linhas, não só as que vieram.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
-const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6'])
+const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9'])
 
 export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
   const itens = ITENS_DE_INSTRUCAO.filter((i) => ligadas.has(i.fatia))
@@ -49,6 +49,8 @@ const FORMA = {
   janela: z.union([z.string(), z.number()]).optional().describe('7, 30, 90 ou todas.'),
   formato: z.string().optional().describe('todos, longos ou shorts.'),
   nicho: z.string().optional(),
+  a_partir_da_linha: z.union([z.number(), z.string()]).optional().describe('listar_canais, destaques, mudancas: a 1ª linha desta janela (padrão 1); a seção Cobertura diz qual pedir a seguir.'),
+  marca: z.string().optional().describe('devolvida pela Cobertura; repita na janela seguinte.'),
   de: z.string().optional().describe('serie: AAAA-MM-DD.'),
   ate: z.string().optional().describe('serie: AAAA-MM-DD.'),
   grao: z.string().optional().describe('serie: dia ou semana.'),

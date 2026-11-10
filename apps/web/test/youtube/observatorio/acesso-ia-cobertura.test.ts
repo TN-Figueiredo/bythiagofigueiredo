@@ -56,6 +56,30 @@ describe('secaoDeCobertura', () => {
     expect(t).toContain('A lista mudou desde a janela anterior')
     expect(t).toContain('Cortado por tamanho: rótulo de corte número 1 bem comprido; rótulo de corte número 2 bem comprido; rótulo de corte número 3 bem comprido, mais 5.')
   })
+  it('A7b (l): linha de notas e dicas fora, sem dona e lista mudada; pior caso com a janela seguinte (marca) cabe em RODAPE_MAX', () => {
+    const proxima = { chamada: { acao: 'destaques', janela: 'todas', formato: 'longos', nicho: 'tecnologia-e-ciencia-aplicada', a_partir_da_linha: 100_000, marca: '1a2b3c4d' }, para: 'ver a próxima janela da lista, da linha 100000 em diante' }
+    const c = base({
+      lista: { titulo: 'L'.repeat(60), de: 99_001, ate: 99_999, total: 100_000, concorrentes: true },
+      apoio: { inteiras: 2, total: 5, cortadas: [1, 2, 3].map((i) => ({ titulo: 'T'.repeat(200) + i, saiu: 0, de: 411 })) },
+      textoFora: { rotulo: 'Notas, títulos, imagens e descrições das trocas', linhas: 123456, comoVer: 'o detalhe aparece na tela Mudanças' },
+      semDona: 123456, marcaMudou: true, lidaAs: '14:05', proximas: [proxima, chamada(1), chamada(2)],
+      cortesDeTamanho: Array.from({ length: 8 }, (_, i) => `rótulo de corte número ${i + 1} bem comprido`),
+      numeros: { medidos: 123456, zerosMedidos: 123456, naoMedidos: 123456, falhou: 123456, restrito: 123456, privadosMedidos: 0 },
+    })
+    const t = secaoDeCobertura(c)
+    expect(t.length).toBeLessThanOrEqual(RODAPE_MAX)
+    expect(t).toContain('A lista mudou desde a janela anterior')
+    expect(t).toContain(JSON.stringify(proxima.chamada))
+    expect(t).toContain('Você viu só uma parte')
+  })
+  it('A7b: texto fora da janela é informação (a lista pode ser completa); lista mudada nunca é completa; a linha traz o como ver', () => {
+    const fora = { rotulo: 'Notas e dicas', linhas: 411, comoVer: 'para um canal, peça canal com o Id' }
+    expect(coberturaCompleta(base({ textoFora: fora, semDona: 2 }))).toBe(true)
+    expect(secaoDeCobertura(base({ textoFora: fora }))).toContain('- Notas e dicas: 0 de 411 linhas; para um canal, peça canal com o Id.')
+    expect(coberturaCompleta(base({ marcaMudou: true }))).toBe(false)
+    expect(secaoDeCobertura(base())).not.toContain('sem dona')
+    expect(secaoDeCobertura(base({ semDona: 2, apoio: { inteiras: 1, total: 1, cortadas: [] } }))).toContain('2 linhas sem dona na lista vieram nesta janela')
+  })
   it('(f) cinco próximas chamadas: saem 3', () => {
     const t = secaoDeCobertura(base({ proximas: [1, 2, 3, 4, 5].map(chamada) }))
     expect(t.split('\n').filter((l) => l.startsWith('- {"acao"'))).toHaveLength(3)

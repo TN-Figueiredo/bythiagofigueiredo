@@ -351,9 +351,10 @@ describe('A7d T5: as instructions do servidor e a frase na descrição', () => {
     expect(INSTRUCOES).toBeTypeOf('string')
     expect(instrucoesDe(new Set(todas)).length).toBeLessThanOrEqual(1_200)
   })
-  it('(3) todo nome de campo citado pelos itens ligados existe no esquema; a lista da T5 não cita a_partir_da_linha', () => {
+  it('(3) todo nome de campo citado pelos itens ligados existe no esquema; a_partir_da_linha entra com a fatia T9 (A7b)', () => {
     for (const nome of snake(INSTRUCOES)) expect(nome === NOME_DA_FERRAMENTA || campos.has(nome), nome).toBe(true)
-    expect(INSTRUCOES).not.toContain('a_partir_da_linha')
+    expect(instrucoesDe(new Set(['T5', 'T6']))).not.toContain('a_partir_da_linha')
+    expect(INSTRUCOES).toContain('a_partir_da_linha')
     expect(INSTRUCOES).toContain('Cobertura')
     expect(INSTRUCOES).toContain('não são zero')
   })
@@ -386,6 +387,13 @@ describe('A7e T7: pela ferramenta registrada, janela numérica chega ao responde
     expect(r.isError).not.toBe(true)
     expect(responder).toHaveBeenCalled()
     expect(responder.mock.calls[0]![0]).toMatchObject({ acao: 'destaques', janela: 90 })
+  })
+  it('A7b T8: a_partir_da_linha: 41 e marca chegam ao responder (o SDK não os tira)', async () => {
+    const responder = vi.fn(respondeOk)
+    const { client } = await conectar(responder)
+    const r = await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'listar_canais', a_partir_da_linha: 41, marca: '1a2b3c4d' } }))
+    expect(r.isError).not.toBe(true)
+    expect(responder.mock.calls[0]![0]).toMatchObject({ acao: 'listar_canais', a_partir_da_linha: 41, marca: '1a2b3c4d' })
   })
   it('a descrição traz os dez exemplos, um por linha, e cabe em 2.000', async () => {
     for (const a of ACOES) expect(DESCRICAO.split('\n'), a).toContain(`- ${EXEMPLO_DA_ACAO[a]}`)
