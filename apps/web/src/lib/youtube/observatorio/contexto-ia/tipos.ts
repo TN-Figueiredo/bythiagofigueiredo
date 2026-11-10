@@ -6,8 +6,8 @@ export type TelaId =
 
 export type Celula =
   // `origem` é o caminho CONCRETO da folha no modelo, com o índice: 'pack.canais[2].numeros.medianaViews'
-  | { papel: 'numero'; estado: 'medido' | 'zero_medido'; texto: string; x: number | null; origem: string }
-  | { papel: 'numero'; estado: 'nao_medido'; motivo: string; origem: string }
+  | { papel: 'numero'; estado: 'medido' | 'zero_medido'; texto: string; x: number | null; origem: string; semXMotivo?: string }
+  | { papel: 'numero'; estado: 'nao_medido'; motivo: string; origem: string; causa?: 'diminuiu' }
   // decisão 75: as mesmas palavras da pastilha da tela. `falhou` = a leitura ou a conferência de permissão falhou; `restrito` = acesso negado com certeza.
   | { papel: 'numero'; estado: 'falhou'; motivo: string; origem: string }
   | { papel: 'numero'; estado: 'restrito'; motivo: string; origem: string }
@@ -25,9 +25,20 @@ export interface Tabela {
    * do dia (a semana é a última leitura). Ausente = não declarado: no grão semana a célula sai "não medido" (nunca se adivinha o tipo).
    */
   semana?: 'soma' | 'ultima'
+  /** A5: chave de máquina (snake_case) de cada coluna, paralela a `colunas`. Ausente = o gerador de CSV deriva ou recusa. */
+  chaves?: string[]
+  /** A5: gráfico sugerido. Ausente = padrão pelo tipo da tabela (D1). */
+  grafico?: 'linha' | 'barra' | 'pizza' | 'nenhum'
+  /** A5: só `dia_a_dia` com data; ISO `AAAA-MM-DD`, paralelo a `linhas`. */
+  dias?: string[]
+  /** A5: fuso do dia da série. */
+  fuso?: 'sao_paulo' | 'pacifico'
   nomeNoCorte: string
   privada: boolean
 }
+
+/** A5: id da tabela `dia_a_dia` → por que a semana não soma; `<id>-cedo`: "primeiros 7 dias, sem data de calendário". Preenchido na F0.5b. */
+export const SEMANA_FECHADA: Record<string, string> = {}
 
 export interface BlocoCitado {
   rotulo: string
