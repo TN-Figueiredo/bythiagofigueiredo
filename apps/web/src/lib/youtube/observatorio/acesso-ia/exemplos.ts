@@ -36,7 +36,7 @@ export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
   canal: '{"acao":"canal","canal_id":"<uuid da coluna Id>","formato":"longos"}',
   video: '{"acao":"video","video_id":"<id de 11 caracteres>"}',
   comparar: '{"acao":"comparar","canal_ids":["proprio","<uuid 1>","<uuid 2>"]}',
-  destaques: '{"acao":"destaques","janela":"90","formato":"longos","saida":"tabela"}',
+  destaques: '{"acao":"destaques","janela":"90","formato":"longos"}',
   serie: '{"acao":"serie","canal_id":"<uuid>","de":"2026-10-05","ate":"2026-11-08","grao":"semana"}',
   mudancas: '{"acao":"mudancas","janela":"30","formato":"todos"}',
   sugestoes: '{"acao":"sugestoes"}',

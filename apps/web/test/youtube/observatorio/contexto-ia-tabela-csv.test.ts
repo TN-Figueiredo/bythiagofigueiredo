@@ -191,7 +191,7 @@ describe('gráfico sugerido (f)', () => {
     try {
       const ok = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza' }), novaLegenda())!
       expect(ok.grafico).toBe('pizza'); expect(ok.avisos).toEqual([])
-      expect(ok.dicionario).toContain('Gráfico sugerido: pizza (as partes somam o todo da tela; 0 sem medida ficam fora)')
+      expect(ok.dicionario).toContain('Gráfico sugerido: pizza (as partes somam o todo da tela; toda parte foi medida nesta resposta)')
       const ruim = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza', linhas: [[rot('A'), nm(), num(1)], [rot('B'), num(2), num(1)]] }), novaLegenda())!
       expect(ruim.grafico).toBe('barra'); expect(ruim.avisos).toEqual(['pizza_nao_fecha'])
       const semX = csvDaTabela(tabela({ id: 'pz', grafico: 'pizza', linhas: [[rot('A'), num(null), num(1)]] }), novaLegenda())!

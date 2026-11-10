@@ -7,7 +7,7 @@ import { blocoDaTabela, csvDaTabela, novaLegenda, type ColunaExtra, type CsvDaTa
 import { naCelula } from '@/lib/youtube/observatorio/contexto-ia/terceiros'
 import type { Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import type { ContextoDoPacote, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { classeDa, donosDasLinhas, marcaDaPrincipal, TEXTO_SEMPRE_FORA, type ClasseNaIa } from './corte-da-ia'
+import { classeDa, donosDasLinhas, marcaDaPrincipal, semPrivadoForaDaJanela, TEXTO_SEMPRE_FORA, type ClasseNaIa } from './corte-da-ia'
 
 export interface AvisoDaTabela { passo: string; extra?: Record<string, number | string> }
 
@@ -97,14 +97,8 @@ export function respostaEmTabela(
       tabelas.push({ ...t, linhas: origem.map((i) => t.linhas[i]!) })
       meta.set(t.id, { classe, origem, de: origem.length })
     }
-    const comPrivada = tabelas.some((t) => t.privada)
-    const privadoFora = modelo.privado.estado === 'incluido' && !comPrivada
-    // janela sem tabela privada (janela 2 em diante): o dado privado não está nela, então o modelo dela não o declara (como o `tamanhoSo` do corte)
-    const m: PacoteModelo = privadoFora
-      ? { ...modelo, tabelas, citados: [], privado: { estado: 'na' }, comentarios: { estado: 'na' }, foco: modelo.foco.filter((f) => !f.privado), definicoes: modelo.definicoes.filter((d) => !d.privado) }
-      : { ...modelo, tabelas, citados: [], comentarios: { estado: 'na' } }
+    const m: PacoteModelo = semPrivadoForaDaJanela({ ...modelo, tabelas, citados: [], comentarios: { estado: 'na' } })
     delete m.resumoDoTodo
-    if (privadoFora) delete m.avisosPrivados
     // `segmentar` valida e lança com privado sem direito: o mesmo objeto `m` é o que o CSV lê
     return { m, meta, pacote: segmentar(m, ctx) }
   }

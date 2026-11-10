@@ -176,6 +176,6 @@ export const graficoSugerido = (frase: string) => `Gráfico sugerido: ${frase}` 
 export const FRASE_DO_GRAFICO = {
   linha: 'linha (uma por canal ou medida; ponto vazio é buraco, nunca zero)',
   barra: 'barra (uma por linha; vazio = sem barra, nunca zero)',
-  pizza: 'pizza (as partes somam o todo da tela; {k} sem medida ficam fora)',
+  pizza: 'pizza (as partes somam o todo da tela; toda parte foi medida nesta resposta)',
   nenhum: 'nenhum (tabela de apoio)',
 } as const // novo

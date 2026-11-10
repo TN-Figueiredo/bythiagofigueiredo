@@ -80,9 +80,9 @@ const sintetico = (tela: TelaId, tabelas: Tabela[]): PacoteModelo => ({ ...model
 describe('A7a T2 passo 1: o medido (34, 60 e 75 canais, empacotador real; ia, 200 por janela)', () => {
   // Medido em 09/11 com `console.info('medido'…)` neste arquivo. Por canal: principal ~160 caracteres, colunas ~205 (5 tabelas), texto (notas + dicas) 1.100 a 1.130.
   const MEDIDO = {
-    34: { fixoMaisFixas: 5_174, principal: 5_542, coluna: 6_948, texto: 38_042, por_nome: 6_300, escolha: { estagio: 'E1', chars: 55_631, degrau: 200 } },
-    60: { fixoMaisFixas: 5_176, principal: 9_639, coluna: 12_263, texto: 67_591, por_nome: 11_246, escolha: { estagio: 'E1', chars: 55_858, degrau: 100 } },
-    75: { fixoMaisFixas: 5_177, principal: 11_929, coluna: 15_392, texto: 84_768, por_nome: 14_083, escolha: { estagio: 'E1', chars: 55_860, degrau: 50 } },
+    34: { fixoMaisFixas: 5_191, principal: 5_542, coluna: 6_948, texto: 38_042, por_nome: 6_300, escolha: { estagio: 'E1', chars: 55_648, degrau: 200 } },
+    60: { fixoMaisFixas: 5_193, principal: 9_639, coluna: 12_263, texto: 67_591, por_nome: 11_246, escolha: { estagio: 'E1', chars: 55_875, degrau: 100 } },
+    75: { fixoMaisFixas: 5_194, principal: 11_929, coluna: 15_392, texto: 84_768, por_nome: 14_083, escolha: { estagio: 'E1', chars: 55_877, degrau: 50 } },
   } as const
   it.each([34, 60, 75] as const)('%i canais: os tamanhos por classe e a escolha, com e sem reserva', (n) => {
     const mod = modeloDe(n)

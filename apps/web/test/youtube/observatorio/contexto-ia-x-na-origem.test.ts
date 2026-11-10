@@ -59,7 +59,7 @@ describe('portão do JSON do diálogo (D3): linhas da principal que ficam no di�
     expect([r.n200.linhasDaPrincipal, r.n200.degrau, r.n200.linhasNoJson]).toEqual([198, 3, 3])
     for (const m of [r.n60, r.n200]) expect(m.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
     // o oráculo de tamanhos remedido com o x no JSON (antes: 23.127 / 350.817 com 60 canais e 23.193 / 1.161.863 com 200)
-    expect({ n60: [r.n60.caracteres, r.n60.totalSemCorte], n200: [r.n200.caracteres, r.n200.totalSemCorte] }).toEqual({ n60: [23646, 359200], n200: [23714, 1190256] })
+    expect({ n60: [r.n60.caracteres, r.n60.totalSemCorte], n200: [r.n200.caracteres, r.n200.totalSemCorte] }).toEqual({ n60: [23663, 359217], n200: [23731, 1190273] })
   })
   it('o JSON do diálogo leva "x" em cada número medido (K3)', () => {
     const w = mundoComCanais(60)

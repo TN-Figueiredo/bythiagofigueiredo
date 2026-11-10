@@ -472,7 +472,7 @@ function tabelasDoResumo(m: ModeloCanais): Tabela[] {
   const out: Tabela[] = []
   const { casas, filtros } = m.resumo
   const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem, n))
-  if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
+  if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem, sem o seu canal', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
     casas.map((c, i) => [rotulo(c.palavra, `modelo.resumo.casas[${i}].palavra`), num(c.n, `modelo.resumo.casas[${i}].n`)])))
   if (filtros.length) out.push(tabelaFixa('canais-resumo-estado', 'Quantos canais em cada estado', nome0('tabela do resumo do estado'), ['Estado', 'Canais'],
     filtros.map((f, i) => {

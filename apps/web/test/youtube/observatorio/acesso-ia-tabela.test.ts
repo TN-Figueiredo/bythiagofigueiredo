@@ -33,7 +33,9 @@ import { buildRiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-m
 import { empacotarCanais, modeloDeCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { classeDa, CLASSES_NA_IA } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
+import { SEM_CSV_LISTA_VAZIA, SEM_CSV_SEM_CHAVES } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { ABRIDOR_DE_SESSAO } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
+import { FRASE_CANAL_PROPRIO } from '@/app/cms/(authed)/youtube/competitors/_canais/direcao-model'
 import { numeroCsv, PIZZA_PERMITIDA } from '@/lib/youtube/observatorio/contexto-ia/tabela-csv'
 import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Celula, PacoteModelo, Tabela, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -254,6 +256,13 @@ describe('(5) privacidade', () => {
     expect(r.incluiuPrivado).toBe(false)
     expect(r.texto).not.toContain('987654')
   })
+  it('I1: modo TEXTO, incluido, janela 2 (sem tabela privada): não lança, não declara privado e não vaza o número', async () => {
+    dobra('canais', comPrivada(comUuids(modeloDe(34)), { estado: 'incluido', itens: 'o seu canal' }))
+    const r = await rodar({ acao: 'listar_canais', a_partir_da_linha: 5, marca: 'aaaaaaaa' })
+    expect(r.desfecho).toBe('ok')
+    expect(r.incluiuPrivado).toBe(false)
+    expect(r.texto).not.toContain('987654')
+  })
   it('modelo com tabela privada e privado excluido: segmentar lança, desfecho falhou e nada de CSV', async () => {
     const mod = comPrivada(comUuids(modeloDe(34)), { estado: 'incluido', itens: 'o seu canal' })
     dobra('canais', { ...mod, privado: { estado: 'excluido', motivo: 'sem_direito', itens: 'x' } })
@@ -285,6 +294,27 @@ describe('(6) tabela sem chaves', () => {
     expect(b.has(principalDe(mod).titulo)).toBe(true)
     expect(m.captured.filter((c) => String(c[0]).includes('tabela_sem_chaves'))).toHaveLength(1)
     expect(r.texto.slice(r.texto.lastIndexOf('\n## Cobertura'))).toContain(alvo.nomeNoCorte)
+  })
+})
+
+describe('I3: pediu tabela e não saiu CSV', () => {
+  it('lista vazia: texto com a linha SEM_CSV no topo, sem bloco csv e o registro grava saida texto, sem sem_x', async () => {
+    dobra('outliers', casosDeOutliers().find((c) => c.nome.includes('vazio'))!.pacote)
+    const r = await rodar({ acao: 'destaques', saida: 'tabela' })
+    expect(r.texto).toContain(SEM_CSV_LISTA_VAZIA)
+    expect(r.texto).not.toContain('```csv')
+    expect(r.params.saida).toBe('texto')
+    expect(r.params).not.toHaveProperty('sem_x')
+  })
+  it('principal sem chaves: SEM_CSV_SEM_CHAVES com o nome da tabela e registro texto', async () => {
+    const base = comUuids(modeloDe(34))
+    const p = principalDe(base)
+    dobra('canais', { ...base, tabelas: base.tabelas.map((t) => (t === p ? (({ chaves: _c, ...resto }) => resto)(t) as Tabela : t)) })
+    const r = await rodar({ acao: 'listar_canais', saida: 'tabela' })
+    expect(r.texto).toContain(SEM_CSV_SEM_CHAVES(p.titulo))
+    expect(r.texto).not.toContain('```csv')
+    expect(r.params.saida).toBe('texto')
+    expect(r.params).not.toHaveProperty('sem_x')
   })
 })
 
@@ -327,6 +357,39 @@ describe('(10) inventário das tabelas expostas', () => {
     }
     expect(sem).toEqual([])
   })
+  // I2: toda coluna com célula numérica traz a unidade no título (ou está na lista das que a declaram pelo nome); sem isso o gráfico sai 100× errado
+  const TEM_UNIDADE = /%|×|\(|views|inscritos|dias|vídeos/i
+  // medido nas três telas (10/11/2026): contagens e posições (a unidade é "quantos") não precisam de unidade no título
+  const E_CONTAGEM = new Set(['Posição', 'Outliers', 'Trocas', 'Trocas do nicho na janela'])
+  // DÍVIDA DECLARADA: colunas de %, pp ou × cujo título não traz a unidade (só o texto da célula, que o CSV não leva). Consertar o título muda o modo texto: decisão do dono (ver relatório F1b).
+  const SEM_UNIDADE_NO_TITULO_CONHECIDA = new Set(['Direção', 'Crescimento', 'Múltiplo', 'Mediana do efeito', 'Observado', 'Esperado sem a troca', 'Efeito', 'Limite da faixa'])
+  const semUnidade = (mod: PacoteModelo): string[] => {
+    const out: string[] = []
+    for (const t of mod.tabelas) {
+      const base = t.id.replace(/^privado-/, '')
+      if (classeDa(mod.tela, { id: base, tipo: t.tipo }) === 'texto' || t.tipo === 'dia_a_dia') continue
+      t.colunas.forEach((titulo, i) => {
+        if (!t.linhas.some((l) => l[i]?.papel === 'numero')) return
+        if (!UNIDADE_JA_DECLARADA.has(titulo) && !E_CONTAGEM.has(titulo) && !SEM_UNIDADE_NO_TITULO_CONHECIDA.has(titulo) && !TEM_UNIDADE.test(titulo)) out.push(`${t.id}/${titulo}`)
+      })
+    }
+    return out
+  }
+  it.each(todos)('%s: toda coluna numérica tem a unidade no título', (_n, mod) => {
+    expect(semUnidade(mod)).toEqual([])
+  })
+  it('a dívida declarada não apodrece: toda coluna da lista ainda existe numérica e sem unidade em alguma tela', () => {
+    const vistas = new Set<string>()
+    for (const [, mod] of todos) for (const t of mod.tabelas) t.colunas.forEach((c, i) => { if (t.linhas.some((l) => l[i]?.papel === 'numero') && !TEM_UNIDADE.test(c)) vistas.add(c) })
+    expect([...SEM_UNIDADE_NO_TITULO_CONHECIDA].filter((c) => !vistas.has(c))).toEqual([])
+  })
+  it('caso negativo: a coluna numérica "Ritmo" sem unidade é apontada', () => {
+    const mod = todos.find(([n]) => n.startsWith('outliers'))![1]
+    const t = mod.tabelas.find((x) => x.tipo === 'lista' && x.linhas.some((l) => l.some((c) => c.papel === 'numero')))!
+    const i = t.linhas[0]!.findIndex((c) => c.papel === 'numero')
+    const colunas = t.colunas.map((c, j) => (j === i ? 'Ritmo' : c))
+    expect(semUnidade({ ...mod, tabelas: mod.tabelas.map((x) => (x === t ? { ...t, colunas } : x)) })).toEqual([`${t.id}/Ritmo`])
+  })
   it('a lista de ids de classe texto é a que o corte conhece', () => {
     const textos = Object.entries(CLASSES_NA_IA).flatMap(([, ids]) => Object.entries(ids).filter(([, c]) => c === 'texto').map(([id]) => id))
     expect(textos.length).toBeGreaterThan(3)
@@ -349,9 +412,14 @@ describe('(11) pizza (D2): só onde a soma das partes medidas é o todo da tela'
       const p = principalDe(mod)
       const di = p.colunas.indexOf('Direção')
       const comDirecao = p.linhas.filter((l) => { const c = l[di]!; return c.papel === 'numero' && c.estado === 'medido' && typeof c.x === 'number' }).length
-      // as três primeiras casas são as direções medidas; a quarta é "não medido" e não entra na conta
+      // as três primeiras casas são as direções medidas; a 4ª é "não medido"
       const partes = resumo.linhas.slice(0, 3)
       expect(soma(numeros({ ...resumo, linhas: partes })), `${niche}/${fmt}`).toBe(comDirecao)
+      // M2: as 4 casas somam a principal SEM o canal próprio (o título do resumo diz "sem o seu canal")
+      const proprios = p.linhas.filter((l) => l.some((c) => c.papel === 'numero' && c.estado === 'nao_medido' && c.motivo === FRASE_CANAL_PROPRIO)).length
+      expect(resumo.linhas).toHaveLength(4)
+      expect(soma(numeros(resumo)), `4 casas ${niche}/${fmt}`).toBe(p.linhas.length - proprios)
+      expect(resumo.titulo).toContain('sem o seu canal')
       conferidos += 1
     }
     expect(conferidos).toBe(5)
@@ -375,7 +443,11 @@ describe('(11) pizza (D2): só onde a soma das partes medidas é o todo da tela'
     dobra('canais', mod)
     const r = await rodar({ acao: 'listar_canais', saida: 'tabela' })
     const alvo = mod.tabelas.find((t) => t.id === 'canais-resumo-direcao')!
-    expect(blocos(r.texto).get(alvo.titulo)!.antes).toContain('Gráfico sugerido: pizza')
+    const antes = blocos(r.texto).get(alvo.titulo)!.antes
+    expect(antes).toContain('Gráfico sugerido: pizza')
+    expect(antes).toContain('toda parte foi medida')
+    expect(antes).not.toContain('{k}')
+    expect(antes).not.toContain('0 sem medida')
     const ruim: PacoteModelo = { ...mod, tabelas: mod.tabelas.map((t) => (t === alvo ? { ...t, linhas: t.linhas.map((l, i) => (i === 1 ? [l[0]!, { papel: 'numero', estado: 'nao_medido', motivo: 'sem leitura', origem: 'o' } as Celula] : l)) } : t)) }
     m.captured.length = 0
     dobra('canais', ruim)

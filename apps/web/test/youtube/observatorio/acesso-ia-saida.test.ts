@@ -63,9 +63,10 @@ describe('exemplos e formato', () => {
       expect(FORMATO_DA_ACAO[a]).not.toContain('saida')
     }
   })
-  it('um exemplo mostra saida tabela e é válido', () => {
+  // M3: nenhum exemplo leva saida tabela por padrão (a IA pedir CSV sozinha é a F3, decisão do dono); o FORMATO das três listas descreve o campo
+  it('o formato das três listas descreve saida; exemplo que leve saida tabela, se houver, é válido', () => {
+    for (const a of ['listar_canais', 'destaques', 'mudancas'] as const) expect(FORMATO_DA_ACAO[a]).toContain('saida (texto ou tabela')
     const ex = Object.values(EXEMPLO_DA_ACAO).filter((e) => e.includes('"saida":"tabela"'))
-    expect(ex.length).toBeGreaterThan(0)
     for (const e of ex) expect(ENTRADA.safeParse(JSON.parse(e.replace(/<[^>]*>/g, C1))).success).toBe(true)
   })
 })

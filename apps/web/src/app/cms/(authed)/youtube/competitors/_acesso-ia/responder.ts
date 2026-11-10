@@ -8,7 +8,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { z } from 'zod'
 import { ACOES, ENTRADA, traduzir, type Acao, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
-import { FRASES_DA_FERRAMENTA } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import { FRASES_DA_FERRAMENTA, SEM_CSV_LISTA_VAZIA, SEM_CSV_SEM_CHAVES } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -549,6 +549,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     let soNoTexto: string[] = []
     let incluiuDaTabela: boolean | null = null
     let semXDaTabela = 0
+    let saidaEfetiva: 'texto' | 'tabela' = 'texto'
+    let semCsv: string | null = null
     if (pedido.limite.tipo === 'linhas') {
       const n = pedido.limite.n
       const principal = montado.modelo.tabelas.find((x) => classeDa(montado.modelo.tela, x) === 'principal')
@@ -565,8 +567,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         const tetoDaJanela = Math.min(tetoDoTexto, ACESSO_IA_RULES.tetoDaJanela)
         // A5 F1b: o modo tabela monta a mesma janela (mesma marca, mesmo `k` por tamanho) em CSV; principal sem `chaves` não tem modo tabela
         const emTabela = pedido.saida === 'tabela' && principal.chaves !== undefined
-        if (pedido.saida === 'tabela' && !emTabela) avisar('tabela_sem_chaves', { tabela: principal.id })
+        if (pedido.saida === 'tabela' && !emTabela) { avisar('tabela_sem_chaves', { tabela: principal.id }); semCsv = SEM_CSV_SEM_CHAVES(principal.titulo) }
         if (emTabela) {
+          saidaEfetiva = 'tabela'
           const r = respostaEmTabela(lim.modelo, ctx, { inicio: pedido.inicio, n }, tetoDaJanela, lim.totais)
           for (const a of r.avisos) avisar(a.passo, a.extra)
           modelo = lim.modelo
@@ -590,6 +593,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         } else {
           const j = janela(lim.modelo, ctx, pedido.inicio, n, tetoDaJanela, lim.totais)
           modelo = lim.modelo
+          incluiuDaTabela = j.incluiuPrivado
           const c = j.corte
           if (j.linhaNaoCabe) avisar('linha_nao_cabe', { linhas: j.k, total: totalAntes })
           if (j.resumoPassou) avisar('resumo_passou', { total: totalAntes })
@@ -644,6 +648,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       rotulos = f.rotulos
     }
     const incluiu = incluiuDaTabela ?? privadoIncluido(modelo)
+    // I3: pediu tabela e saiu texto (lista vazia, principal sem chaves): a linha no topo diz que não há CSV; o registro grava o que foi entregue
+    const topoFinal = pedido.saida === 'tabela' && saidaEfetiva === 'texto' ? `${semCsv ?? SEM_CSV_LISTA_VAZIA}\n${topo}` : topo
     const { texto, primeira } = feito
     const fora = montado.modelo.paginado
     const cob: Cobertura = {
@@ -656,9 +662,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       proximas: proximasDe(entrada, montado.modelo, agora, doCorte?.linhas ?? 0, cortes.serie, inicioDaJanela, proxima),
     }
     if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
-    return comCobertura(cabeEm(comTopo(texto, topo, primeira), tetoFinal), cob, {
+    return comCobertura(cabeEm(comTopo(texto, topoFinal, primeira), tetoFinal), cob, {
       ...params, privado: incluiuDaTabela ?? modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
-      ...(pedido.saida === 'tabela' ? { saida: 'tabela' as const, sem_x: semXDaTabela } : {}),
+      ...(pedido.saida === 'tabela' ? { saida: saidaEfetiva, ...(saidaEfetiva === 'tabela' ? { sem_x: semXDaTabela } : {}) } : {}),
       ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
       ...(janelaDeLista ? { a_partir_da_linha: inicioDaJanela, sem_dona: semDona, ...(pedido.marca !== undefined ? { marca_mudou: marcaMudou } : {}) } : {}),
     }, t0, incluiu)

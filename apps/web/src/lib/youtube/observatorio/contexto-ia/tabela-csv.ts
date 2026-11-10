@@ -90,7 +90,7 @@ function graficoDaTabela(t: Tabela, avisos: string[]): { grafico: Grafico; frase
     k = t.linhas.reduce((s, l) => s + l.filter(vazioNoCsv).length + (l.filter(ehNumero).length < largura ? 1 : 0), 0)
     if (!PIZZA_PERMITIDA.has(t.id) || k > 0) { g = 'barra'; avisos.push('pizza_nao_fecha') }
   }
-  return { grafico: g, frase: F.FRASE_DO_GRAFICO[g].replace('{k}', String(k)) }
+  return { grafico: g, frase: F.FRASE_DO_GRAFICO[g] }
 }
 
 /** CSV largo de uma tabela. `null` se a tabela não declara `chaves` (ou elas não casam com as colunas e as linhas): quem chama avisa e manda para o modo texto. */

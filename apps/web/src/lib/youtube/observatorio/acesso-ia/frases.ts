@@ -23,6 +23,10 @@ export const FRASES_DA_FERRAMENTA = {
   tela_sem_pacote: 'esta tela ainda não tem pacote',
 } as const
 
+/** A5 F1b (I3): modo tabela pedido e nenhum CSV saiu; a linha vai no topo, para a IA não esperar um bloco que não existe. */
+export const SEM_CSV_LISTA_VAZIA = 'Modo tabela: a lista está vazia nesta janela; não há CSV.'
+export const SEM_CSV_SEM_CHAVES = (tabela: string): string => `Modo tabela: a tabela "${tabela}" não declara colunas de máquina; não há CSV, a resposta vem em texto.`
+
 /** O rodapé da ação `sugestoes` (F2 T8): associação, não causa; "pode ajudar", nunca "vai ajudar" (D2). */
 export const RODAPE_SUGESTOES =
   'Sugestões do nicho: associação entre vídeos de concorrentes que estouraram e um lugar, não causa; pode ajudar, não promete resultado.'

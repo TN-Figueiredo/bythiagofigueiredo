@@ -212,6 +212,8 @@ export interface JanelaDaLista {
   linhaNaoCabe: boolean
   /** O resumo do todo (janela 1) passou de `RESUMO_MAX` só com as contagens: o texto sai inteiro e quem chama avisa. */
   resumoPassou: boolean
+  /** O dado privado está de fato nesta janela (a tabela privada entrou); na janela 2 em diante é falso. */
+  incluiuPrivado: boolean
 }
 
 const chaveDeOrigem = (l: readonly Celula[]): string | null => l.find((c) => c.papel === 'terceiros')?.origem ?? null
@@ -254,6 +256,14 @@ export function marcaDaPrincipal(t: Tabela): string {
 }
 
 /** Reserva fixa, por tabela de texto que sai da janela, para o aviso dela e a linha "Por tamanho" (medido: ~250 caracteres por tabela). */
+/** Janela sem tabela privada (janela 2 em diante): o dado privado não está nela, então o modelo dela não o declara. Uma só função para os dois modos (texto e tabela). */
+export function semPrivadoForaDaJanela(m: PacoteModelo): PacoteModelo {
+  if (m.privado.estado !== 'incluido' || m.tabelas.some((t) => t.privada)) return m
+  const r: PacoteModelo = { ...m, citados: m.citados.filter((b) => !b.privado), privado: { estado: 'na' }, comentarios: { estado: 'na' }, foco: m.foco.filter((f) => !f.privado), definicoes: m.definicoes.filter((d) => !d.privado) }
+  delete r.avisosPrivados
+  return r
+}
+
 export const RESERVA_POR_TABELA_DE_TEXTO = 450
 /** Mudanças: a linha "descrições de N mudanças não couberam" (só quando as descrições saem). */
 export const RESERVA_DAS_DESCRICOES = 300
@@ -384,7 +394,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
       apoio.push({ titulo: 'Descrições das linhas', saiu: 0, de: descricoes })
       if (comTexto) avisos.push(`descrições de ${descricoes} ${SUBSTANTIVO[tela]} não couberam; peça a ação canal com o Id do canal para ver as de um item`)
     }
-    return { modelo: { ...modelo, tabelas, citados, avisos, ...(resumo ? { resumoDoTodo: resumo } : {}) }, antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
+    return { modelo: semPrivadoForaDaJanela({ ...modelo, tabelas, citados, avisos, ...(resumo ? { resumoDoTodo: resumo } : {}) }), antes, avisos, apoio, semDona, textoFora: { tabelas: textoTabelas, linhas: textoLinhas } }
   }
   const rodar = (k: number, estagio: Estagio, comTexto: boolean, tetoDaBusca: number) => {
     const m = montar(k, estagio, comTexto)
@@ -430,7 +440,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
         texto: r.t, estagio, avisos: r.m.avisos.slice(modelo.avisos.length), linhasDaPrincipal: k, totalDaPrincipal: total, principalCortada: false,
         primeiraLinhaDeAviso: r.p.primeiraLinhaDeAviso, apoio: r.m.apoio,
       },
-      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio),
+      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio), incluiuPrivado: r.m.modelo.privado.estado === 'incluido',
     }
   }
   throw new Error('corte-da-ia: janela sem estágio')
