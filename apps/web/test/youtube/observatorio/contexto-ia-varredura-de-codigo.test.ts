@@ -150,7 +150,7 @@ describe('A5 F0.5a: o x nasce do número do modelo, nunca do texto', () => {
   // o `+` só conta como conversão quando é unário (depois de operador ou `return`): `a + r.texto` é concatenação
   const PROIBIDO = /\b(parseFloat|parseInt|Number)\s*\([^)]*\b(texto|big|mult|pw|subs|observed)\b|(?:^|[=(,:?&|!]|\breturn)\s*\+\s*\w+\.(texto|big|mult|pw|subs|observed)\b/
   // M6: os modelos onde o gêmeo nasce também não leem o texto. T2/T3 acrescentam `_outliers/view-model.ts` e `_mudancas/view-model.ts` aqui.
-  const MODELOS_COM_GEMEO = ['_canais/view-model.ts', '_canais/ri-model.ts'].map((f) => join(C, f))
+  const MODELOS_COM_GEMEO = ['_canais/view-model.ts', '_canais/ri-model.ts', '_outliers/view-model.ts', '_mudancas/view-model.ts'].map((f) => join(C, f))
   const alvo = [...arquivos(L), ...arquivos(join(C, '_contexto-ia')), ...MODELOS_COM_GEMEO]
   it('nenhum arquivo de contexto-ia/ nem de _contexto-ia/ converte o texto de uma célula em número', () => {
     expect(alvo.filter((p) => PROIBIDO.test(semComentarios(ler(p)))).map(nome)).toEqual([])

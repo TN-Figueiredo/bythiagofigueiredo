@@ -13,6 +13,7 @@ import type { Medida } from '@/lib/youtube/observatorio/medidas/tipos'
 import type { ValorM1 } from '@/lib/youtube/observatorio/medidas/m1'
 import { FRASE_FIXA_DA_FONTE } from '@/lib/youtube/observatorio/medidas-telas/frases'
 import { INICIO_DAS_MARCAS, somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
+import { gemeo } from '@/lib/youtube/observatorio/contexto-ia/gemeo'
 import { celulaDeIdade, diasEntre, cobertura, dm as dmDe, fraseDaOrdem, IDADES, motivosAgrupados, ordenarPorIdade, quandoFecham, type Celula, type Idade } from './idade-model'
 
 /** A ordem da tela: as três do motor e as duas por idade (E5a T8). O tipo do motor não muda. */
@@ -81,6 +82,8 @@ export interface OutlierCardView {
   channelHref: string | null
   niche: Niche | null; nicheLabel: string | null
   age: string; ageTitle: string; ageShort: string
+  /** A5 F0.5a: o número de máquina de `mult`, `views` e `vpdShort` (gêmeos normalizados; `vpdShortN` é nulo quando a tela escreve palavras em vez de número). */
+  multN: number | null; viewsN: number | null; vpdShortN: number | null
   mult: string; multLabel: string; method: string; tier: Tier | null; weak: boolean; stale: boolean; neutral: boolean
   views: string; vpd7: string | null; vpdText: string; vpdTitle: string | null; vpdShort: string; vpdShortNote: string | null
   historyHref: string; url: string; thumb: string | null; art: ThumbArt | null; dur: string | null
@@ -90,7 +93,7 @@ export interface OutlierCardView {
   /** E5a T8: as células de 7 e 30 dias, o selo e a marca de "saiu do YouTube". Nulo = a tela de antes. */
   idade: IdadeDoCartao | null
   phase: { id: PhaseKey; label: string; tone: Tone }; showPhase: boolean; phaseWhy: string | null
-  reuse: null | { month: string; vpd7: string; median: string }
+  reuse: null | { month: string; vpd7: string; median: string; vpd7N: number | null; medianN: number | null }
   /** Log scale 1×..50× in % of the track; ticks at 2×, 5×, 10×. */
   ruler: { pos: number; from: number; ticks: number[]; legend: string[]; tone: Tier | 'muted' }
 }
@@ -756,16 +759,16 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
   }
   if (partial && c.sync.backfill) flags.push('base parcial (' + c.sync.backfill.done + ' de ' + c.sync.backfill.total + ')')
   // vpdInfo
-  let vpdText: string, vpdTitle: string | null = null, vpdShort: string, vpdShortNote: string | null = null
+  let vpdText: string, vpdTitle: string | null = null, vpdShort: string, vpdShortNote: string | null = null, vpdShortN: number | null = null
   if (stale) { vpdText = 'sem views/dia recentes'; vpdShort = vpdText }
-  else if (v.vpd7 != null) { vpdText = F.num(v.vpd7) + '/dia'; vpdTitle = 'Views/dia nos últimos 7 dias'; vpdShort = F.num(v.vpd7) }
+  else if (v.vpd7 != null) { vpdText = F.num(v.vpd7) + '/dia'; vpdTitle = 'Views/dia nos últimos 7 dias'; vpdShort = F.num(v.vpd7); vpdShortN = gemeo(v.vpd7) }
   else if (v.vpd == null || v.ageDays < 1) { vpdText = 'menos de 1 dia no ar, sem média'; vpdShort = 'menos de 1 dia no ar' }
-  else { const d = v.ageDays === 1 ? '1 dia' : v.ageDays + ' dias'; vpdText = F.num(v.vpd) + '/dia, média de ' + d + ' no ar'; vpdTitle = 'Ainda não há 7 dias de série'; vpdShort = F.num(v.vpd); vpdShortNote = 'média de ' + d }
+  else { const d = v.ageDays === 1 ? '1 dia' : v.ageDays + ' dias'; vpdText = F.num(v.vpd) + '/dia, média de ' + d + ' no ar'; vpdTitle = 'Ainda não há 7 dias de série'; vpdShort = F.num(v.vpd); vpdShortN = gemeo(v.vpd); vpdShortNote = 'média de ' + d }
   // reuse note (antigos)
   let reuse: OutlierCardView['reuse'] = null
   if (it.phase.id === 'antigo') {
     const md = obs.channelStats(v.ch, v.fmt).vpd7Median
-    reuse = { month: D.dmy(v.pub).slice(3), vpd7: F.num(v.vpd7), median: F.num(typeof md === 'number' ? md : null) }
+    reuse = { month: D.dmy(v.pub).slice(3), vpd7: F.num(v.vpd7), median: F.num(typeof md === 'number' ? md : null), vpd7N: gemeo(v.vpd7), medianN: gemeo(typeof md === 'number' ? md : null) }
   }
   const pos = (x: number) => Math.max(0, Math.min(100, Math.log(Math.max(x, 1)) / Math.log(50) * 100))
   const tier = stale || m.weak || neutral ? null : obs.tierOf(m.value)
@@ -777,6 +780,7 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
     channelHref: c.own ? null : obs.link.canal(c.id, { from: 'outliers', back: o.back }),
     niche: v.niche, nicheLabel: v.niche ? obs.nicheLabel(v.niche) : null,
     age: F.age(v), ageShort: F.age(v).replace('há ', ''), ageTitle: 'Publicado em ' + D.dmy(v.pub) + ' às ' + D.hm(v.pub) + ' · dia ' + v.ageDays + ' de vida',
+    multN: gemeo(m.value), viewsN: gemeo(v.views), vpdShortN,
     mult: F.mult(m.value), multLabel, method: m.method ?? '', tier, weak: it.weak, stale, neutral,
     views: F.num(v.views), vpd7: v.vpd7 != null ? F.num(v.vpd7) : null, vpdText, vpdTitle, vpdShort, vpdShortNote,
     historyHref: obs.link.historico(v.id, { from: 'outliers', ids: o.pageIds, back: o.back }), url: v.url,
