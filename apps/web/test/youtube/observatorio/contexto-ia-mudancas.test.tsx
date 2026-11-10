@@ -13,7 +13,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildMudancasView, type MudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 import { MudancasScreen } from '@/app/cms/(authed)/youtube/competitors/_mudancas/mudancas-screen'
 import {
-  empacotarMudancas, INVENTARIO_MUDANCAS, modeloDeMudancas, SEM_FOLHA_NA_MATRIZ_MUDANCAS, SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS, type ModeloMudancas,
+  empacotarMudancas, AVISO_DE_ESCOPO, INVENTARIO_MUDANCAS, modeloDeMudancas, SEM_FOLHA_NA_MATRIZ_MUDANCAS, SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS, type ModeloMudancas,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -51,7 +51,7 @@ async function montar(params: Params, desenhar = true): Promise<Montado> {
 
 // ───────────────────────── o mapa de colunas da regra (d3), escrito aqui
 const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
-  'quadro-de-efeito': { Tipo: '.typeLabel', 'Trocas na janela': ['.all', '.title', '.thumb', '.desc'], 'Com veredito (n)': '.n', 'Mediana do efeito': ['.median', '.semMediana'], Resultado: '.text' },
+  'quadro-de-efeito': { Tipo: '.typeLabel', 'Trocas do nicho na janela': '.poolN', 'Com veredito (n)': '.n', 'Mediana do efeito': ['.median', '.semMediana'], Resultado: '.text' },
   trocas: { Vídeo: '.video.title', Canal: '.video.channel', Nicho: '.video.nicheLabel', Tipo: '.typeLabel', Quando: '.when.text', Visto: '.when.rel' },
   'trocas-efeito': { Vídeo: '.video.title', Tipo: '.typeLabel', Veredito: '.effect.label', Observado: '.rows.observed', 'Antes (views/dia)': '.rows.observedFrom', 'Depois (views/dia)': '.rows.observedTo' },
   'trocas-esperado': { Vídeo: '.video.title', 'Esperado sem a troca': '.rows.expected', Efeito: '.effect.pp' },
@@ -210,7 +210,7 @@ describe('Mudanças: o que o site escreve não leva endereço', () => {
 describe('Mudanças: nenhuma frase longa com acento digitada fora das constantes de "não mede"', () => {
   it('o empacotador só tem frases longas nas constantes permitidas', () => {
     const fonte = readFileSync(resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas.ts'), 'utf8')
-    const permitidas = ['se a troca explica', 'o efeito dos vídeos que o site não acompanha', 'retenção, taxa de clique']
+    const permitidas = ['se a troca explica', 'o efeito dos vídeos que o site não acompanha', 'retenção, taxa de clique', 'O quadro, o resumo de 7 dias e estes avisos']
     const codigo = fonte.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l) && !/\b(titulo|nomeNoCorte):/.test(l)).map((l) => l.replace(/\s\/\/.*$/, ''))
     const literais = [...codigo.join('\n').matchAll(/(['`])((?:\\.|(?!\1).)*)\1/g)].map((x) => x[2]!).filter((s) => s.replace(/\$\{[^}]*\}/g, '').trim().split(/\s+/).length >= 10 && /[áàâãéêíóôõúç]/i.test(s))
     expect(literais.filter((s) => !permitidas.some((p) => s.startsWith(p)))).toEqual([])
@@ -237,4 +237,37 @@ describe('Mudanças: provas por mutação (a paridade cai)', () => {
 
 describe('Mudanças: lista de números sem prova por igualdade direta', () => {
   it('é vazia', () => { expect([...SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS]).toEqual([]) })
+})
+
+describe('Mudanças: achado M-1, as duas colunas do quadro vêm do mesmo conjunto e o escopo é dito', () => {
+  const quadro = (p: PacoteModelo) => p.tabelas.find((t) => t.id === 'quadro-de-efeito')!
+  const valor = (c: unknown): number => Number((c as { texto: string }).texto)
+
+  it('com canal pedido, "Trocas do nicho na janela" >= "Com veredito (n)" em toda linha', async () => {
+    const m = await montar({ channel: CANAL, win: '90' }, false)
+    const t = quadro(m.pacote)
+    expect(t.linhas.length).toBeGreaterThan(0)
+    t.linhas.forEach((l, i) => {
+      expect(valor(l[1])).toBeGreaterThanOrEqual(valor(l[2]))
+      expect(valor(l[1])).toBe(m.view.ledger.medians[i]!.poolN)
+    })
+  })
+
+  it('canal com 0 trocas de descrição e nicho com veredito de descrição: a coluna não é 0 contra 3', async () => {
+    const m = await montar({ win: '90' }, false)
+    const modelo: ModeloMudancas = structuredClone(m.modelo)
+    const i = modelo.ledger.medians.findIndex((x) => x.type === 'desc')
+    modelo.ledger.medians[i]!.n = 3
+    modelo.ledger.medians[i]!.poolN = 3
+    modelo.controls.typeCounts.desc = 0
+    const l = quadro(empacotarMudancas(modelo)).linhas[i]!
+    expect(valor(l[1])).toBe(3)
+    expect(valor(l[2])).toBe(3)
+  })
+
+  it('o aviso de escopo está presente com canal e com vídeo, e ausente sem eles', async () => {
+    expect((await montar({ channel: CANAL, win: '90' }, false)).pacote.avisos).toContain(AVISO_DE_ESCOPO)
+    expect((await montar({ video: BASE.heroes[0]!.video.id }, false)).pacote.avisos).toContain(AVISO_DE_ESCOPO)
+    expect((await montar({ win: '90' }, false)).pacote.avisos).not.toContain(AVISO_DE_ESCOPO)
+  })
 })
