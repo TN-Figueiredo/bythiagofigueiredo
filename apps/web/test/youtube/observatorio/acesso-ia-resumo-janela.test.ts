@@ -129,13 +129,14 @@ describe('A7c1 T10: o resumo na janela', () => {
   })
 
   // rodada 2, achado 1: a tabela coluna ausente não some do resumo
-  it('empacotador real, 60 canais sem o dado da direção: as duas colunas saem com Sem linha = 60, nunca somem', () => {
+  it('empacotador real, 60 canais sem o dado da direção: a tabela sai em UMA linha (sem nenhuma linha) com Sem linha = 60, nunca some', () => {
     const mod = modeloDe(60, 'longos', true)
     expect(mod.tabelas.map((t) => t.id)).toContain('canais-direcao-numeros')
     expect(mod.tabelas.find((t) => t.id === 'canais-direcao-numeros')!.linhas).toHaveLength(0)
     const b = bloco(janela(mod, CONTEXTO, 1, 200, 45_000).corte.texto.texto)
-    expect(b).toContain('| Views nos últimos 28 dias | 0 | 0 | 0 | 0 | 0 | 60 |')
-    expect(b).toContain('| Views nos 28 dias anteriores | 0 | 0 | 0 | 0 | 0 | 60 |')
+    const t = mod.tabelas.find((x) => x.id === 'canais-direcao-numeros')!
+    expect(b).toContain(`| ${t.titulo} (sem nenhuma linha) | 0 | 0 | 0 | 0 | 0 | 60 |`)
+    expect(b).not.toContain('| Views nos últimos 28 dias |')
   })
 
   it('o texto da tela não muda com a tabela vazia: igual ao do modelo sem as listas vazias, byte a byte', () => {
