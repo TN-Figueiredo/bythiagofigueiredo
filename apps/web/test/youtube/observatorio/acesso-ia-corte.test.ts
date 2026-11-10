@@ -694,6 +694,33 @@ describe('A7b Fatia 4 rodada 2: o texto das tabelas acompanha a janela; só nota
     expect(secaoDe(ult.texto)).not.toContain('Você viu tudo')
   })
 
+  it('R1: o geral não coube na janela 1 e a IA repete a chamada SEM a marca: a última janela não diz que viu tudo', async () => {
+    dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 300, 500), lista('tabela-geral', 'Tabela geral', 1, 70_000)]))
+    let e: Record<string, unknown> | null = { acao: 'listar_canais' }
+    const rs: Resp[] = []
+    for (let i = 0; i < 60 && e; i += 1) {
+      const r = await responder(e, abrir, AGORA)
+      rs.push(r)
+      const px = proximaDe(r.texto)
+      if (px) delete px.marca
+      e = px
+    }
+    expect(rs.length).toBeGreaterThan(2)
+    const ult = rs[rs.length - 1]!
+    expect(ult.params.completa).toBe(false)
+    expect(secaoDe(ult.texto)).not.toContain('Você viu tudo')
+    expect(secaoDe(ult.texto)).toContain('sem ela não dá para garantir')
+  })
+
+  it('R2: Destaques com texto que não cabe: o apontador não manda para a ação canal', async () => {
+    const mod = destaquesDe(5)
+    const avisos = mod.tabelas.find((t) => t.id === 'outliers-avisos')!
+    dobra('outliers', { ...mod, tabelas: mod.tabelas.map((t) => (t === avisos ? { ...t, linhas: t.linhas.map((l) => [l[0]!, base(`aviso ${'a'.repeat(50_000)}`, 'x.y')]) } : t)) })
+    const r = await responder({ acao: 'destaques' }, abrir, AGORA)
+    expect(r.texto).toMatch(/tabela "Avisos de cada outlier[^"]*": \d+ linhas não couberam; peça a ação pacote_da_tela com a tela outliers/)
+    expect(r.texto).not.toMatch(/Avisos de cada outlier[^\n]*peça a ação canal/)
+  })
+
   it('I1: sem perda em nenhuma janela, a última diz que viu tudo', async () => {
     dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 300, 500)]))
     const rs = await lerTudo({ acao: 'listar_canais' })

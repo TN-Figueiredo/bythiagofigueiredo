@@ -71,7 +71,7 @@ const NIVEIS: Nivel[] = [
 function montar(c: Cobertura, n: Nivel): string {
   const L: string[] = ['## Cobertura']
   if (c.marcaMudou) L.push('- A lista mudou desde a janela anterior: linhas podem repetir ou faltar; refaça da linha 1.')
-  if (c.janelasAnterioresPerderam) L.push('- Uma janela anterior desta lista deixou parte do conteúdo de fora (o geral, colunas ou texto); a Cobertura dela diz o quê.')
+  if (c.janelasAnterioresPerderam) L.push('- Uma janela anterior desta lista pode ter deixado parte do conteúdo de fora (o geral, colunas ou texto), ou a chamada veio sem a `marca` da janela anterior; sem ela não dá para garantir o que as janelas anteriores perderam.')
   if (c.lista) {
     const l = c.lista
     const trecho = l.total === 0 ? '0 de 0 linhas' : `linhas ${l.de}–${l.ate} de ${l.total}`

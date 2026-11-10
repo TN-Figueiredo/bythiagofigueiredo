@@ -260,7 +260,9 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
     if (!cortes.serie || totalDaSerie + semData > cortes.serie.total) {
       const dts = dentro.map((x) => x.dia).sort()
-      cortes.serie = { pontos: dentro.length, de: dts[0] ?? de, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData }
+      // grão semana: o `dia` de cada ponto é o último dia medido da semana; a Cobertura começa na segunda da 1ª semana mostrada, como a tabela
+      const deMostrado = dts[0] === undefined ? de : grao === 'semana' ? segundaDe(dts[0]) : dts[0]
+      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData }
     }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou
@@ -560,7 +562,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         semDona = j.semDona
         // o que uma janela perdeu (geral, colunas, texto, linha que não coube) viaja no 9º caractere da marca, para a última janela não dizer "viu tudo"
         const perdeuAqui = c.estagio !== 'E2' || c.apoio.some((x) => x.saiu < x.de) || j.linhaNaoCabe
-        janelasAnterioresPerderam = pedido.inicio > 1 && pedido.marca?.endsWith(MARCA_PERDEU) === true
+        janelasAnterioresPerderam = pedido.inicio > 1 && (pedido.marca === undefined || pedido.marca.endsWith(MARCA_PERDEU))
         if (pedido.inicio + j.k <= totalAntes) proxima = { proximo: pedido.inicio + j.k, marca: j.marca + (perdeuAqui || janelasAnterioresPerderam ? MARCA_PERDEU : '') }
         cortes.n += c.texto.cortes.length + (c.texto.pisoPassou ? 1 : 0)
         feito = { texto: cabeEm(c.texto.texto, tetoDoTexto), primeira: c.primeiraLinhaDeAviso, degrau: c.texto.degrau }

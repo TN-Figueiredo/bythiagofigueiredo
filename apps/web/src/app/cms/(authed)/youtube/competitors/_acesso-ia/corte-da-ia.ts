@@ -228,7 +228,7 @@ export const RESERVA_DAS_DESCRICOES = 300
 
 /** O aviso de uma tabela de texto que saiu da janela, com um apontador que a IA consegue seguir. */
 const avisoDeTextoFora = (tela: TelaId, titulo: string, quantas: number): string =>
-  tela === 'canais' ? avisoDeLinhas(tela, titulo, quantas) : `tabela "${titulo}": ${quantas} linhas não couberam; peça a ação canal com o Id do canal para ver as de um item`
+  tela === 'canais' ? avisoDeLinhas(tela, titulo, quantas) : tela === 'mudancas' ? `tabela "${titulo}": ${quantas} linhas não couberam; peça a ação canal com o Id do canal para ver as de um item` : `tabela "${titulo}": ${quantas} linhas não couberam; peça a ação pacote_da_tela com a tela ${tela} para ver o texto desta tabela`
 
 /**
  * A janela `inicio … inicio + k − 1` da principal, com as linhas de apoio dessas linhas. `k` exato por busca binária: `cabe(k)` = o texto do modo `ia` (principal em `k`

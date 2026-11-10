@@ -268,6 +268,12 @@ describe('responder: serie', () => {
     expect(r.texto).toMatch(/2 de 7 dias medidos/)
     expect(r.texto).not.toMatch(/\b2001\b/)
   })
+  it('semana: a Cobertura começa na segunda da 1ª semana mostrada, como a tabela', async () => {
+    dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-06', ate: '2026-10-13' }, abrir, AGORA)
+    expect(r.texto).toMatch(/entre 05\/10\/2026 e /)
+    expect(r.texto).not.toMatch(/entre 11\/10\/2026/)
+  })
   it('tipo não declarado: a semana sai "não medido" (opção mínima), com os dias medidos', async () => {
     dobra('canal', modeloSerie(serie(401)))
     const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-05', ate: '2026-10-11' }, abrir, AGORA)
