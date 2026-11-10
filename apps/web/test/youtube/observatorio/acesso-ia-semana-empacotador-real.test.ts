@@ -157,8 +157,5 @@ describe('F0.5b: série semanal do canal próprio', () => {
     expect(aviso).toContain('São Paulo')
     expect(aviso).not.toContain('Pacífico')
   })
-  it('inventário: todo id de série com semana tem caso aqui (privado-impressoes-por-dia e privado-views-por-dia)', () => {
-    const base = pacote(null, [['privado-impressoes-por-dia', true], ['privado-views-por-dia', false]])
-    expect(base.tabelas.filter((t) => t.semana).map((t) => t.id).sort()).toEqual(['privado-impressoes-por-dia', 'privado-views-por-dia'])
-  })
+  // o inventário de ids com `semana` roda sobre os empacotadores reais em acesso-ia-f05b-empacotadores-reais.test.tsx (B1/B2)
 })
