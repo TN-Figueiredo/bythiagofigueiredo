@@ -40,7 +40,7 @@ describe('campoCsv (a): escape', () => {
     ['a,b', 'a,b'], ['diz "oi"', 'diz "oi"'], ['linha1\nlinha2', 'linha1 linha2'], ['x y', 'x y'],
     ['=HYPERLINK("x")', '\'=HYPERLINK("x")'], ['+1', "'+1"], ['-2', "'-2"], ['@a', "'@a"], ['\tabc', "'\tabc"],
     ['```fim```', "'''fim'''"], ['a\u000bb', 'a b'], ['a\u000cb', 'a b'], ['a\u001eb', 'a b'],
-    ['a\u000bb\u000cc\nd', 'a b c d'], ['\u202eabc', 'abc'], ['a\u0007b', 'ab'], ['', ''], [' ao redor ', ' ao redor '],
+    ['a\u000bb\u000cc\nd', 'a b c d'], [' =1+1', "' =1+1"], ['\n=x', "' =x"], ['\u202eabc', 'abc'], ['a\u0007b', 'ab'], ['', ''], [' ao redor ', ' ao redor '],
   ]
   for (const [entrada, esperado] of casos) {
     it(`${JSON.stringify(entrada)} relido pelo parser dá ${JSON.stringify(esperado)}`, () => {
@@ -64,6 +64,10 @@ describe('campoCsv (a): escape', () => {
 })
 
 describe('numeroCsv (d)', () => {
+  it('bordas (M3)', () => {
+    expect(() => numeroCsv(1e-21)).toThrow()
+    expect(numeroCsv(123456789012.5)).toBe('123456789012.5')
+  })
   it('formatos', () => {
     expect(numeroCsv(15230)).toBe('15230')
     expect(numeroCsv(12.3)).toBe('12.3')
@@ -139,8 +143,8 @@ describe('csvDaTabela (c): nenhum 0 nasce de ausência', () => {
       for (let r = 0; r < 5; r++) {
         const cs: Celula[] = []; const ez: boolean[] = []
         for (let k = 0; k < 3; k++) {
-          const q = Math.floor(rnd() * 8)
-          const c = [num(rnd() * 100), zero(), num(0, '0%'), nm(), falhou(), restrito(), num(null), num(Math.round(rnd() * 5))][q]!
+          const q = Math.floor(rnd() * 9)
+          const c = [num(rnd() * 100), zero(), num(0, '0%'), nm(), falhou(), restrito(), num(null), num(Math.round(rnd() * 5)), { papel: 'numero', estado: 'medido', texto: 'sem variação', semXMotivo: 'arred', origem: 'o' } as Celula][q]!
           cs.push(c)
           ez.push(c.papel === 'numero' && (c.estado === 'zero_medido' || (c.estado === 'medido' && c.x === 0)))
         }
@@ -235,6 +239,27 @@ describe('tabela sem chaves ou torta (h)', () => {
     expect(csvDaTabela(tabela({ chaves: ['a', 'b'] }), novaLegenda())).toBeNull()
     expect(csvDaTabela(tabela({ chaves: ['a', 'a', 'b'] }), novaLegenda())).toBeNull()
     expect(csvDaTabela(tabela({ linhas: [[rot('A'), num(1)]] }), novaLegenda())).toBeNull()
+  })
+})
+
+describe('cabeçalho sem nome repetido (I1)', () => {
+  it('motivos fora do fim ou extra com nome de chave devolve null', () => {
+    expect(csvDaTabela(tabela({ chaves: ['canal', 'motivos', 'x'] }), novaLegenda())).toBeNull()
+    expect(csvDaTabela(tabela(), novaLegenda(), [{ chave: 'canal', titulo: 'x', valor: () => 'a' }])).toBeNull()
+    expect(csvDaTabela(tabela(), novaLegenda(), [{ chave: 'motivos', titulo: 'x', valor: () => 'a' }])).toBeNull()
+  })
+})
+
+describe('prosa do bloco (M1, M5)', () => {
+  it('título, coluna e extra com quebra e crases não abrem cerca nem cabeçalho falso', () => {
+    const c = csvDaTabela(tabela({ titulo: 'T\n```\n## x', colunas: ['Canal', 'A\nB', 'C```'] }), novaLegenda(), [{ chave: 'e', titulo: 'E\n## y', valor: () => 'v' }])!
+    const b = blocoDaTabela(c, c.linhas)
+    expect(b.split('```').length - 1).toBe(2)
+    expect(b.split('\n').filter((l) => l.startsWith('## '))).toHaveLength(1)
+  })
+  it('legenda é prosa: vírgula sem aspas', () => {
+    const l = novaLegenda(); l.idDe('nao_medido', 'a, b')
+    expect(l.linhas()[1]).toBe('- m1 (nao_medido): a, b')
   })
 })
 

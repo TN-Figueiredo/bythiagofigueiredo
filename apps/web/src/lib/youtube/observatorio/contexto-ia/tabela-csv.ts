@@ -15,11 +15,16 @@ const CONTROLES_E_BIDI = /[\u0000-\u0008\u000e-\u001f\u007f\u202a-\u202e\u2066-\
 const PERIGO_DE_PLANILHA = /^[=+\-@\t\r]/
 const TRES_CRASES_OU_MAIS = /`{3,}/g
 
+/** Prosa do bloco (título, coluna, legenda): uma linha só, sem controle, bidi nem cerca; sem aspas nem prefixo de fórmula. */
+function linhaDoBloco(s: string): string {
+  return s.split(FIM_DE_LINHA).join(' ').replace(CONTROLES_E_BIDI, '').replace(TRES_CRASES_OU_MAIS, (c) => "'".repeat(c.length))
+}
+
 /** Um campo CSV (RFC 4180): uma linha só, sem controle nem bidi, sem cerca de código, sem fórmula; cerca com aspas quando precisa. */
 export function campoCsv(texto: string): string {
   let t = texto.split(FIM_DE_LINHA).join(' ') // `split`, nunca `replace`: o regex não tem /g
   t = t.replace(CONTROLES_E_BIDI, '').replace(TRES_CRASES_OU_MAIS, (c) => "'".repeat(c.length))
-  if (PERIGO_DE_PLANILHA.test(t)) t = `'${t}`
+  if (PERIGO_DE_PLANILHA.test(t.replace(/^ +/, ''))) t = `'${t}`
   if (/[,"]/.test(t) || /^\s|\s$/.test(t)) return `"${t.replace(/"/g, '""')}"`
   return t
 }
@@ -27,7 +32,8 @@ export function campoCsv(texto: string): string {
 /** Inteiro sem separador; fração com 6 algarismos significativos abaixo de 1 e 4 casas acima; ponto decimal; sem notação científica. */
 export function numeroCsv(x: number): string {
   if (!Number.isFinite(x)) throw new Error(`numeroCsv: ${String(x)} não é número finito`)
-  const arred = Math.abs(x) < 1 ? Number(x.toPrecision(6)) : Math.abs(x) >= Number.MAX_SAFE_INTEGER ? x : Math.round(x * 1e4) / 1e4
+  if (x !== 0 && Math.abs(x) < 1e-20) throw new Error(`numeroCsv: ${String(x)} some no arredondamento`)
+  const arred = Math.abs(x) < 1 ? Number(x.toPrecision(6)) : Math.abs(x) >= 1e11 ? x : Math.round(x * 1e4) / 1e4
   if (Math.abs(arred) >= Number.MAX_SAFE_INTEGER) return BigInt(arred).toString() // o ICU arredonda os algarismos de um inteiro enorme
   return arred.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
 }
@@ -49,7 +55,7 @@ export function novaLegenda(): Legenda {
     },
     linhas() {
       if (ids.size === 0) return []
-      return [F.LEGENDA_TITULO, ...[...ids.values()].map((m) => F.legendaLinha(m.id, m.estado, campoCsv(m.frase)))]
+      return [F.LEGENDA_TITULO, ...[...ids.values()].map((m) => F.legendaLinha(m.id, m.estado, linhaDoBloco(m.frase)))]
     },
   }
 }
@@ -87,15 +93,17 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
   const chaves = t.chaves
   if (!chaves || chaves.length !== t.colunas.length || new Set(chaves).size !== chaves.length) return null
   if (t.linhas.some((l) => l.length !== chaves.length)) return null
+  if (chaves.slice(0, -1).includes('motivos')) return null
   const temMotivos = chaves.length > 0 && chaves[chaves.length - 1] === 'motivos'
   const colunasDeDados = temMotivos ? chaves.length - 1 : chaves.length
   const avisos: string[] = []
   const { grafico, frase } = graficoDaTabela(t, avisos)
 
   const cabecalhoChaves = [...extras.map((e) => e.chave), ...chaves, ...(temMotivos ? [] : ['motivos'])]
+  if (new Set([...extras.map((e) => e.chave), ...chaves, ...(temMotivos ? [] : ['motivos'])]).size !== extras.length + chaves.length + (temMotivos ? 0 : 1)) return null
   const dic = [
-    ...extras.map((e) => F.dicionarioLinha(e.chave, e.titulo)),
-    ...chaves.map((k, i) => F.dicionarioLinha(k, t.colunas[i]!)),
+    ...extras.map((e) => F.dicionarioLinha(e.chave, linhaDoBloco(e.titulo))),
+    ...chaves.map((k, i) => F.dicionarioLinha(k, linhaDoBloco(t.colunas[i]!))),
     ...(temMotivos ? [] : [F.dicionarioLinha('motivos', F.COLUNA_MOTIVOS)]),
   ]
   let semX = 0
@@ -125,7 +133,7 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
     linhas.push(campos.join(','))
     motivosNovos.push(refs)
   })
-  return { titulo: t.titulo, dicionario: [...dic, F.graficoSugerido(frase)].join('\n'), cabecalho: cabecalhoChaves.map(campoCsv).join(','), linhas, semX, grafico, privada: t.privada, motivosNovos, avisos }
+  return { titulo: linhaDoBloco(t.titulo), dicionario: [...dic, F.graficoSugerido(frase)].join('\n'), cabecalho: cabecalhoChaves.map(campoCsv).join(','), linhas, semX, grafico, privada: t.privada, motivosNovos, avisos }
 }
 
 /** `## título`, privado, dicionário (já com a linha do gráfico), e o CSV cercado. `linhas` pode ser um recorte (o corte da A7). */
