@@ -387,6 +387,13 @@ describe('A7e T7: pela ferramenta registrada, janela numérica chega ao responde
     expect(responder).toHaveBeenCalled()
     expect(responder.mock.calls[0]![0]).toMatchObject({ acao: 'destaques', janela: 90 })
   })
+  it('A7b T8: a_partir_da_linha: 41 e marca chegam ao responder (o SDK não os tira)', async () => {
+    const responder = vi.fn(respondeOk)
+    const { client } = await conectar(responder)
+    const r = await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'listar_canais', a_partir_da_linha: 41, marca: '1a2b3c4d' } }))
+    expect(r.isError).not.toBe(true)
+    expect(responder.mock.calls[0]![0]).toMatchObject({ acao: 'listar_canais', a_partir_da_linha: 41, marca: '1a2b3c4d' })
+  })
   it('a descrição traz os dez exemplos, um por linha, e cabe em 2.000', async () => {
     for (const a of ACOES) expect(DESCRICAO.split('\n'), a).toContain(`- ${EXEMPLO_DA_ACAO[a]}`)
     expect(DESCRICAO.length).toBeLessThanOrEqual(2_000)

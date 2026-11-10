@@ -326,3 +326,23 @@ describe('A7e T7: janela aceita número', () => {
     expect(ENTRADA.safeParse({ acao, ...base, janela: 45 }).success).toBe(false)
   })
 })
+
+describe('A7b T8: a_partir_da_linha e marca nas três listas', () => {
+  it.each(['listar_canais', 'destaques', 'mudancas'])('%s aceita a_partir_da_linha como número e como "41"; o pedido leva inicio', (acao) => {
+    expect(aceita({ acao, a_partir_da_linha: 41 }).inicio).toBe(41)
+    expect(aceita({ acao, a_partir_da_linha: '41' }).inicio).toBe(41)
+    expect(aceita({ acao }).inicio).toBe(1)
+  })
+  it.each(['listar_canais', 'destaques', 'mudancas'])('%s aceita marca de 8 hex e a leva no pedido', (acao) => {
+    expect(aceita({ acao, a_partir_da_linha: 3, marca: '1a2b3c4d' }).marca).toBe('1a2b3c4d')
+    expect(aceita({ acao }).marca).toBeUndefined()
+  })
+  it('recusa: canal não tem janela de linhas; 0, -1 e marca ZZ são recusados', () => {
+    expect(pedir({ acao: 'canal', canal_id: C1, a_partir_da_linha: 1 }).ok).toBe(false)
+    expect(pedir({ acao: 'listar_canais', a_partir_da_linha: 0 }).ok).toBe(false)
+    expect(pedir({ acao: 'listar_canais', a_partir_da_linha: -1 }).ok).toBe(false)
+    expect(pedir({ acao: 'listar_canais', a_partir_da_linha: 100_001 }).ok).toBe(false)
+    expect(pedir({ acao: 'listar_canais', marca: 'ZZ' }).ok).toBe(false)
+    expect(pedir({ acao: 'canal', canal_id: C1, marca: '1a2b3c4d' }).ok).toBe(false)
+  })
+})

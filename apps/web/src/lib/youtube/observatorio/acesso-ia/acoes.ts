@@ -28,6 +28,10 @@ export interface Pedido {
   ate?: string
   /** `destaques`: a janela de idade que o recorte usou, para o cabeçalho escrever (sem ela, "menos vídeos" pareceria "menos dado"). */
   janelaUsada?: string
+  /** A7b: a 1ª linha da janela da lista principal (1-based; padrão 1). Só `listar_canais`, `destaques` e `mudancas` a aceitam. */
+  inicio: number
+  /** A7b: a `marca` que a Cobertura devolveu na janela anterior (8 hex); vem só quando a IA a repete. */
+  marca?: string
 }
 
 /* ------------------------------------------------------------------ esquema */
@@ -41,6 +45,9 @@ const nicho = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/, 'nicho fora de forma
 // a IA manda `90` como número com frequência (registro de 09/11): vale como "90"; 45 continua recusado
 const janela = z.preprocess((v) => (typeof v === 'number' ? String(v) : v), z.enum(['7', '30', '90', 'todas']))
 const formato = z.enum(['todos', 'longos', 'shorts'])
+// A7b: a janela da lista. A IA às vezes manda "41" (texto); número inteiro de 1 a 100.000
+const aPartirDaLinha = z.preprocess((v) => (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(100_000)).optional()
+const marca = z.string().regex(/^[0-9a-f]{8}$/).optional()
 
 const dataReal = (s: string): boolean => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
@@ -56,13 +63,13 @@ const parametros = z
 
 export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('definicoes') }).strict(),
-  z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional() }).strict(),
+  z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
   z.object({ acao: z.literal('canal'), canal_id: id, janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('video'), video_id: id }).strict(),
   z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
-  z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
+  z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
   z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional() }).strict(),
-  z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
+  z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
 ])
@@ -70,8 +77,10 @@ export type Entrada = z.infer<typeof ENTRADA>
 
 /* ------------------------------------------------------------------ o mapa */
 
-export type CampoDeEntrada = 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
-type Resultado = { ok: true; pedido: Pedido } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
+export type CampoDeEntrada = 'a_partir_da_linha' | 'marca' | 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
+type PedidoBase = Omit<Pedido, 'inicio' | 'marca'>
+type Resultado = { ok: true; pedido: PedidoBase } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
+type ResultadoFinal = { ok: true; pedido: Pedido } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
 type Sp = Record<string, string | undefined>
 type Formato = z.infer<typeof formato>
 type Janela = z.infer<typeof janela>
@@ -243,7 +252,10 @@ const PARAMETROS_DA_TELA: Record<TelaId, readonly string[]> = {
 }
 
 /** A entrada já passou pelo esquema (`ENTRADA`); aqui entram as regras que olham mais de um campo. */
-export function traduzir(entrada: Entrada): Resultado {
+export function traduzir(entrada: Entrada): ResultadoFinal {
   const tradutor = TRADUTORES[entrada.acao] as (e: Entrada) => Resultado
-  return tradutor(entrada)
+  const r = tradutor(entrada)
+  if (!r.ok) return r
+  const e = entrada as { a_partir_da_linha?: number; marca?: string }
+  return { ok: true, pedido: { ...r.pedido, inicio: e.a_partir_da_linha ?? 1, ...(e.marca !== undefined ? { marca: e.marca } : {}) } }
 }

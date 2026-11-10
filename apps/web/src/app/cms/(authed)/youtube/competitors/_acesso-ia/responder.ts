@@ -80,6 +80,7 @@ function paramsDaEntrada(e: Entrada): Params {
     if (k === 'acao' || k === 'parametros') continue
     const v = x[k]
     if (typeof v === 'string') p[k] = v
+    else if (typeof v === 'number' && Number.isInteger(v)) p[k] = v
     else if (Array.isArray(v) && v.every((s) => typeof s === 'string')) p[k] = v as string[]
   }
   const ps = x.parametros
