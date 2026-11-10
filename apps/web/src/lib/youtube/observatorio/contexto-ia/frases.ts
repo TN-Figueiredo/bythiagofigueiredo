@@ -162,3 +162,20 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'estruturado', origem: 'mockup', parte: 'montagem', fragmentos: [ESTRUTURADO_TITULO] },
   { id: 'pergunta', origem: 'mockup', parte: 'montagem', fragmentos: [PERGUNTA_TITULO, PERGUNTA_ROTULO] },
 ]
+
+// ───────────────────────── A5 F1a: o CSV das tabelas (gerador em `tabela-csv.ts`; ninguém o chama ainda)
+export const COMO_LER_TABELA =
+  'CSV com vírgula entre campos e ponto decimal; ao montar planilha para Excel em português, escolha esses dois separadores; apóstrofo no início de um nome é proteção de planilha, não faz parte do nome' // novo
+export const LEGENDA_TITULO = 'Motivos (célula vazia não é zero; os ids valem só nesta resposta):' // novo
+export const legendaLinha = (id: string, estado: string, frase: string) => `- ${id} (${estado}): ${frase}` // novo
+export const MOTIVO_SEM_NUMERO_DE_MAQUINA = 'número sem valor de máquina' // novo
+export const COLUNA_MOTIVOS = 'células vazias desta linha e o motivo de cada uma (ids da legenda)' // novo
+export const dicionarioLinha = (chave: string, titulo: string) => `- ${chave}: ${titulo}` // novo
+export const TABELA_PRIVADA = 'privado: sim' // novo
+export const graficoSugerido = (frase: string) => `Gráfico sugerido: ${frase}` // novo
+export const FRASE_DO_GRAFICO = {
+  linha: 'linha (uma por canal ou medida; ponto vazio é buraco, nunca zero)',
+  barra: 'barra (uma por linha; vazio = sem barra, nunca zero)',
+  pizza: 'pizza (as partes somam o todo da tela; {k} sem medida ficam fora)',
+  nenhum: 'nenhum (tabela de apoio)',
+} as const // novo
