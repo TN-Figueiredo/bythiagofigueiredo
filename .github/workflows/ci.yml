@@ -55,6 +55,11 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: cd ${{ matrix.workspace }} && npx tsc --noEmit
+      - name: Typecheck dos testes de tipos (apps/web)
+        if: matrix.workspace == 'apps/web'
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npm run typecheck:tipos -w apps/web
 
   test-api:
     name: Test — API

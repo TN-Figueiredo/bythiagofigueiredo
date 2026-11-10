@@ -117,3 +117,77 @@ canais-inscritos/Canal: ................ |||||||||||||||
 canais-inscritos/Ganho em 28 dias: MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
 canais-inscritos-notas/Canal: ............. ||||||||||||
 canais-inscritos-notas/Nota: ............. ||||||||||||
+
+## views por dia absoluto
+canais/Posição: MMMMMMMMMMMMMn 1º|2º|5º|6º|7º|8º|9º|10º|11º|12º|13º|14º|15º|
+canais/Canal: .............. |||||||||||||
+canais/Id: .............. |||||||||||||
+canais/Inscritos: MMMMMMMMMMMMMM 4,51 mi|1,12 mi|3,72 mi|1,93 mi|612 mil|341 mil|862 mil|205 mil|284 mil|485 mil|412 mil|298 mil|96,4 mil|128 mil
+canais/Direção: MMMMMMMMMMMMMM +20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%
+canais/Ritmo (uploads por semana, 13 semanas): MMMMMMMMMMMMMn 0,5|1,2|1,3|1,6|1,0|1,0|4,0|1,0|1,3|1,8|1,8|1,5|4,4|
+canais/Views/dia, mediana dos vídeos: MMMMMMMMMMMMMn 8,4 mil|4,5 mil|3,8 mil|2,8 mil|1,3 mil|874|636|503|316|211|164|110|37|
+canais/Outliers: nnMMMMMnMMMMnn ||3,9×|3,1×|4,0×|3,2×|6,0×||5,2×|3,7×|2,5×|4,2×||
+canais/Trocas: ZZMMMMMMZMZMZn 0|0|1|2|2|1|6|1|0|1|0|1|0|
+canais/Crescimento: MMMMMMMMMMMMMn sem variação|sem variação|+0,8%|+1,0%|+1,5%|+3,3%|+1,4%|+2,0%|+5,2%|+0,6%|+4,8%|+2,8%|+0,3%|
+canais/Sincronização: .............. |||||||||||||
+canais-nicho/Canal: .............. |||||||||||||
+canais-nicho/Nicho: .............. |||||||||||||
+canais-direcao-numeros/Canal: .............. |||||||||||||
+canais-direcao-numeros/Views nos últimos 28 dias: MMMMMMMMMMMMMM 120|120|120|120|120|120|120|120|120|120|120|120|120|120
+canais-direcao-numeros/Views nos 28 dias anteriores: MMMMMMMMMMMMMM 100|100|100|100|100|100|100|100|100|100|100|100|100|100
+canais-views-por-dia/Canal:  
+canais-views-por-dia/Views por dia, valor absoluto:  
+canais-views-por-dia/Vídeos na base:  
+canais-maior-outlier/Canal: ......... ||||||||
+canais-maior-outlier/Vídeo: ......... ||||||||
+canais-maior-outlier/Vídeos comparados: MMMMMMMMM 9|14|9|3|14|10|5|6|12
+canais-maior-outlier/Publicado: ......... ||||||||
+canais-maior-outlier/Contagem: ......... ||||||||
+canais-estado/Canal: .............. |||||||||||||
+canais-estado/Estado: .............. |||||||||||||
+canais-notas/Canal: ............................................................... ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+canais-notas/Nota: ............................................................... ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+canais-dicas/Canal: ............................................................................................................. ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+canais-dicas/Dica: ............................................................................................................. ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+privado-canais/Posição: MM 3º|3º
+privado-canais/Canal: .. |
+privado-canais/Id: .. |
+privado-canais/Inscritos: MM 3,21 mil|412
+privado-canais/Direção: nn |
+privado-canais/Ritmo (uploads por semana, 13 semanas): MM 0,6|0,2
+privado-canais/Views/dia, mediana dos vídeos: MM 4,3 mil|4,3 mil
+privado-canais/Outliers: nn |
+privado-canais/Trocas: nn |
+privado-canais/Crescimento: nn |
+privado-canais/Sincronização: .. |
+privado-canais-nicho/Canal: .. |
+privado-canais-nicho/Nicho: .. |
+privado-canais-direcao-numeros/Canal:  
+privado-canais-direcao-numeros/Views nos últimos 28 dias:  
+privado-canais-direcao-numeros/Views nos 28 dias anteriores:  
+privado-canais-views-por-dia/Canal:  
+privado-canais-views-por-dia/Views por dia, valor absoluto:  
+privado-canais-views-por-dia/Vídeos na base:  
+privado-canais-maior-outlier/Canal:  
+privado-canais-maior-outlier/Vídeo:  
+privado-canais-maior-outlier/Vídeos comparados:  
+privado-canais-maior-outlier/Publicado:  
+privado-canais-maior-outlier/Contagem:  
+privado-canais-estado/Canal: .. |
+privado-canais-estado/Estado: .. |
+privado-canais-notas/Canal: ........ |||||||
+privado-canais-notas/Nota: ........ |||||||
+privado-canais-dicas/Canal: .............. |||||||||||||
+privado-canais-dicas/Dica: .............. |||||||||||||
+canais-resumo-direcao/Direção: .... |||
+canais-resumo-direcao/Canais: MZZZ 14|0|0|0
+canais-resumo-estado/Estado: ..... ||||
+canais-resumo-estado/Canais: MZnZM 14|0||0|3
+canais-referencias/Canal: ................ |||||||||||||||
+canais-referencias/Views do vídeo típico: MMMMMMMMMMMMMnnn 2,06 mi|963,4 mil|862,6 mil|616,1 mil|287,1 mil|173,1 mil|117,4 mil|107,2 mil|62 mil|48,4 mil|32,2 mil|20,7 mil|2,9 mil|||
+canais-referencias-notas/Canal: ............. ||||||||||||
+canais-referencias-notas/Nota: ............. ||||||||||||
+canais-inscritos/Canal: ................ |||||||||||||||
+canais-inscritos/Ganho em 28 dias: MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
+canais-inscritos-notas/Canal: ............. ||||||||||||
+canais-inscritos-notas/Nota: ............. ||||||||||||

@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": ["next-env.d.ts", "test/**/contexto-ia-*-tipos.test.ts"],
+  "exclude": ["node_modules"]
+}

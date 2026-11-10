@@ -69,5 +69,7 @@ export function casosNovosDeCanais(): CasoCanais[] {
   return [
     { nome: 'diario restrito', obs: w.obs, sp: {}, extras: { ...extrasDe(w.obs, 'sem-acesso'), negativa: 'sem_direito' }, privado: privadoDe(w.obs, 'negado', 'sem_direito') },
     { nome: 'estado lido em parte', obs: w.obs, sp: { medidas: medidasDoMotor(w.obs, { [primeiro]: 'nao_carregou' }) }, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') },
+    // Yannis N2: `scale: 'abs'` faz a coluna `Views/dia, mediana dos vídeos` existir e passar pelo formatador do teste.
+    { nome: 'views por dia absoluto', obs: w.obs, sp: { scale: 'abs' }, extras: extrasDe(w.obs), privado: privadoDe(w.obs, 'ok') },
   ]
 }
