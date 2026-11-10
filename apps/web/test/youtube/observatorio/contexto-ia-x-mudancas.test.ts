@@ -105,18 +105,26 @@ describe('mudanças: x é o número do motor (3)', () => {
 })
 
 describe('mudanças: a mediana do quadro com n suficiente (nenhuma fixture de n ≥ 5 a mede)', () => {
-  it('com o mínimo de vereditos baixado, a célula da mediana é medida e o x é a mediana em pontos, no formato da tela', () => {
-    const obs = createObservatory(datasetFromOracle(loadOracle()))
-    ;(obs.RULES.effect as { minN: number }).minN = 2
-    const view = buildMudancasView(obs, { win: '90' }, new Set())
-    const linha = view.ledger.medians.findIndex((m) => m.median !== null)
-    expect(linha, 'a fixture mede alguma mediana com minN = 2').toBeGreaterThanOrEqual(0)
-    const m = view.ledger.medians[linha]!
-    const cel = empacotarMudancas(modeloDeMudancas(view, 'Todos')).tabelas.find((t) => t.id === 'quadro-de-efeito')!.linhas[linha]![3] as Cel & { estado: string }
-    expect(cel.estado).toBe('medido')
-    expect(typeof cel.x).toBe('number')
-    expect(obs.fmt.pp(cel.x as number)).toBe(m.median)
-    expect(cel.x).toBe(m.medianN)
+  it('com o mínimo de vereditos baixado, a célula da mediana é medida e o x é a mediana em pontos, sem o arredondamento da tela', () => {
+    // `RULES` é a constante do módulo, compartilhada por todo o arquivo: baixa o mínimo só aqui e devolve no `finally`.
+    const regra = OBS.RULES.effect as { minN: number }
+    const antes = regra.minN
+    try {
+      regra.minN = 2
+      const view = buildMudancasView(OBS, { win: '90' }, new Set())
+      const linha = view.ledger.medians.findIndex((m) => m.type === 'thumb')
+      const m = view.ledger.medians[linha]!
+      const cel = empacotarMudancas(modeloDeMudancas(view, 'Todos')).tabelas.find((t) => t.id === 'quadro-de-efeito')!.linhas[linha]![3] as Cel & { estado: string }
+      expect(cel.estado).toBe('medido')
+      expect(m.n, 'as 4 trocas de capa com veredito e sem ressalva').toBe(4)
+      expect(OBS.fmt.pp(cel.x as number)).toBe(m.median)
+      // Oráculo escrito à mão: as duas do meio, em pontos, são +0,873025885963 (neutro) e +28,7771104143 (ganhou); a mediana de 4 é a média delas.
+      // Fracionária de propósito: arredondada para a tela daria 15, e o `x` é o número sem esse arredondamento.
+      expect(cel.x).toBeCloseTo(14.8250681501, 8)
+      expect(Number.isInteger(cel.x as number)).toBe(false)
+    } finally {
+      regra.minN = antes
+    }
   })
 })
 

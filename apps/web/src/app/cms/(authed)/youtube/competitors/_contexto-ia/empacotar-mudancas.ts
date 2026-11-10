@@ -210,10 +210,10 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
   {
     saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', 'Observado', 'Antes (views/dia)', 'Depois (views/dia)'],
       medidas.map(({ i, h }) => {
-        const p = `modelo.heroes[${i}]`, r = h.effect.rows!, n = h.effect.rowsN!
+        const p = `modelo.heroes[${i}]`, r = h.effect.rows!, n = h.effect.rowsN
         return [
           terceiros(h.video.title, `${p}.video.title`), rotulo(h.typeLabel, `${p}.typeLabel`), base(h.effect.label, `${p}.effect.label`),
-          celulaDoNumero(r.observed, `${p}.effect.rows.observed`, undefined, n.observed), celulaDoNumero(r.observedFrom, `${p}.effect.rows.observedFrom`, undefined, n.observedFrom), celulaDoNumero(r.observedTo, `${p}.effect.rows.observedTo`, undefined, n.observedTo),
+          celulaDoNumero(r.observed, `${p}.effect.rows.observed`, undefined, n?.observed ?? null), celulaDoNumero(r.observedFrom, `${p}.effect.rows.observedFrom`, undefined, n?.observedFrom ?? null), celulaDoNumero(r.observedTo, `${p}.effect.rows.observedTo`, undefined, n?.observedTo ?? null),
         ]
       })))
     const comEsperado = medidas.filter(({ h }) => real(h.effect.rows!.expected) && real(h.effect.pp))
@@ -221,7 +221,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
       saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', 'Esperado sem a troca', 'Efeito'],
         comEsperado.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN!.expected), celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)]
+          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN?.expected ?? null), celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)]
         })))
     }
     const comFaixa = medidas.filter(({ h }) => h.effect.rows!.iqr !== null)
@@ -229,7 +229,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
       saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', 'Limite da faixa'],
         comFaixa.flatMap(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN!.iqr![k]!)])
+          return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN?.iqr?.[k] ?? null)])
         })))
     }
     const comBase = medidas.filter(({ i }) => m.derivado.heroes[i]?.effect.noBase == null)

@@ -370,15 +370,19 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
     return { ...base, icon: 'clock', label: 'Aguardando', numbers: null, pp: null, ppN: null, rowsN: null, detail: wait, wait, spark: sparkView(obs, e), rows: null, footTitle: null }
   }
   const [icon, label] = VERDICT[e.status] ?? ['help', cap(e.label)]
-  const rows = e.observed != null ? {
-    observed: F.pct(e.observed), observedFrom: F.num(e.beforeAvg ?? null), observedTo: F.num(e.afterAvg ?? null),
-    expected: F.pct(e.expected ?? null), iqr: e.expected != null && e.iqr ? [F.pct(e.iqr[0]), F.pct(e.iqr[1])] as [string, string] : null,
-    n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
+  // Uma condição só para as duas formas (texto e gêmeo numérico): não há como uma existir sem a outra.
+  const par = e.observed != null ? {
+    rows: {
+      observed: F.pct(e.observed), observedFrom: F.num(e.beforeAvg ?? null), observedTo: F.num(e.afterAvg ?? null),
+      expected: F.pct(e.expected ?? null), iqr: e.expected != null && e.iqr ? [F.pct(e.iqr[0]), F.pct(e.iqr[1])] as [string, string] : null,
+      n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
+    },
+    rowsN: {
+      observed: gemeo(e.observed * 100), observedFrom: gemeo(e.beforeAvg ?? null), observedTo: gemeo(e.afterAvg ?? null),
+      expected: e.expected != null ? gemeo(e.expected * 100) : null, iqr: e.expected != null && e.iqr ? [e.iqr[0] != null ? gemeo(e.iqr[0] * 100) : null, e.iqr[1] != null ? gemeo(e.iqr[1] * 100) : null] as [number | null, number | null] : null,
+    },
   } : null
-  const rowsN = e.observed != null ? {
-    observed: gemeo(e.observed * 100), observedFrom: gemeo(e.beforeAvg ?? null), observedTo: gemeo(e.afterAvg ?? null),
-    expected: e.expected != null ? gemeo(e.expected * 100) : null, iqr: e.expected != null && e.iqr ? [e.iqr[0] != null ? gemeo(e.iqr[0] * 100) : null, e.iqr[1] != null ? gemeo(e.iqr[1] * 100) : null] as [number | null, number | null] : null,
-  } : null
+  const rows = par?.rows ?? null, rowsN = par?.rowsN ?? null
   return {
     ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, ppN: gemeo(e.effectPp ?? null), wait: null,
     // V9 (R53: one text on both screens): the peers of an effect are the channel's N most recent only (R119), so a pinned
