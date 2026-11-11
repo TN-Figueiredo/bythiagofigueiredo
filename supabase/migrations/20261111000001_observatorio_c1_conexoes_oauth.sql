@@ -300,3 +300,74 @@ begin
 end $$;
 revoke all on function public.obs_ai_rate_ip_hit(text, text, timestamptz, integer, integer) from public, anon, authenticated;
 grant execute on function public.obs_ai_rate_ip_hit(text, text, timestamptz, integer, integer) to service_role;
+
+-- ===== Seção 3: propagação de revogação, resolvedor de token =====
+
+-- Liberação → conexões e chaves (4.7). Só REVOGAÇÃO propaga (nunca null), só para linhas abertas; expires_at por igualdade, só chaves abertas.
+-- Ordem de locks (liberação → conexão → tokens): a liberação já está travada pelo UPDATE; a conexão cascateia para chave e tokens.
+create or replace function public.obs_ai_tg_liberacao_propaga()
+returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if old.revoked_at is null and new.revoked_at is not null then
+    update public.obs_ai_conexoes c
+       set revoked_at = new.revoked_at,
+           revogada_por = case new.revogada_por when 'dono' then 'dono_pessoa' when 'lgpd' then 'lgpd' else 'vencida' end
+     where c.liberacao_id = new.id and c.revoked_at is null;
+    update public.pipeline_api_keys k set revoked_at = new.revoked_at
+     where k.revoked_at is null
+       and k.id in (select c.key_id from public.obs_ai_conexoes c where c.liberacao_id = new.id);
+  end if;
+  if new.expires_at is distinct from old.expires_at then
+    update public.pipeline_api_keys k set expires_at = new.expires_at
+     where k.revoked_at is null and k.expires_at is distinct from new.expires_at
+       and k.id in (select c.key_id from public.obs_ai_conexoes c where c.liberacao_id = new.id);
+  end if;
+  return new;
+end $$;
+revoke all on function public.obs_ai_tg_liberacao_propaga() from public, anon, authenticated;
+grant execute on function public.obs_ai_tg_liberacao_propaga() to service_role;
+
+drop trigger if exists obs_ai_liberacao_propaga on public.obs_ai_liberacoes;
+create trigger obs_ai_liberacao_propaga
+  after update of revoked_at, expires_at on public.obs_ai_liberacoes
+  for each row execute function public.obs_ai_tg_liberacao_propaga();
+
+-- Conexão → linha da chave e tokens abertos (inclui o código, que ainda não foi trocado).
+create or replace function public.obs_ai_tg_conexao_propaga()
+returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if old.revoked_at is null and new.revoked_at is not null then
+    update public.pipeline_api_keys k set revoked_at = new.revoked_at
+     where k.id = new.key_id and k.revoked_at is null;
+    update public.obs_ai_oauth_tokens t set revoked_at = new.revoked_at
+     where t.conexao_id = new.id and t.revoked_at is null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.obs_ai_tg_conexao_propaga() from public, anon, authenticated;
+grant execute on function public.obs_ai_tg_conexao_propaga() to service_role;
+
+drop trigger if exists obs_ai_conexao_propaga on public.obs_ai_conexoes;
+create trigger obs_ai_conexao_propaga
+  after update of revoked_at on public.obs_ai_conexoes
+  for each row execute function public.obs_ai_tg_conexao_propaga();
+
+-- Resolvedor único: token → conexão → liberação → chave numa consulta. Linha só se os quatro têm revoked_at nulo e token,
+-- liberação e chave têm validade > p_agora. Ignora used_at (quem consome decide).
+create or replace function public.obs_ai_resolver_token(p_hash text, p_tipo text, p_agora timestamptz)
+returns table (token_id uuid, conexao_id uuid, key_id uuid, user_id uuid, site_id uuid, cliente text, client_id text,
+               familia uuid, used_at timestamptz, token_expira timestamptz, liberacao_expira timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select t.id, c.id, k.id, c.user_id, c.site_id, c.cliente, t.client_id, t.familia, t.used_at, t.expires_at, b.expires_at
+    from public.obs_ai_oauth_tokens t
+    join public.obs_ai_conexoes c on c.id = t.conexao_id
+    join public.obs_ai_liberacoes b on b.id = c.liberacao_id
+    join public.pipeline_api_keys k on k.id = c.key_id
+   where t.hash = p_hash and t.tipo = p_tipo
+     and t.revoked_at is null and c.revoked_at is null and b.revoked_at is null and k.revoked_at is null
+     and t.expires_at > p_agora and b.expires_at > p_agora and k.expires_at > p_agora
+$$;
+revoke all on function public.obs_ai_resolver_token(text, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_resolver_token(text, text, timestamptz) to service_role;
