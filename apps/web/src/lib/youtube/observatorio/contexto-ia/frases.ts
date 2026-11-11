@@ -165,13 +165,14 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
 
 // ───────────────────────── A5 F1a: o CSV das tabelas (gerador em `tabela-csv.ts`; ninguém o chama ainda)
 export const COMO_LER_TABELA =
-  'CSV com vírgula entre campos e ponto decimal; ao montar planilha para Excel em português, escolha esses dois separadores; apóstrofo no início de um nome é proteção de planilha, não faz parte do nome' // novo
+  'CSV com vírgula entre campos e ponto decimal; ao montar planilha para Excel em português, escolha esses dois separadores; apóstrofo no início de um nome é proteção de planilha, não faz parte do nome; não compare bases diferentes sem citar as duas' // novo
 export const LEGENDA_TITULO = 'Motivos (célula vazia não é zero; os ids valem só nesta resposta):' // novo
 export const legendaLinha = (id: string, estado: string, frase: string) => `- ${id} (${estado}): ${frase}` // novo
 export const MOTIVO_SEM_NUMERO_DE_MAQUINA = 'número sem valor de máquina' // novo
 export const COLUNA_MOTIVOS = 'células vazias desta linha e o motivo de cada uma (ids da legenda)' // novo
 export const dicionarioLinha = (chave: string, titulo: string) => `- ${chave}: ${titulo}` // novo
 export const TABELA_PRIVADA = 'privado: sim' // novo
+export const TABELA_PRIVADA_LGPD = 'esta planilha leva dado privado do seu canal: revogar a chave não apaga o que já foi baixado' // novo (A5 F3; risco 38)
 export const graficoSugerido = (frase: string) => `Gráfico sugerido: ${frase}` // novo
 export const FRASE_DO_GRAFICO = {
   linha: 'linha (uma por canal ou medida; ponto vazio é buraco, nunca zero)',

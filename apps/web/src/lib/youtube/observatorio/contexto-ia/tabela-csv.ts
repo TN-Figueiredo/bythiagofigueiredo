@@ -148,5 +148,5 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
 
 /** `## título`, privado, dicionário (já com a linha do gráfico), e o CSV cercado. `linhas` pode ser um recorte (o corte da A7). */
 export function blocoDaTabela(c: CsvDaTabela, linhas: readonly string[]): string {
-  return [`## ${c.titulo}`, ...(c.privada ? [F.TABELA_PRIVADA] : []), c.dicionario, '```csv', c.cabecalho, ...linhas, '```'].join('\n')
+  return [`## ${c.titulo}`, ...(c.privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []), c.dicionario, '```csv', c.cabecalho, ...linhas, '```'].join('\n')
 }

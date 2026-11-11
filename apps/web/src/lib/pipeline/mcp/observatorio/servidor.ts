@@ -16,22 +16,24 @@ export const DESCRICAO =
   'Lê o Observatório do YouTube (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
   'Só leitura. Escolha uma das dez ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela ou sugestoes (as sugestões do nicho: só leitura). ' +
   'Cada ação aceita só os campos que a ela cabem; o resto é recusado. ' +
+  'Para gráfico ou planilha, peça saida "tabela" (CSV com número de máquina; célula vazia não é zero; cada tabela traz o gráfico sugerido: linha, barra ou pizza). ' +
   // para o cliente que ignora as `instructions` (não se sabe se o conector web do Claude.ai as entrega)
   'Toda resposta termina com "Cobertura" (quanto você viu e as próximas chamadas): diga a cobertura antes de recomendar e ofereça aprofundar. ' +
   'Um pedido válido por ação (troque <uuid> pelo id da coluna Id de listar_canais):\n' +
   ACOES.map((a) => `- ${EXEMPLO_DA_ACAO[a]}`).join('\n')
 
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
-export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10'
+export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
   { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu (ex.: "vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X dito em palavras (o texto depois de " : " em "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
   { fatia: 'T6', texto: 'Pedido recusado traz o formato e um exemplo válido: corrija e tente de novo uma vez.' },
   { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
   { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: ele foi calculado sobre todas as linhas, não só as que vieram.' },
+  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco (nunca zero); pizza só onde sugerido. Publicações por mês não é medida por nenhuma tela: use o ritmo de 13 semanas (listar_canais em tabela) e diga que mês não é medido.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
-const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10'])
+const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5'])
 
 export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
   const itens = ITENS_DE_INSTRUCAO.filter((i) => ligadas.has(i.fatia))

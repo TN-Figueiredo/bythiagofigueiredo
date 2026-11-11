@@ -331,6 +331,7 @@ describe('responder: serie em tabela (um canal)', () => {
     dobra('canal-proprio', modelo([{ ...privada, foraDoTeto: 3 }], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio'))
     const com = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
     expect(com.texto).toContain('privado: sim')
+    expect(com.texto).toContain('revogar a chave não apaga o que já foi baixado')
     expect(com.texto).toContain(`${SENT}`)
     expect(com.texto).toContain('3 fora da soma')
     expect(com.texto).toContain('horário do Pacífico')

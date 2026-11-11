@@ -105,6 +105,7 @@ describe('initialize pelo handler real da rota do Observatório', () => {
     expect(r.status).toBe(200)
     const res = await resultado(r)
     expect(res.instructions).toBe(INSTRUCOES)
+    expect(res.instructions as string).toContain('saida "tabela"')
     expect(INSTRUCOES.length).toBeGreaterThan(100)
   })
 })

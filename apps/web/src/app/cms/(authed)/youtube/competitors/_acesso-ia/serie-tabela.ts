@@ -395,7 +395,7 @@ export function respostaDaSerieEmTabela(
       : ['dia', 'canal', 'medida', 'valor', 'estado', 'motivo_id'] as const
     const bloco = [
       `## Série ${grao === 'semana' ? 'por semana' : 'por dia'}`,
-      ...(privada ? [F.TABELA_PRIVADA] : []),
+      ...(privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []),
       ...(grao === 'semana' ? [F.SERIE_TOPO_DAS_SEMANAS(dm(de), dm(ate))] : []),
       ...colunas.map((c) => F.dicionarioLinha(c, F.SERIE_DICIONARIO_COLUNAS[c])),
       ...csv.dicionarioDeCanais,

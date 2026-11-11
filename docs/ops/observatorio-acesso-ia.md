@@ -12,6 +12,8 @@ Plano: `docs/superpowers/plans/2026-10-13-a5-e17-degrau-2-acesso-pelo-claude-cod
 
 Um servidor MCP com UMA ferramenta, `observatorio_leitura`, só leitura. Nove ações: `definicoes`, `listar_canais` (até 200 canais), `canal`, `video`, `comparar` (2 a 6 canais), `destaques` (até 50 vídeos), `serie` (até 400 pontos; passa ao grão semana e diz), `mudancas` (até 100) e `pacote_da_tela` (até 30.000 caracteres; as outras, 60.000). Cada resposta traz os números, o estado "não medido" e o motivo. Nenhum recurso e nenhum prompt.
 
+**Tabela e gráfico (A5).** `listar_canais`, `destaques`, `mudancas`, `serie` (um canal) aceitam `saida: "tabela"`: CSV com ponto decimal e número de máquina, célula vazia (nunca zero) com o motivo na coluna `motivos`/legenda, dicionário de colunas e a linha "Gráfico sugerido" (linha, barra, pizza ou nenhum). Limites: os da ação de texto (200 canais, 50 vídeos, 100 mudanças, 400 pontos de série) e o teto de caracteres da resposta; passou, a resposta corta e a Cobertura diz de onde pedir. As instruções e a descrição da ferramenta ensinam a IA a pedir `saida "tabela"` e a desenhar o gráfico sugerido; mês não é medido (use o ritmo de 13 semanas). Tabela com dado privado do canal leva `privado: sim` e a frase "esta planilha leva dado privado do seu canal: revogar a chave não apaga o que já foi baixado".
+
 ## As três travas (todas fechadas por padrão)
 
 1. `OBSERVATORIO_IA_EXTERNA` com o valor exato `on` na Vercel (trava do dono). Conferir: Vercel, Settings, Environment Variables. Vale só depois de redeploy. **Fica ausente em Preview e em Development, sempre** (produção, prévia e a máquina local usam o mesmo banco).
@@ -84,11 +86,11 @@ select l.at, u.email, l.action, l.result, l.params->>'desfecho' as desfecho, l.i
 
 ## O que o registro guarda e o que não guarda
 
-Guarda: quem (pessoa e chave), quando, a ação, os parâmetros de uma lista fechada (ids, janela, formato, datas), o desfecho, se incluiu dado privado e quantos caracteres saíram. **Não guarda:** a pergunta feita à IA, a resposta da IA, a conversa, nem o texto devolvido. Uma linha é gravada ANTES de qualquer dado sair ("sem linha, sem dado"): se o registro falha, a pessoa recebe erro e nenhum dado.
+Guarda: quem (pessoa e chave), quando, a ação, os parâmetros de uma lista fechada (ids, janela, formato, datas, `saida`), o desfecho, quantas linhas saíram e `sem_x` (células medidas sem valor de máquina, na tabela), se incluiu dado privado e quantos caracteres saíram. **Não guarda:** a pergunta feita à IA, a resposta da IA, a conversa, nem o texto devolvido. Uma linha é gravada ANTES de qualquer dado sair ("sem linha, sem dado"): se o registro falha, a pessoa recebe erro e nenhum dado.
 
 Taxa: 30 por minuto e 500 por dia, por chave. A 31ª chamada do minuto recebe a hora de volta (horário de São Paulo). Cada chamada recusada por limite também soma no contador. Os números não sobem sozinhos.
 
-Riscos em palavras simples: (31) quem tem a chave e o direito lê o desempenho privado do canal; por isso a chave é por pessoa, vence em 180 dias e se revoga com uma instrução; (38) o texto devolvido vai para o modelo de IA da pessoa e sai do nosso controle; a ferramenta nunca devolve texto de comentário a quem não tem o direito privado.
+Riscos em palavras simples: (31) quem tem a chave e o direito lê o desempenho privado do canal; por isso a chave é por pessoa, vence em 180 dias e se revoga com uma instrução; (38) o texto devolvido vai para o modelo de IA da pessoa e sai do nosso controle (na planilha, revogar a chave não apaga o que já foi baixado: a tabela privada diz isso na própria resposta); a ferramenta nunca devolve texto de comentário a quem não tem o direito privado.
 
 Pedido de apagamento de quem tem chave: a porta já recusa pelo pedido e pelo banimento; a chave continua na tabela até você revogar (SQL acima).
 

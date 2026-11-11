@@ -32,12 +32,12 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
 
 export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
   definicoes: '{"acao":"definicoes"}',
-  listar_canais: '{"acao":"listar_canais","formato":"longos","a_partir_da_linha":41}',
+  listar_canais: '{"acao":"listar_canais","formato":"longos","a_partir_da_linha":41,"saida":"tabela"}',
   canal: '{"acao":"canal","canal_id":"<uuid da coluna Id>","formato":"longos"}',
   video: '{"acao":"video","video_id":"<id de 11 caracteres>"}',
   comparar: '{"acao":"comparar","canal_ids":["proprio","<uuid 1>","<uuid 2>"]}',
   destaques: '{"acao":"destaques","janela":"90","formato":"longos"}',
-  serie: '{"acao":"serie","canal_id":"<uuid>","de":"2026-10-05","ate":"2026-11-08","grao":"semana"}',
+  serie: '{"acao":"serie","canal_id":"<uuid>","de":"2026-10-05","ate":"2026-11-08","grao":"semana","saida":"tabela"}',
   mudancas: '{"acao":"mudancas","janela":"30","formato":"todos"}',
   sugestoes: '{"acao":"sugestoes"}',
   pacote_da_tela: '{"acao":"pacote_da_tela","tela":"insights","parametros":{"fmt":"long"}}',
