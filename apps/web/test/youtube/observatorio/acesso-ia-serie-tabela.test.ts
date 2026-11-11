@@ -618,6 +618,37 @@ describe('I2 (dono 10/11): o dia ainda aberto sai vazio, como a semana aberta', 
     expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'medido' })
   })
 })
+describe('acessoir-12 (m9, m10, m11): bordas do dia aberto do canal próprio', () => {
+  const DIA = { de: '2026-11-08', ate: '2026-11-10', grao: 'dia' as const }
+  const incluido = { privado: { estado: 'incluido', itens: 'views por dia' } } as const
+  it('m9: segunda 02:00 de SP, o Pacífico ainda está no domingo: a semana do canal próprio sai aberta', () => {
+    const cedo = Date.UTC(2026, 10, 9, 5, 0, 0)
+    const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-08', inicio: '2026-08-01', celula: (d) => (d === '2026-11-08' ? semReg() : med(ganhoDe(d))) })
+    const ps = pontosDaSerie(modelo([priv], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-11-02', ate: '2026-11-08', grao: 'semana' }, cedo, N)
+    expect(ps.find((p) => p.data === '2026-11-02')?.motivo).toBe('semana ainda aberta (termina em 08/11)')
+  })
+  it('m10: verão (PDT): 06:30 UTC de 10/07 é 23:30 do dia 09 no Pacífico; o aberto é 07-09', () => {
+    const t = Date.UTC(2026, 6, 10, 6, 30, 0)
+    const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-07-09', inicio: '2026-05-01' })
+    const ps = pontosDaSerie(modelo([priv], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-07-08', ate: '2026-07-10', grao: 'dia' }, t, N)
+    expect(ps.find((p) => p.data === '2026-07-09')).toMatchObject({ estado: 'nao_medido', motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
+    expect(ps.find((p) => p.data === '2026-07-08')).toMatchObject({ estado: 'medido' })
+  })
+  it('m10b: verão (PDT): 07:30 UTC de 10/07 já é 00:30 do dia 10 no Pacífico (um deslocamento fixo de -8 h diria dia 09)', () => {
+    const t = Date.UTC(2026, 6, 10, 7, 30, 0)
+    const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-07-10', inicio: '2026-05-01' })
+    const ps = pontosDaSerie(modelo([priv], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-07-08', ate: '2026-07-10', grao: 'dia' }, t, N)
+    expect(ps.find((p) => p.data === '2026-07-10')).toMatchObject({ estado: 'nao_medido', motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
+    expect(ps.find((p) => p.data === '2026-07-09')).toMatchObject({ estado: 'medido' })
+  })
+  it('m11: 01:00 UTC de 10/11 é 22:00 de SP do dia 09: o aberto é 09/11 (borda UTC separada da de SP)', () => {
+    const t = Date.UTC(2026, 10, 10, 1, 0, 0)
+    const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-09', inicio: '2026-08-01' })
+    const ps = pontosDaSerie(modelo([priv], incluido, 'canal-proprio'), C1, 'c1', DIA, t, N)
+    expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'nao_medido', motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
+    expect(ps.find((p) => p.data === '2026-11-08')).toMatchObject({ estado: 'medido' })
+  })
+})
 const contarMedidos = (ps: PontoCsv[]): number => ps.filter((p) => p.estado === 'medido' || p.estado === 'zero_medido').length
 
 /* ------------------------------------------------------------------ acessoir-14: o dado do próprio chega com atraso */
