@@ -10,11 +10,12 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACOES } from './acoes'
 import { TODOS_OS_CAMPOS } from './exemplos'
+import { METRICAS_DA_CONSULTA } from '../consulta/catalogo'
 import { ACESSO_IA_RULES } from './regras'
 import { telaExiste } from '../contexto-ia/telas'
 import type { ChaveDoPerfilProvada } from './prova'
 
-type ValorDeParam = string | number | boolean | string[]
+type ValorDeParam = string | number | boolean | string[] | Record<string, number>
 
 export interface LinhaDeAcesso {
   prova: ChaveDoPerfilProvada
@@ -70,10 +71,18 @@ function paresDeParametros(v: unknown): { ok: string[]; fora: number } | null {
   return { ok: [...ok].sort().slice(0, 12), fora: new Set(pares).size - ok.size }
 }
 
+const LUGAR = /^(pais:[A-Z]{2}|local:[a-z]{2}-[a-z0-9-]{1,40})$/
+const FAIXA_DE_IDADE = /^(0-30|31-90|91-180|181-365|365\+|todas)$/
+const DADOS_DE = /^\d{4}-\d{2}-\d{2}T\d{2}$/
+/** As métricas da `consultar`: derivadas do catálogo (A4 T4), uma lista só para `metricas`, `ordenar_por` e `nao_medidos`. */
+const METRICAS_DO_REGISTRO: readonly string[] = Object.keys(METRICAS_DA_CONSULTA)
+/** `entidade` da `consultar`: `video` hoje, `canal` na 2ª entrega; `comentario` e `yt_own_*` nunca (spec 3.1). */
+const ENTIDADES_DO_REGISTRO = ['video', 'canal'] as const
+
 const CAMPOS_DE_RECUSA: readonly string[] = [...TODOS_OS_CAMPOS, '(desconhecido)']
 
 /** A chave aceita? Se sim, o valor (cortado/ajustado) que vai para a linha; se não, `undefined` e a chave sai. */
-const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | undefined>> = {
+export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | undefined>> = {
   acao: (v) => (daLista(ACOES)(v) ? v : undefined),
   tela: (v) => (telaExiste(v) ? v : undefined),
   canal_id: (v) => (idValido(v) ? v : undefined),
@@ -128,13 +137,58 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
     return ok.length > 0 ? ok : undefined
   },
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
+  // A4 T1: sha256 do texto entregue (só em `ok`)
+  resposta_sha256: (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : undefined),
+  // A4 T2: as chaves da `consultar`. Nenhuma é texto livre: lista fechada, regex curta, data real ou contador.
+  entidade: (v) => (daLista(ENTIDADES_DO_REGISTRO)(v) ? v : undefined),
+  lugar: (v) => (typeof v === 'string' && LUGAR.test(v) ? v : undefined),
+  janela_idade: (v) => {
+    if (typeof v === 'string') return FAIXA_DE_IDADE.test(v) ? v : undefined
+    if (!Array.isArray(v) || v.length === 0 || v.length > 5 || !v.every((x) => typeof x === 'string' && FAIXA_DE_IDADE.test(x))) return undefined
+    return v as string[]
+  },
+  publicado_de: (v) => (dataReal(v) ? v : undefined),
+  publicado_ate: (v) => (dataReal(v) ? v : undefined),
+  metricas: (v) => (Array.isArray(v) && v.length > 0 && v.length <= 8 && v.every(daLista(METRICAS_DO_REGISTRO)) ? (v as string[]) : undefined),
+  ordenar_por: (v) => (daLista(METRICAS_DO_REGISTRO)(v) ? v : undefined),
+  direcao: (v) => (daLista(['desc', 'asc'])(v) ? v : undefined),
+  limite: (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 50 ? v : undefined),
+  incluir_base_fraca: (v) => (typeof v === 'boolean' ? v : undefined),
+  elegiveis: (v) => (contador(v) ? v : undefined),
+  cortadas: (v) => (contador(v) ? v : undefined),
+  sem_lugar_calculado: (v) => (contador(v) ? v : undefined),
+  dados_de: (v) => (typeof v === 'string' && DADOS_DE.test(v) ? v : undefined),
+  // só `true`; quem escreve é `filtrarParams` (o chamador nunca)
+  params_cortado: (v) => (v === true ? true : undefined),
+  // chaves só as do catálogo de métricas, valor contador 0–99999, validado chave a chave; sem nenhuma boa, a chave sai
+  nao_medidos: (v) => {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined
+    const o: Record<string, number> = {}
+    for (const m of METRICAS_DO_REGISTRO) {
+      const x = (v as Record<string, unknown>)[m]
+      if (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 99_999) o[m] = x
+    }
+    return Object.keys(o).length > 0 ? o : undefined
+  },
+  n_metricas: (v) => (contador(v) ? v : undefined),
+  n_faixas: (v) => (contador(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }
 /** Para o teste de completude: as chaves que têm forma. Só leitura; o mapa não sai daqui. */
 export const CHAVES_COM_FORMA_DE_PARAMS: readonly string[] = Object.freeze(Object.keys(FORMA_DOS_PARAMS))
 const ambiente = (): string => process.env.VERCEL_ENV ?? 'local'
 
-function filtrarParams(params: Record<string, unknown>): Record<string, ValorDeParam> {
+/** O teto da forma de `params` (inclui a chave `ambiente`, que o registro acrescenta). */
+export const TETO_DOS_PARAMS_B = 1_024
+
+/** Nunca caem no corte (A4 T2): o que audita a linha. `params_cortado` é o aviso do próprio corte. */
+const PROTEGIDAS: ReadonlySet<string> = new Set(['acao', 'desfecho', 'linhas', 'total', 'elegiveis', 'cortadas', 'ms', 'resposta_sha256', 'campos_invalidos', 'lugar', 'params_cortado'])
+
+const tamanho = (p: Record<string, ValorDeParam>): number => JSON.stringify({ ...p, ambiente: ambiente() }).length
+const contagem = (v: ValorDeParam | undefined): number => (Array.isArray(v) ? v.length : v === undefined ? 0 : 1)
+
+/** Filtra pela forma e, se o JSON passar de `TETO_DOS_PARAMS_B`, corta em degraus fixos sem trocar o tipo de nenhuma chave. */
+export function filtrarParams(params: Record<string, unknown>): { params: Record<string, ValorDeParam>; cortado: boolean } {
   const saida: Record<string, ValorDeParam> = {}
   for (const [k, v] of Object.entries(params)) {
     if (!Object.prototype.hasOwnProperty.call(FORMA_DOS_PARAMS, k)) continue
@@ -143,9 +197,29 @@ function filtrarParams(params: Record<string, unknown>): Record<string, ValorDeP
   }
   // o par descartado não some em silêncio: fica a contagem (número tem forma)
   delete saida.parametros_fora
+  delete saida.params_cortado
   const fora = paresDeParametros(params.parametros)?.fora ?? 0
   if (fora > 0) saida.parametros_fora = fora
-  return saida
+  if (tamanho(saida) <= TETO_DOS_PARAMS_B) return { params: saida, cortado: false }
+
+  saida.params_cortado = true
+  const degrau = (chave: string, contador: string): void => {
+    if (tamanho(saida) <= TETO_DOS_PARAMS_B || saida[chave] === undefined) return
+    if (saida[contador] === undefined) saida[contador] = contagem(saida[chave])
+    delete saida[chave]
+  }
+  degrau('metricas', 'n_metricas')
+  degrau('canal_ids', 'n_canais')
+  degrau('janela_idade', 'n_faixas')
+  if (tamanho(saida) > TETO_DOS_PARAMS_B && Array.isArray(saida.parametros)) saida.parametros = [`n_pares=${saida.parametros.length}`]
+  if (tamanho(saida) > TETO_DOS_PARAMS_B) {
+    for (const k of Object.keys(saida).filter((x) => !PROTEGIDAS.has(x)).sort()) {
+      if (tamanho(saida) <= TETO_DOS_PARAMS_B) break
+      delete saida[k]
+    }
+  }
+  if (tamanho(saida) > TETO_DOS_PARAMS_B) for (const k of Object.keys(saida)) if (!PROTEGIDAS.has(k)) delete saida[k]
+  return { params: saida, cortado: true }
 }
 
 const ESTOUROU = Symbol('estourou')
@@ -176,7 +250,7 @@ async function inserir(sb: SupabaseClient, linha: Record<string, unknown>, opcoe
 }
 
 export async function registrarAcessoDaChave(sb: SupabaseClient, l: LinhaDeAcesso, opcoes?: { prazoMs?: number }): Promise<{ ok: true } | { ok: false; code: string }> {
-  const params = filtrarParams(l.params)
+  const { params } = filtrarParams(l.params)
   const desfecho = params.desfecho
   if (typeof desfecho !== 'string' || desfecho === '') return { ok: false, code: 'sem_desfecho' }
   const entregue = desfecho === 'ok'

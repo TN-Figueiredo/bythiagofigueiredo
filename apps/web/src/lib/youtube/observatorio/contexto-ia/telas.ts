@@ -7,7 +7,7 @@ export interface TelaIa {
   /** Pasta em `competitors/` ('' para Canais); `null` quando a página ainda não existe. */
   rota: string | null
   pedeId: boolean
-  estado: 'existe' | 'espera_a_tela'
+  estado: 'existe' | 'espera_a_tela' | 'so_pela_acao'
   exemplos: readonly [string, string] | readonly [string]
 }
 
@@ -25,6 +25,8 @@ export const TELAS_IA: Record<TelaId, TelaIa> = {
   'video-proprio': { nome: 'Vídeo próprio', rota: 'video/[id]', pedeId: true, estado: 'existe', exemplos: ['A thumbnail está funcionando?', 'O que os comentários pedem?'] },
   // F2 T8: a aba das sugestões do nicho nasce pelo Cowork e pelo Claude Code; a página chegou na F3 T6 (competitors/sugestoes).
   sugestoes: { nome: 'Sugestões do nicho', rota: 'sugestoes', pedeId: false, estado: 'existe', exemplos: ['Qual sugestão vale olhar primeiro?', 'O que ainda não dá para afirmar sobre estas sugestões?'] },
+  // A4 R3: a ação `consultar` não tem tela nem botão: o pacote nasce só pela ação (D3); fica fora de EMPACOTAR e do diálogo.
+  consultar: { nome: 'Consulta', rota: null, pedeId: false, estado: 'so_pela_acao', exemplos: ['Quais vídeos de um lugar passaram do normal do canal?'] },
   ritmo: { nome: 'Ritmo por hora', rota: null, pedeId: false, estado: 'espera_a_tela', exemplos: ['Qual a melhor faixa de hora para publicar?', 'O que este perfil não consegue dizer?'] },
 }
 

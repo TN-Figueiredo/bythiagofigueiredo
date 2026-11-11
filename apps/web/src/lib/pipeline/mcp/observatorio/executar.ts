@@ -2,6 +2,7 @@
 // REGRA DURA: o texto só sai daqui depois de `{ ok: true }` do registro ("sem linha, sem dado"). Nunca lança, salvo "sem contexto"
 // (ferramenta chamada fora da porta). Erro, log e Sentry levam só o passo e o código, nunca a mensagem crua, o texto nem o id da pessoa.
 import 'server-only'
+import { createHash } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACOES } from '@/lib/youtube/observatorio/acesso-ia/acoes'
@@ -16,7 +17,7 @@ export interface Resposta {
   texto: string
   desfecho: 'ok' | 'nao_encontrado' | 'pedido_invalido' | 'falhou'
   incluiuPrivado: boolean
-  params: Record<string, string | number | boolean | string[]>
+  params: Record<string, string | number | boolean | string[] | Record<string, number>>
 }
 /** A5 F2b: até onde o `responder` pode ler (no relógio `relogio`, o mesmo de `executarChamada`): o prazo menos a margem da tabela. */
 export interface PrazoDaChamada { limiteMs: number; relogio: () => number }
@@ -104,7 +105,8 @@ export async function executarChamada(
   const reg = await registrarAcessoDaChave(sb, {
     prova: c.prova,
     acao,
-    params: { ...resposta.params, acao, desfecho: resposta.desfecho },
+    // A4 T1: o hash é do texto entregue (só `ok`); nunca vem do chamador. Recusa não leva a chave (divergência declarada do spec 4)
+    params: { ...resposta.params, acao, desfecho: resposta.desfecho, ...(entregue ? { resposta_sha256: createHash('sha256').update(resposta.texto, 'utf8').digest('hex') } : {}) },
     incluiuPrivado: entregue ? resposta.incluiuPrivado : false,
     caracteres: entregue ? resposta.texto.length : null,
     resultado: 'ok',

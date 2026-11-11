@@ -23,11 +23,20 @@ export interface ValorEngajamento {
  * Zero com o sinalizador nulo vale como nulo: a E1 grava `likes_hidden` e `comments_disabled` como booleano em toda leitura
  * com estatísticas, então nulo quer dizer "ainda não relido depois da E1", e `false` quer dizer "relido, e o zero é zero medido".
  */
-function reacao(valor: number | null, ocultoOuDesligado: boolean | null): number | null {
+export function reacao(valor: number | null, ocultoOuDesligado: boolean | null): number | null {
   if (valor === null || !Number.isFinite(valor)) return null
   if (ocultoOuDesligado === true) return null
   if (valor === 0 && ocultoOuDesligado === null) return null
   return valor
+}
+
+/** A mesma regra de `reacao`, só que dizendo o estado: a regra mora numa função só. */
+export function reacaoComEstado(valor: number | null, oculto: boolean | null): { x: number | null; estado: 'medido' | 'zero_medido' | 'nao_medido'; causa?: 'oculto' | 'sem_sinalizador' } {
+  const x = reacao(valor, oculto)
+  if (x !== null) return x === 0 ? { x, estado: 'zero_medido' } : { x, estado: 'medido' }
+  if (oculto === true && valor !== null && Number.isFinite(valor)) return { x: null, estado: 'nao_medido', causa: 'oculto' }
+  if (oculto === null && valor === 0) return { x: null, estado: 'nao_medido', causa: 'sem_sinalizador' }
+  return { x: null, estado: 'nao_medido' }
 }
 
 export function engajamentoDoVideo(e: EntradaEngajamento): Medida<ValorEngajamento> {

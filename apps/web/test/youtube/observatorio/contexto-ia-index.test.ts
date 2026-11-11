@@ -43,6 +43,10 @@ describe('EMPACOTAR', () => {
       expect(Object.prototype.hasOwnProperty.call(EMPACOTAR, tela), tela).toBe(t.estado === 'existe')
     }
   })
+  it('A4 R3: consultar é só_pela_acao e não está em EMPACOTAR (o tipo não pede: EMPACOTAR é parcial)', () => {
+    expect(TELAS_IA.consultar.estado).toBe('so_pela_acao')
+    expect(Object.prototype.hasOwnProperty.call(EMPACOTAR, 'consultar')).toBe(false)
+  })
 })
 
 describe('crusDaColeta', () => {

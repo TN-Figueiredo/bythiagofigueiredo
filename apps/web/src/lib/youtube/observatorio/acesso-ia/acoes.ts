@@ -268,6 +268,7 @@ const PARAMETROS_DA_TELA: Record<TelaId, readonly string[]> = {
   fila: [],
   ritmo: [],
   sugestoes: [],
+  consultar: [],
 }
 
 /** A entrada já passou pelo esquema (`ENTRADA`); aqui entram as regras que olham mais de um campo. */

@@ -2,7 +2,7 @@
 // A pasta inteira é pura (sem `server-only`, sem `next/*`, sem Supabase, sem `fetch`, sem relógio); a única exceção é `registrar-acesso.ts`.
 
 export type TelaId =
-  | 'canais' | 'canal' | 'video' | 'comparar' | 'outliers' | 'insights' | 'mudancas' | 'fila' | 'canal-proprio' | 'video-proprio' | 'ritmo' | 'sugestoes'
+  | 'canais' | 'canal' | 'video' | 'comparar' | 'outliers' | 'insights' | 'mudancas' | 'fila' | 'canal-proprio' | 'video-proprio' | 'ritmo' | 'sugestoes' | 'consultar'
 
 export type Celula =
   // A5: `x` ausente (`undefined`) só com `semXMotivo` ("sem variação" dentro do arredondamento: sem número, com o motivo); `null` = o modelo não trouxe o número.
