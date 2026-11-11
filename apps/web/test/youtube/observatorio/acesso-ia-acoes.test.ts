@@ -153,8 +153,8 @@ describe('serie', () => {
   const base = { acao: 'serie', de: '2026-09-01', ate: '2026-09-30' }
 
   it('sem video_id nem canal_id, ou com os dois: recusada', () => {
-    expect(recusa(base)).toMatch(/video_id ou canal_id/)
-    expect(recusa({ ...base, video_id: V1, canal_id: C1 })).toMatch(/video_id ou canal_id/)
+    expect(recusa(base)).toMatch(/video_id, canal_id ou canal_ids/)
+    expect(recusa({ ...base, video_id: V1, canal_id: C1 })).toMatch(/video_id, canal_id ou canal_ids/)
   })
 
   it('com de depois de ate: recusada; de igual a ate: aceita (fronteira)', () => {
@@ -344,5 +344,51 @@ describe('A7b T8: a_partir_da_linha e marca nas três listas', () => {
     expect(pedir({ acao: 'listar_canais', a_partir_da_linha: 100_001 }).ok).toBe(false)
     expect(pedir({ acao: 'listar_canais', marca: 'ZZ' }).ok).toBe(false)
     expect(pedir({ acao: 'canal', canal_id: C1, marca: '1a2b3c4d' }).ok).toBe(false)
+  })
+})
+
+describe('A5 F2b T10: serie com canal_ids (1 a 6, sempre em tabela)', () => {
+  const base = { acao: 'serie', de: '2026-09-01', ate: '2026-09-30' }
+  const ids = [C1, C2, C3, C4, C5, C6]
+
+  it('1 a 6 canais com saida tabela: aceitos, uma tela `canal?` por id, na ordem do pedido', () => {
+    for (let n = 1; n <= 6; n++) {
+      const p = aceita({ ...base, canal_ids: ids.slice(0, n), saida: 'tabela' })
+      expect(p.telas.map((t) => t.id)).toEqual(ids.slice(0, n))
+      expect(p.telas.every((t) => t.tela === 'canal?')).toBe(true)
+      expect(p.saida).toBe('tabela')
+      expect(p.limite).toEqual({ tipo: 'pontos', n: 400 })
+    }
+  })
+  it('sem saida: vale tabela (D5: canal_ids implica CSV) e o pedido grava saida tabela', () => {
+    expect(aceita({ ...base, canal_ids: [C1, C2] }).saida).toBe('tabela')
+  })
+  it("saida 'texto' explícito: recusada com a frase, o formato e o exemplo", () => {
+    const f = recusa({ ...base, canal_ids: [C1, C2], saida: 'texto' })
+    expect(f).toContain('serie com canal_ids não existe em texto')
+  })
+  it('7 canais: tamanho fora do permitido; lista vazia também', () => {
+    const r = ENTRADA.safeParse({ ...base, canal_ids: [...ids, C7], saida: 'tabela' })
+    expect(r.success).toBe(false)
+    expect(r.success ? '' : r.error.issues[0]!.code).toBe('too_big')
+    const v = ENTRADA.safeParse({ ...base, canal_ids: [], saida: 'tabela' })
+    expect(v.success ? '' : v.error.issues[0]!.code).toBe('too_small')
+  })
+  it('repetido recusado; proprio só no 1º; proprio no 1º aceito', () => {
+    expect(recusa({ ...base, canal_ids: [C1, C2, C1] })).toContain('não aceita o mesmo canal duas vezes')
+    expect(recusa({ ...base, canal_ids: [C1, 'proprio'] })).toContain('`proprio` só como primeiro canal')
+    const p = aceita({ ...base, canal_ids: ['proprio', C1] })
+    expect(p.telas.map((t) => t.id)).toEqual(['proprio', C1])
+  })
+  it('canal_id + canal_ids (e os três juntos, e nenhum): recusados com a frase dos três', () => {
+    for (const e of [{ canal_id: C1, canal_ids: [C2] }, { video_id: V1, canal_ids: [C2] }, { video_id: V1, canal_id: C1, canal_ids: [C2] }, {}]) {
+      expect(recusa({ ...base, ...e })).toContain('serie pede video_id, canal_id ou canal_ids, um dos três')
+    }
+  })
+  it('canal_ids com de depois de ate: recusado', () => {
+    expect(recusa({ ...base, canal_ids: [C1], de: '2026-10-01', ate: '2026-09-30' })).toMatch(/depois/)
+  })
+  it('canal_ids fora da série continua só da série: nas outras ações o esquema recusa o campo', () => {
+    expect(ENTRADA.safeParse({ acao: 'canal', canal_id: C1, canal_ids: [C2] }).success).toBe(false)
   })
 })

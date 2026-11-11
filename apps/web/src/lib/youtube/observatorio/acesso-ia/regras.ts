@@ -12,6 +12,16 @@ export const ACESSO_IA_RULES = {
   tetoPacoteDaTela: 30_000,
   canaisNaLista: 200,
   canaisNoComparar: { min: 2, max: 6 },
+  /**
+   * A5 F2b: canais de uma `serie` com `canal_ids`, em série (sem pool). Decidido pela medida de PRODUÇÃO, não pela fixture: a Q2 de 11/11/2026
+   * (`a5/leituras-prod.out`, ação `serie`, origem `mcp`) deu n = 27 chamadas, p50 3.932 ms, p95 5.424 ms, máximo 6.165 ms. Regra do plano: p95 ≤ 7 s → 6 canais
+   * em série; de 7 a 11 s → pool de 2 e nova medida; acima, 4 ou 3. Refazer a medida muda este número (e o teste que o prende).
+   */
+  tetoDeCanaisDaSerie: { canais: 6, medidoEm: '2026-11-11', chamadasMedidas: 27, p95Ms: 5_424 },
+  /** Folga do `limiteMs` da `serie` de vários canais: o `responder` para de ler 2 s antes do fim do prazo para ainda montar e devolver a tabela. */
+  margemDaTabelaMs: 2_000,
+  /** Estimativa de uma leitura de canal na 1ª vez da chamada (depois vale o máximo dos canais já lidos nesta chamada). */
+  estimativaPorCanalMs: 8_000,
   videosNosDestaques: 50,
   pontosDaSerie: 400,
   mudancas: 100,

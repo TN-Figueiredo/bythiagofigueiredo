@@ -73,7 +73,7 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('video'), video_id: id }).strict(),
   z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
-  z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
+  z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), canal_ids: z.array(z.union([z.literal('proprio'), id])).min(1).max(ACESSO_IA_RULES.tetoDeCanaisDaSerie.canais).optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
@@ -185,8 +185,22 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
   },
 
   serie: (e) => {
-    if ((e.video_id === undefined) === (e.canal_id === undefined)) return recusar('serie pede video_id ou canal_id, um dos dois e nunca os dois', 'canal_id', 'video_id')
+    if ([e.video_id, e.canal_id, e.canal_ids].filter((x) => x !== undefined).length !== 1) return recusar('serie pede video_id, canal_id ou canal_ids, um dos três', 'canal_id', 'video_id', 'canal_ids')
     if (e.de > e.ate) return recusar('serie: de não pode ser depois de ate', 'ate', 'de')
+    if (e.canal_ids !== undefined) {
+      // A5 F2b: vários canais; D5: `canal_ids` implica CSV, só `saida: 'texto'` explícito é recusado; as regras do comparar (sem repetir, `proprio` só no 1º)
+      if (e.saida === 'texto') return recusar('serie com canal_ids não existe em texto: use saida "tabela" (ou omita saida)', 'saida', 'canal_ids')
+      if (new Set(e.canal_ids.map((c) => c.toLowerCase())).size !== e.canal_ids.length) return recusar('serie não aceita o mesmo canal duas vezes', 'canal_ids')
+      if (e.canal_ids.slice(1).includes('proprio')) return recusar('serie aceita `proprio` só como primeiro canal', 'canal_ids')
+      return {
+        ok: true,
+        pedido: {
+          telas: e.canal_ids.map((c) => ({ tela: 'canal?' as const, id: c, sp: { niche: NICHO_PADRAO } })),
+          teto: TETO, limite: { tipo: 'pontos', n: ACESSO_IA_RULES.pontosDaSerie }, semEquivalente: [],
+          grao: e.grao ?? 'dia', de: e.de, ate: e.ate,
+        },
+      }
+    }
     const tela = e.video_id !== undefined ? 'video?' : 'canal?'
     return {
       ok: true,
@@ -262,5 +276,5 @@ export function traduzir(entrada: Entrada): ResultadoFinal {
   const r = tradutor(entrada)
   if (!r.ok) return r
   const e = entrada as { a_partir_da_linha?: number; marca?: string; saida?: 'texto' | 'tabela' }
-  return { ok: true, pedido: { ...r.pedido, inicio: e.a_partir_da_linha ?? 1, saida: e.saida ?? 'texto', ...(e.marca !== undefined ? { marca: e.marca } : {}) } }
+  return { ok: true, pedido: { ...r.pedido, inicio: e.a_partir_da_linha ?? 1, saida: e.saida ?? (entrada.acao === 'serie' && (entrada as { canal_ids?: unknown }).canal_ids !== undefined ? 'tabela' : 'texto'), ...(e.marca !== undefined ? { marca: e.marca } : {}) } }
 }

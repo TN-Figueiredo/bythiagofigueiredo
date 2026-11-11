@@ -4,7 +4,7 @@
 import { telaExiste } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { EstadoDoPrivado, PacoteModelo, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { montarCanais } from '../_canais/montar'
-import { assistidoDoCanal, montarCanal, origemDoCanal } from '../_canal/montar'
+import { assistidoDoCanal, montarCanal, origemDoCanal, type MontarCanal } from '../_canal/montar'
 import { montarVideo } from '../_historico/montar'
 import { montarComparar } from '../_comparar/montar'
 import { buildPar } from '../_comparar/par-model'
@@ -34,10 +34,13 @@ import { empacotarMudancas, modeloDeMudancas } from './empacotar-mudancas'
 import { empacotarFila, modeloDeFila } from './empacotar-fila'
 import { montarSugestoes } from '../_sugestoes/montar'
 import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
+import { principalDoMotor } from '../_chrome/own-menu'
 
 /** `faltou`: saída opcional do empacotador de `comparar` estrito: qual lado não existe no site (`proprio` = não há canal próprio com vídeo). */
 export interface FaltouNoPar { lado?: 'a' | 'b' | 'proprio' }
-export interface PedidoMontado { id?: string; sp: Record<string, string | undefined>; faltou?: FaltouNoPar }
+/** A5 F2b: `semComentarios` (a série não usa comentário: `canal` não chama o leitor de comentários do canal). */
+export interface OpcoesDoPacote { semComentarios?: true }
+export interface PedidoMontado { id?: string; sp: Record<string, string | undefined>; faltou?: FaltouNoPar; opcoes?: OpcoesDoPacote }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
 /** `abrir`: a porta de entrada do dado (E17 d2, Tarefa 8b). Sem ele vale o de sessão (`ABRIDOR_DE_SESSAO`); a rota do MCP passa o da chave. */
 export type Empacotador = (pedido: PedidoMontado, abrir?: Abridor) => Promise<PacoteMontado | null>
@@ -100,31 +103,63 @@ const sem = (modelo: PacoteModelo, obs: Parameters<typeof crusDaColeta>[0]): Pac
 
 const EXIGE_ID = (id: string | undefined): string | null => (id === undefined || id === '' ? null : id)
 
-export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
+type CanalConcorrente = Extract<MontarCanal, { tipo: 'concorrente' }>
+type CanalProprio = Extract<MontarCanal, { tipo: 'proprio' }>
+
+async function pacoteDoConcorrente(m: CanalConcorrente, opcoes?: OpcoesDoPacote): Promise<PacoteMontado> {
+  const contexto = contextoDoCanal(m.obs, m.view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
+  const promessa = m.medidas ?? Promise.resolve(canalNaoCarregou())
+  // A5 F2b: a série não usa comentário; sem ele o leitor de comentários do canal nem é chamado
+  const comentarios = opcoes?.semComentarios === true ? null : await lerComentariosDoCanalParaOPacote(promessa, contexto)
+  const medidas = projetarMedidas(await promessa.catch(canalNaoCarregou), contexto, comentarios)
+  return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
+}
+
+async function pacoteDoProprio(m: CanalProprio): Promise<PacoteMontado> {
+  const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
+  const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
+  return { modelo: sem(empacotarCanalProprio(modelo, m.privado), m.obs), recente: m.recente, estado: textoDe(m.estado) }
+}
+
+/**
+ * `canal?` da `serie`: o canal é lido UMA vez (`montarCanal`) e o ramo sai de `m.tipo` (concorrente ou próprio). Antes, `canal` e depois `canal-proprio` liam o canal
+ * duas vezes quando ele era o próprio (K10). Id que não é nem um nem outro: `null` ("não encontrado"); nunca outro canal no lugar.
+ */
+export async function empacotarCanalOuProprio(pedido: PedidoMontado, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<PacoteMontado | null> {
+  const alvo = EXIGE_ID(pedido.id)
+  if (alvo === null) return null
+  const m = await montarCanal(alvo, pedido.sp, { iniciarMedidas: lerMedidasDoCanal }, abrir)
+  if (m.tipo === 'concorrente') return pacoteDoConcorrente(m, pedido.opcoes)
+  if (m.tipo === 'proprio') return pacoteDoProprio(m)
+  return null
+}
+
+/** `proprio` da `serie` com `canal_ids`: o id do "meu canal" pela mesma regra do `comparar` (`escolherPrincipal`: a escolha do dono, ou o canal próprio mais ativo). `null` = o site não tem canal próprio com vídeo. LANÇA se a leitura falhar (Yannis m-2: falha não é "não há canal próprio"); quem chama trata como canal `falhou`. */
+export async function resolverProprio(abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<string | null> {
+  const pagina = await abrir.observatorio()
+  return principalDoMotor(pagina.obs, await pagina.meuCanalLembrado)
+}
+
+/** `'canal?'` (A5 F2b): a entrada da `serie` por canal, que lê o canal uma vez; o responder a usa sempre (obrigatória, sem fallback). */
+export const EMPACOTAR: { [T in TelaId]?: Empacotador } & { 'canal?': Empacotador } = {
+  'canal?': (pedido, abrir) => empacotarCanalOuProprio(pedido, abrir),
   canais: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const m = await montarCanais(sp, undefined, abrir)
     const privado = await comNegativa(m.privado, m.pagina.siteId, abrir)
     return { modelo: sem(empacotarCanais(modeloDeCanais(m.view, m.ri), privado), m.pagina.obs), recente: m.recente, estado: textoDe(m.estado) }
   },
-  canal: async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
+  canal: async ({ id, sp, opcoes }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     // a MESMA leitura de medidas da página (uma vez só); `lerMedidasDoCanal` nunca lança: defeito vira "não carregou"
     const m = await montarCanal(alvo, sp, { iniciarMedidas: lerMedidasDoCanal }, abrir)
-    if (m.tipo !== 'concorrente') return null
-    const contexto = contextoDoCanal(m.obs, m.view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
-    const promessa = m.medidas ?? Promise.resolve(canalNaoCarregou())
-    const medidas = projetarMedidas(await promessa.catch(canalNaoCarregou), contexto, await lerComentariosDoCanalParaOPacote(promessa, contexto))
-    return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
+    return m.tipo === 'concorrente' ? pacoteDoConcorrente(m, opcoes) : null
   },
   'canal-proprio': async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     const m = await montarCanal(alvo, sp, {}, abrir)
-    if (m.tipo !== 'proprio') return null
-    const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
-    const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
-    return { modelo: sem(empacotarCanalProprio(modelo, m.privado), m.obs), recente: m.recente, estado: textoDe(m.estado) }
+    return m.tipo === 'proprio' ? pacoteDoProprio(m) : null
   },
   video: async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const alvo = EXIGE_ID(id)

@@ -194,10 +194,29 @@ export const SERIE_ANTES_DA_COLETA = (primeiro: string) => `antes do início da 
 export const SERIE_FORA_DOS_90 = 'fora dos 90 dias que a tela guarda' // novo
 export const SERIE_DEPOIS_DO_FIM = (fim: string) => `sem leitura depois de ${fim}` // novo
 export const SERIE_SEM_LEITURA = 'sem leitura' // novo
+/** Quantos dias de buraco o atraso normal do YouTube explica (o dado do canal próprio chega com 2 a 3 dias de atraso). */
+export const ATRASO_NORMAL_DO_YOUTUBE_DIAS = 3
+/**
+ * acessoir-14 + Yannis I-3: o dado acaba antes do dia pedido. Só o canal PRÓPRIO tem o atraso do YouTube como causa, e só até 3 dias; acima disso, ou
+ * num concorrente (lido pelo nosso coletor), a frase não dá causa nenhuma que esconda uma pane. `video`: o objeto é o vídeo, não o canal.
+ */
+export const SERIE_FIM_DO_DADO = (pedido: string, ultimo: string, o: { proprio: boolean; dias: number; video?: boolean }): string => {
+  if (!o.proprio) return `Pedido até ${pedido}; não há leitura ${o.video ? 'deste vídeo' : 'deste canal'} depois de ${ultimo}`
+  const deQuem = o.video ? 'deste vídeo' : 'do seu canal'
+  return o.dias <= ATRASO_NORMAL_DO_YOUTUBE_DIAS
+    ? `Pedido até ${pedido}; o dado ${deQuem} vai só até ${ultimo} (o YouTube entrega com 2 a 3 dias de atraso)`
+    : `Pedido até ${pedido}; o dado ${deQuem} vai só até ${ultimo}; passa do atraso normal do YouTube (2 a 3 dias): a importação pode ter parado`
+}
 export const SERIE_SEM_LEITURA_NENHUMA = 'ainda não há leitura de views deste canal' // a frase da tela (linha-do-tempo-model)
 export const SERIE_A_TELA_COBRE = (de: string, ate: string) => `a tela cobre de ${de} a ${ate}` // novo
 export const SERIE_TOPO_DAS_SEMANAS = (de: string, ate: string) => `Semanas de ${de} a ${ate}, segunda a domingo` // novo
 export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para o canal pedido` // novo
+/** A5 F2b: a `serie` de vários canais. */
+export const SERIE_NENHUM_PONTO_CANAIS = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para os canais pedidos`
+export const SERIE_CANAL_NAO_ENCONTRADO = 'canal não encontrado'
+export const SERIE_CANAL_FALHOU = 'a leitura deste canal falhou; tente de novo'
+export const SERIE_CANAL_NAO_LIDO = 'não lido: o prazo da chamada acabou'
+export const SERIE_BASES_DIFERENTES = 'Bases diferentes nesta tabela: o seu canal soma só vídeos longos acompanhados, no dia do YouTube (Pacífico); os concorrentes, o canal inteiro com Shorts, no dia de São Paulo. Não compare sem citar as duas.'
 export const SERIE_BASE_CONCORRENTE = 'canal inteiro, todos os formatos (Shorts incluídos); ganho entre a leitura de D−1 e a de D, dia em horário de São Paulo' // novo
 export const SERIE_BASE_PROPRIO = (fora: number) => `só vídeos longos acompanhados, até 50${fora > 0 ? `; ${fora} fora da soma` : ''}; dia do YouTube em horário do Pacífico` // novo
 export const SERIE_BASE_VIDEO = 'só este vídeo; dia do YouTube em horário do Pacífico' // novo

@@ -98,6 +98,23 @@ describe('secaoDeCobertura', () => {
     expect(t).toContain('Série: 400 de 1000 pontos entre 01/01/2025 e 09/11/2026, grão dia.')
     expect(t).toContain('Você viu só uma parte')
   })
+  it('(h2) acessoir-14: dias pedidos que o dado ainda não alcança: conta os dias pedidos e diz quais ainda não chegaram', () => {
+    const c = base({ serie: { pontos: 7, total: 10, de: '2026-11-01', ate: '2026-11-10', grao: 'dia', semDado: { de: '2026-11-08', ate: '2026-11-10' } } })
+    const t = secaoDeCobertura(c)
+    expect(t).toContain('Série: 7 de 10 dias medidos entre 01/11/2026 e 10/11/2026, grão dia; 08/11/2026 a 10/11/2026 ainda não chegaram.')
+    expect(coberturaCompleta(c)).toBe(false)
+  })
+  it('(h2b) Yannis m-4: "dias medidos" conta só os medidos, não os de dentro que saíram nao_medido', () => {
+    const c = base({ serie: { pontos: 7, medidos: 6, total: 10, de: '2026-11-01', ate: '2026-11-10', grao: 'dia', semDado: { de: '2026-11-08', ate: '2026-11-10' } } })
+    expect(secaoDeCobertura(c)).toContain('Série: 6 de 10 dias medidos entre')
+  })
+  it('(h3) A5 F2b: série de vários canais com canal não lido ou não encontrado: parcial, com a contagem', () => {
+    const c = base({ canais: { pedidos: 6, lidos: 4, naoEncontrados: 1, naoLidos: 1 } })
+    const t = secaoDeCobertura(c)
+    expect(t).toContain('Canais: 4 de 6 lidos; 1 não encontrado; 1 não lido (o prazo da chamada acabou)')
+    expect(coberturaCompleta(c)).toBe(false)
+    expect(coberturaCompleta(base({ canais: { pedidos: 3, lidos: 3, naoEncontrados: 0, naoLidos: 0 } }))).toBe(true)
+  })
   it('(i) concorrentes: cita o canal próprio no dado privado', () => {
     expect(secaoDeCobertura(base({ lista: { titulo: 'Canais', de: 1, ate: 34, total: 34, concorrentes: true } }))).toContain('seu canal está na parte do dado privado')
   })

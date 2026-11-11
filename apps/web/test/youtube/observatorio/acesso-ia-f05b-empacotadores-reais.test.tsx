@@ -9,7 +9,7 @@ const m = vi.hoisted(() => ({ pacotes: {} as Record<string, unknown> }))
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia', () => ({
-  EMPACOTAR: new Proxy({}, { get: (_t, k) => async () => m.pacotes[String(k)] ?? null }),
+  EMPACOTAR: new Proxy({}, { get: (_t, k) => async () => (k === 'canal?' ? m.pacotes['canal'] ?? m.pacotes['canal-proprio'] : m.pacotes[String(k)]) ?? null }),
 }))
 
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'

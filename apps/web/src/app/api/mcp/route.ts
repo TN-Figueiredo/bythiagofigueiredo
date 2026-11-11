@@ -41,7 +41,7 @@ const handler = createMcpHandler(
 
 // O segundo servidor (E17 degrau 2): uma ferramenta só de leitura, para a chave do perfil. `verboseLogs` desligado SEMPRE: o log verboso
 // imprimiria a resposta (dado do Observatório).
-const responderDaRota: Responder = (e, c, agora) => responder(e, abridorDaChave(c.prova, c.acesso), agora)
+const responderDaRota: Responder = (e, c, agora, prazo) => responder(e, abridorDaChave(c.prova, c.acesso), agora, prazo)
 const handlerDoObservatorio = createMcpHandler(
   (server) => registrarServidorDoObservatorio(server, responderDaRota),
   { instructions: INSTRUCOES },

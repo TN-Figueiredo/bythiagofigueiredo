@@ -80,7 +80,7 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   video_id: (v) => (idValido(v) ? v : undefined),
   canal_ids: (v) => {
     if (!Array.isArray(v) || !v.every((x) => x === 'proprio' || idValido(x))) return undefined
-    return v.slice(0, ACESSO_IA_RULES.canaisNoComparar.max)
+    return v.slice(0, Math.max(ACESSO_IA_RULES.canaisNoComparar.max, ACESSO_IA_RULES.tetoDeCanaisDaSerie.canais))
   },
   janela: (v) => (daLista(['7', '30', '90', 'todas'])(v) ? v : undefined),
   formato: (v) => (daLista(['todos', 'longos', 'shorts'])(v) ? v : undefined),
@@ -115,6 +115,9 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
   saida: (v) => (daLista(['texto', 'tabela'])(v) ? v : undefined),
   // A5 F1b: tabelas CSV com número sem valor de máquina (defeito do empacotador; o esperado é 0)
   sem_x: (v) => (contador(v) ? v : undefined),
+  // A5 F2b: a `serie` de vários canais: quantos foram pedidos e quantos foram lidos de fato (contadores; nunca nome nem valor)
+  n_canais: (v) => (contador(v) ? v : undefined),
+  canais_lidos: (v) => (contador(v) ? v : undefined),
   marca: () => undefined, // tem forma (a entrada a aceita) mas nunca vai para a linha
   marca_mudou: (v) => (typeof v === 'boolean' ? v : undefined),
   sem_dona: (v) => (contador(v) ? v : undefined),

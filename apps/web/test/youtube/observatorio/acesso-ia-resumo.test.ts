@@ -53,7 +53,7 @@ describe('A7c1 T10: resumoDoTodo', () => {
     const t = resumoDoTodo(mil(), [{ tabela: vazia, donos: [] }], [])
     expect(linhaDe(t, 'canais-views-por-dia (sem nenhuma linha)')).toEqual(['0', '0', '0', '0', '0', '1000'])
     for (const col of ['Veredito', 'Antes', 'Depois', 'Canal']) expect(t).not.toContain(`| ${col} |`)
-    expect(t.split('\n').length).toBe(5)
+    expect(t.split('\n').filter((x) => x.startsWith('| ')).length).toBe(7) // contagens: cabeçalho, ---, Inscritos, vazia; estatísticas: cabeçalho, ---, Inscritos
   })
 
   it('tabela com linhas, mas nenhuma com dona (ou só a repetida tem número): a coluna aparece com Sem linha = M', () => {
@@ -114,9 +114,9 @@ describe('A7c1 T10: resumoDoTodo', () => {
     expect(t).toContain('Medida de apoio 7-2')
   })
 
-  const cols = (n: number): string[] => Array.from({ length: n }, (_, i) => `Coluna numérica comprida ${i}`)
-  const comNichos = (nCols: number, M: number, nichos: number): Tabela => {
-    const c = cols(nCols)
+  const cols = (n: number, pad = 0): string[] => Array.from({ length: n }, (_, i) => `Coluna numérica comprida${'x'.repeat(pad)} ${i}`)
+  const comNichos = (nCols: number, M: number, nichos: number, pad = 0): Tabela => {
+    const c = cols(nCols, pad)
     return tabela('canais', ['Canal', 'Nicho', ...c], Array.from({ length: M }, (_, i): Celula[] => [terceiros(`C${i}`, `p${i}`), rotulo(`Nicho de nome bem comprido número ${String(i % nichos).padStart(2, '0')}`, `n${i}`), ...c.map((_, j) => medido('1', 1, `p${i}.${j}`))]))
   }
 
@@ -140,10 +140,11 @@ describe('A7c1 T10: resumoDoTodo', () => {
 
   it('degrau 0: as contagens sozinhas cabem mas nem 3 valores cabem: a linha "Por Nicho" sai e a frase diz', () => {
     let achou = false
-    for (let n = 10; n < 40 && !achou; n += 1) {
-      const t = resumoDoTodo(comNichos(n, 40, 20), [], ['Nicho'])
-      const sem = resumoDoTodo(comNichos(n, 40, 20), [], [])
-      if (!t.includes('Por Nicho:') && sem.length <= RESUMO_MAX) {
+    for (let pad = 0; pad < 40 && !achou; pad += 1) for (let n = 30; n < 40 && !achou; n += 1) {
+      const t = resumoDoTodo(comNichos(n, 40, 20, pad), [], ['Nicho'])
+      const sem = resumoDoTodo(comNichos(n, 40, 20, pad), [], [])
+      if (!t.includes('Por Nicho:') && t.length <= RESUMO_MAX && t.includes('As contagens por categoria não couberam')) {
+        expect(sem.length).toBeLessThanOrEqual(RESUMO_MAX)
         expect(t).toContain('As contagens por categoria não couberam no resumo.')
         expect(t.length).toBeLessThanOrEqual(RESUMO_MAX)
         achou = true

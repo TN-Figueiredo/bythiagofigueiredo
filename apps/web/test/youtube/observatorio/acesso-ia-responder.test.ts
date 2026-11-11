@@ -40,6 +40,8 @@ const dobra = (tela: TelaId, modelo: PacoteModelo | null) => (m.empacotar[tela] 
 beforeEach(() => {
   m.captured.length = 0
   for (const t of TELAS) m.empacotar[t] = vi.fn(async () => null)
+  // `canal?` é a entrada de produção (uma leitura, ramo por `m.tipo`); aqui ela escolhe entre os dois dobrados, como o modelo de cada teste os põe
+  m.empacotar['canal?'] = vi.fn(async (p: never, a: never) => (await m.empacotar['canal']!(p, a)) ?? (await m.empacotar['canal-proprio']!(p, a)))
 })
 
 /* ------------------------------------------------------------------ fixtures */
@@ -157,7 +159,7 @@ describe('responder: entrada inválida', () => {
 /* ------------------------------------------------------------------ limites */
 
 describe('responder: o limite próprio de cada ação', () => {
-  const linhasDe = (texto: string, prefixo: string): number => texto.split('\n').filter((l) => new RegExp(`${prefixo} \\d+`).test(l) && l.includes('|')).length
+  const linhasDe = (texto: string, prefixo: string): number => texto.split('\n').filter((l) => new RegExp(`^\\| ${prefixo} \\d+ `).test(l)).length
 
   it.each([[201, 200, true], [200, 200, false]])('listar_canais com %i canais: saem %i (frase: %s)', async (n, saem, frase) => {
     dobra('canais', lista('canais', n))

@@ -212,6 +212,8 @@ export interface JanelaDaLista {
   linhaNaoCabe: boolean
   /** O resumo do todo (janela 1) passou de `RESUMO_MAX` só com as contagens: o texto sai inteiro e quem chama avisa. */
   resumoPassou: boolean
+  /** Avisos do resumo (ex.: `resumo_sem_x`: contagem e id, nunca valor); quem chama os manda ao Sentry. */
+  avisosDoResumo: ReadonlyArray<{ passo: string; extra: Record<string, number | string> }>
   /** O dado privado está de fato nesta janela (a tabela privada entrou); na janela 2 em diante é falso. */
   incluiuPrivado: boolean
 }
@@ -293,12 +295,14 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
   const categoriasDoResumo = (CATEGORIAS_NO_RESUMO[tela as TelaComLista] ?? []).filter((c) => !(c === 'Tipo' && modelo.tabelas.some((t) => t.id === 'quadro-de-efeito')))
   // O resumo completo só na janela 1; nas outras, uma linha que aponta para ele (o `k` das janelas seguintes não paga ~2.000 caracteres a cada chamada).
   // Risco aceito: a marca só cobre os Ids, então uma sincronização entre duas chamadas deixa as contagens da janela 1 velhas, como as linhas já correm.
+  const avisosDoResumo: Array<{ passo: string; extra: Record<string, number | string> }> = []
   const resumoCheio = inicio === 1
     ? resumoDoTodo(
       principal,
       modelo.tabelas.filter((t) => t.tipo === 'lista' && classe(t) === 'coluna').map((t) => ({ tabela: t, donos: donos.get(t.id) ?? [] })),
       categoriasDoResumo,
       modelo.paginado,
+      { tela: tela as TelaComLista, avisar: (passo, extra) => avisosDoResumo.push({ passo, extra }) },
     )
     : ''
   const resumo = inicio === 1 ? resumoCheio : `## Resumo do todo: o da janela 1 (mesma lista de ${total} linhas, marca ${marca})`
@@ -440,7 +444,7 @@ export function janela(modelo: PacoteModelo, ctx: ContextoDoPacote, inicio: numb
         texto: r.t, estagio, avisos: r.m.avisos.slice(modelo.avisos.length), linhasDaPrincipal: k, totalDaPrincipal: total, principalCortada: false,
         primeiraLinhaDeAviso: r.p.primeiraLinhaDeAviso, apoio: r.m.apoio,
       },
-      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio), incluiuPrivado: r.m.modelo.privado.estado === 'incluido',
+      inicio, k, total, marca, semDona: r.m.semDona, textoFora: r.m.textoFora, linhaNaoCabe: r.t.pisoPassou, resumoPassou: resumoPassou(resumoCheio), avisosDoResumo, incluiuPrivado: r.m.modelo.privado.estado === 'incluido',
     }
   }
   throw new Error('corte-da-ia: janela sem estágio')

@@ -24,7 +24,7 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   video: 'video_id (uuid ou id de 11 caracteres) obrigatório',
   comparar: 'canal_ids (de 2 a 6; o 1º pode ser proprio) obrigatório; janela e formato são aceitos, mas a tela Comparar não os aplica',
   destaques: 'janela (7, 30, 90 ou todas), formato (todos, longos ou shorts), nicho, a_partir_da_linha (a 1ª linha da janela) e marca (a que a Cobertura devolveu) opcionais; saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcional',
-  serie: 'canal_id ou video_id (um dos dois), de e ate (AAAA-MM-DD, de ≤ ate) obrigatórios; grao (dia ou semana) e saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcionais',
+  serie: 'canal_id, video_id ou canal_ids (um dos três; canal_ids: de 1 a 6 canais, o 1º pode ser proprio, sempre em tabela), de e ate (AAAA-MM-DD, de ≤ ate) obrigatórios; grao (dia ou semana) e saida (texto ou tabela: tabela devolve CSV para gráfico e planilha; com canal_ids só tabela) opcionais',
   mudancas: 'canal_id, janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais; a_partir_da_linha e marca (da Cobertura) opcionais; saida (texto ou tabela: tabela devolve CSV) opcional; desde (AAAA-MM-DD) é aceito, mas não filtra: use janela',
   sugestoes: 'sem campos além de acao',
   pacote_da_tela: 'tela obrigatória; id e parametros (pares chave:valor) opcionais',
@@ -42,6 +42,9 @@ export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
   sugestoes: '{"acao":"sugestoes"}',
   pacote_da_tela: '{"acao":"pacote_da_tela","tela":"insights","parametros":{"fmt":"long"}}',
 }
+
+/** A5 F2b: o 2º exemplo da `serie` (vários canais, na mesma linha do gráfico); a `DESCRICAO` da ferramenta o lista logo depois do da ação. */
+export const EXEMPLO_DA_SERIE_DE_CANAIS = '{"acao":"serie","canal_ids":["proprio","<uuid 1>","<uuid 2>"],"de":"2026-10-05","ate":"2026-11-08","grao":"semana","saida":"tabela"}'
 
 /** O exemplo com os `<...>` trocados por valores de teste. `comparar` leva dois uuids diferentes (o esquema recusa o mesmo canal duas vezes). */
 export function exemploValido(a: Acao, fix: { uuid: string; video: string }): string {

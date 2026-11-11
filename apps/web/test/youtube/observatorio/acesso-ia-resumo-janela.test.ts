@@ -53,7 +53,7 @@ describe('A7c1 T10: o resumo na janela', () => {
     expect(t.texto.indexOf('## Resumo do todo')).toBeLessThan(t.texto.indexOf('### Os canais acompanhados'))
     expect(t.caracteres).toBeLessThanOrEqual(45_000)
     expect(medidaConfere(t)).toBe(true)
-    expect(bloco(t.texto).length).toBeLessThanOrEqual(2_500)
+    expect(bloco(t.texto).length).toBeLessThanOrEqual(RESUMO_MAX)
   })
 
   it('janela 1 leva o resumo cheio; a janela 2 leva só a linha que aponta para ele (com a marca da lista); a de 20 linhas não muda o cheio', () => {

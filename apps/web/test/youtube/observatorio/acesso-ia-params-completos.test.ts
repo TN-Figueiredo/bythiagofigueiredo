@@ -20,7 +20,7 @@ describe('FORMA_DOS_PARAMS cobre a ENTRADA', () => {
     expect(sem).toEqual([])
   })
   it('as chaves que o responder devolve no registro (`privado`, `comentarios`, `cortes`, `pares`, `linhas`, `total`) têm forma', () => {
-    for (const k of ['privado', 'comentarios', 'cortes', 'pares', 'desfecho', 'por', 'linhas', 'total']) expect(CHAVES_COM_FORMA_DE_PARAMS).toContain(k)
+    for (const k of ['privado', 'comentarios', 'cortes', 'pares', 'desfecho', 'por', 'linhas', 'total', 'saida', 'sem_x', 'n_canais', 'canais_lidos']) expect(CHAVES_COM_FORMA_DE_PARAMS).toContain(k)
   })
 })
 
