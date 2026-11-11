@@ -65,7 +65,7 @@ const SITES_POR_PAGINA = 1000
 const SITES_PAGINAS_MAX = 50
 
 /** Percorre a listagem do Auth até o fim (página curta ou vazia). 20 páginas cheias sem fim = não conferido. */
-async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
+export async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
   const ids: string[] = []
   for (let pagina = 1; pagina <= PAGINAS_MAX; pagina++) {
     let r: Awaited<ReturnType<typeof sb.auth.admin.listUsers>>
@@ -78,7 +78,7 @@ async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: s
   return { erro: 'listagem_sem_fim' }
 }
 
-async function veOSite(sb: SupabaseClient, userId: string, siteId: string): Promise<boolean | { erro: string }> {
+export async function veOSite(sb: SupabaseClient, userId: string, siteId: string): Promise<boolean | { erro: string }> {
   try {
     const { data, error } = await sb.rpc('can_view_site_as', { p_user: userId, p_site: siteId })
     if (error) return { erro: codigoDe(error) }
