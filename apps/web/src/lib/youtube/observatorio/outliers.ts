@@ -4,10 +4,14 @@ import { median } from './stats'
 import { inNiche, type NicheScope } from './niche'
 import { changesIn, contaComoTroca } from './changes'
 import { assertSiteScope, type EngineCtx, type Derived } from './series'
-import type { ObsVideo, Fmt } from './types'
+import type { ObsVideo, Fmt, SyncState } from './types'
 import type { MultiplierResult } from './multiplier'
 import type { FrozenReading } from './types'
 import { readingScope, type ReadingScope } from './forja/scope'
+
+/** A chave da ordem "views/dia" da tela: canal atrasado ou com erro no fim (-2), vídeo sem nenhuma taxa depois dos que têm (-1), senão `vpd7` e, sem ele, `vpd` desde a publicação. Uma só para a tela e para a consulta. */
+export const chaveDeVpd = (sync: SyncState, v: { vpd7: number | null; vpd: number | null }): number =>
+  (sync === 'atrasado' || sync === 'erro') ? -2 : (v.vpd7 != null ? v.vpd7 : v.vpd) != null ? (v.vpd7 != null ? v.vpd7 : v.vpd)! : -1
 
 export interface Phase { id: 'estourando' | 'recente' | 'perene' | 'antigo' | 'novos' | 'sem-ritmo'; label: string; why: string; noMedian?: boolean }
 type V = ObsVideo & Derived
@@ -91,7 +95,7 @@ export function outliers(ctx: EngineCtx & { READ?: Record<string, FrozenReading>
   const weakShown = pool.filter(v => ages.includes(win(v)) && v.mult!.weak && v.mult!.value != null && v.mult!.value >= opts.min && tf(v)).length
   const noBase = pool.filter(v => ages.includes(win(v)) && v.mult!.value == null && tf(v)).length
   const PH = phases(ctx)
-  const vpdKey = (it: OutlierItem) => (['atrasado', 'erro'].includes(ctx.CH.get(it.video.ch)!.sync.state)) ? -2 : ((it.video.vpd7 != null ? it.video.vpd7 : it.video.vpd) != null ? (it.video.vpd7 != null ? it.video.vpd7 : it.video.vpd)! : -1)
+  const vpdKey = (it: OutlierItem) => chaveDeVpd(ctx.CH.get(it.video.ch)!.sync.state, it.video)
   const orderedGroups = (sort: OutlierSort = 'mult') => {
     const its = items.slice()
     if (sort === 'vpd') its.sort((a, b) => vpdKey(b) - vpdKey(a)); else if (sort === 'recent') its.sort((a, b) => b.video.pub - a.video.pub)
