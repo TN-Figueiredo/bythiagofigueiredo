@@ -165,13 +165,14 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
 
 // ───────────────────────── A5 F1a: o CSV das tabelas (gerador em `tabela-csv.ts`; ninguém o chama ainda)
 export const COMO_LER_TABELA =
-  'CSV com vírgula entre campos e ponto decimal; ao montar planilha para Excel em português, escolha esses dois separadores; apóstrofo no início de um nome é proteção de planilha, não faz parte do nome' // novo
+  'CSV com vírgula entre campos e ponto decimal; ao montar planilha para Excel em português, escolha esses dois separadores; apóstrofo no início de um nome é proteção de planilha, não faz parte do nome; não compare bases diferentes sem citar as duas' // novo
 export const LEGENDA_TITULO = 'Motivos (célula vazia não é zero; os ids valem só nesta resposta):' // novo
 export const legendaLinha = (id: string, estado: string, frase: string) => `- ${id} (${estado}): ${frase}` // novo
 export const MOTIVO_SEM_NUMERO_DE_MAQUINA = 'número sem valor de máquina' // novo
 export const COLUNA_MOTIVOS = 'células vazias desta linha e o motivo de cada uma (ids da legenda)' // novo
 export const dicionarioLinha = (chave: string, titulo: string) => `- ${chave}: ${titulo}` // novo
 export const TABELA_PRIVADA = 'privado: sim' // novo
+export const TABELA_PRIVADA_LGPD = 'esta planilha leva dado privado do seu canal: revogar a chave não apaga o que já foi baixado' // novo (A5 F3; risco 38)
 export const graficoSugerido = (frase: string) => `Gráfico sugerido: ${frase}` // novo
 export const FRASE_DO_GRAFICO = {
   linha: 'linha (uma por canal ou medida; ponto vazio é buraco, nunca zero)',
@@ -182,6 +183,9 @@ export const FRASE_DO_GRAFICO = {
 
 // ───────────────────────── A5 F2a: série em CSV longo (um canal)
 export const SEMANA_ABERTA = (fim: string) => `semana ainda aberta (termina em ${fim})` // novo
+/** I2 (dono 10/11): o dia em curso sai vazio, como a semana aberta; o canal próprio fecha à meia-noite do Pacífico. */
+export const DIA_ABERTO = 'dia ainda aberto (termina às 23:59 de São Paulo)'
+export const DIA_ABERTO_PACIFICO = 'dia ainda aberto (termina às 23:59 do Pacífico)'
 export const SEMANA_DIAS_SEM_LEITURA = (faltam: number) => `${faltam} de 7 dias sem leitura` // novo
 export const SEMANA_TOTAL_CORRIGIDO = 'o YouTube corrigiu o total para baixo num dia desta semana; não há ganho a somar' // novo
 export const SEMANA_TABELA_SEM_SOMA = 'esta tabela não soma por semana; peça o grão dia' // novo

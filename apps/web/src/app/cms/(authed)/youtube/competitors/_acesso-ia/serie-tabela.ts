@@ -35,6 +35,9 @@ const DIA_MS = 86_400_000
 const SP_MS = 3 * 3_600_000
 export const isoDe = (ms: number): string => new Date(ms).toISOString().slice(0, 10)
 export const hojeSp = (agora: number): string => isoDe(agora - SP_MS)
+/** O dia de hoje no Pacífico (o dia do YouTube; com horário de verão). `en-CA` formata `aaaa-mm-dd`. */
+const FMT_PACIFICO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
+export const hojePacifico = (agora: number): string => FMT_PACIFICO.format(new Date(agora))
 const ms = (d: string): number => Date.parse(`${d}T00:00:00Z`)
 export const somaDias = (d: string, n: number): string => isoDe(ms(d) + n * DIA_MS)
 /** Segunda-feira da semana (segunda a domingo) do dia `AAAA-MM-DD`. */
@@ -164,7 +167,7 @@ function datasDoPedido(de: string, ate: string, grao: 'dia' | 'semana'): string[
 /** O menor dia com data de uma série (a borda de trás da janela que a tela guarda); `null` sem nenhum. */
 const menorDia = (s: Serie): string | null => s.dias.reduce<string | null>((a, d) => (d !== null && (a === null || d < a) ? d : a), null)
 
-function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string): PontoCsv[] {
+function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, agora: number): PontoCsv[] {
   const { t, col, medida } = s
   const celulas = new Map<string, Celula>()
   t.linhas.forEach((l, i) => { const d = s.dias[i]; const c = l[col]; if (d != null && c !== undefined && !celulas.has(d)) celulas.set(d, c) })
@@ -204,8 +207,12 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
           : F.SERIE_SEM_LEITURA
 
   if (p.grao === 'dia') {
+    // I2: o dia em curso (São Paulo no concorrente, Pacífico no canal próprio) sai vazio, como a semana aberta
+    const pacifico = t.fuso === 'pacifico'
+    const diaAberto = pacifico ? hojePacifico(agora) : hoje
     return [...fora, ...datasDoPedido(deDentro, ateDentro, 'dia').map((d): PontoCsv => {
       const c = celulas.get(d)
+      if (d === diaAberto) return ponto(d, null, 'nao_medido', pacifico ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO)
       if (c === undefined) return ponto(d, null, 'nao_medido', semLeitura(d))
       if (c.papel !== 'numero') return ponto(d, null, 'nao_medido', semLeitura(d))
       if (c.estado === 'medido' || c.estado === 'zero_medido') {
@@ -246,7 +253,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
 export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, agora: number): PontoCsv[] {
   const hoje = hojeSp(agora)
   const series = seriesDe(m, agora)
-  const porSerie = series.map((s) => pontosDaSeriePorMedida(s, canalId, apelido, p, hoje))
+  const porSerie = series.map((s) => pontosDaSeriePorMedida(s, canalId, apelido, p, hoje, agora))
   const negado = m.privado
   // sem tabela para dar o fim, o teto é hoje (nunca um intervalo até 9999-12-31)
   const ateRestrito = menor(p.ate, hoje)
@@ -389,13 +396,13 @@ export function respostaDaSerieEmTabela(
     const avisosDoModelo = [...m.avisos, ...extras, ...(m.privado.estado === 'incluido' ? (m.avisosPrivados ?? []).map((a) => `${a}${F_MARCA}`) : [])]
     const cortou = ficam < datas.length
     const linhasAvisos = [...avisosDoModelo.map((a) => `- ${naCelula(a)}`), ...(cortou ? [`- ${F.SERIE_CORTADA(contados, total, grao)}`] : [])]
-    const privada = ps.some((p) => p.privada === true)
+    const privada = ps.some((p) => p.privada === true && p.estado !== 'restrito') // I1: restrito não é dado privado
     const colunas = grao === 'semana'
       ? ['semana_inicio', 'canal', 'medida', 'valor', 'estado', 'dias_medidos', 'motivo_id'] as const
       : ['dia', 'canal', 'medida', 'valor', 'estado', 'motivo_id'] as const
     const bloco = [
       `## Série ${grao === 'semana' ? 'por semana' : 'por dia'}`,
-      ...(privada ? [F.TABELA_PRIVADA] : []),
+      ...(privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []),
       ...(grao === 'semana' ? [F.SERIE_TOPO_DAS_SEMANAS(dm(de), dm(ate))] : []),
       ...colunas.map((c) => F.dicionarioLinha(c, F.SERIE_DICIONARIO_COLUNAS[c])),
       ...csv.dicionarioDeCanais,
