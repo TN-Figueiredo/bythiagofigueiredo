@@ -241,6 +241,16 @@ describe('coluna motivos única', () => {
   })
 })
 
+describe('F1c: "nenhum" da linha não gruda nas refs', () => {
+  it('refs + motivos da linha "nenhum" = só refs; só "nenhum" sem refs fica; motivo real junta com um só separador', () => {
+    const t = tabela({ colunas: ['Canal', 'Inscritos', 'Motivos'], chaves: ['canal', 'inscritos', 'motivos'], linhas: [[rot('A'), nm(), rot('nenhum')], [rot('B'), num(1), rot('nenhum')], [rot('C'), nm(), rot('só 3 vídeos')]] })
+    const l = csvDaTabela(t, novaLegenda())!.linhas.map((x) => parse(`${x}\n`)[0]!)
+    expect(l[0]).toEqual(['A', '', 'inscritos:m1'])
+    expect(l[1]).toEqual(['B', '1', 'nenhum'])
+    expect(l[2]).toEqual(['C', '', 'inscritos:m1; só 3 vídeos'])
+  })
+})
+
 describe('tabela sem chaves ou torta (h)', () => {
   it('sem chaves devolve null', () => { expect(csvDaTabela(tabela({ chaves: undefined }), novaLegenda())).toBeNull() })
   it('chaves que não casam com colunas, chave repetida e linha de largura errada devolvem null (nunca desalinha em silêncio)', () => {

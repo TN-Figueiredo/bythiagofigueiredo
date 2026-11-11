@@ -92,7 +92,7 @@ function tabelaDoAgregado(b: ResultadoDaConsulta['blocos'][number], i: number, p
     const notas: string[] = []
     if (v.semOsCanais.length) notas.push('sem os canais ' + v.semOsCanais.join(', '))
     if (v.semOsVideos.length) notas.push('sem os vídeos ' + v.semOsVideos.join(', '))
-    if (m === 'multiplicador') notas.push(a.baseFraca > 0 ? `${a.baseFraca} de base fraca ${pedido.incluirBaseFraca ? 'dentro' : 'fora'} deste agregado` : 'sem vídeo de base fraca')
+    if (m === 'multiplicador') notas.push(a.baseFraca > 0 ? `${a.baseFraca} de base fraca ${pedido.incluirBaseFraca ? 'dentro' : 'fora'} deste agregado` : v.n === 0 ? 'sem medida' : 'sem vídeo de base fraca')
     if (m === 'vpd7') notas.push('só vídeos com 7 dias de série')
     if (m === 'engajamento' && a.engajamento) {
       const r = a.engajamento.resultado

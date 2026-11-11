@@ -138,7 +138,9 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
       campos.push('')
     }
     const doModelo = temMotivos ? linha[chaves.length - 1]! : null
-    const textoDaA4 = doModelo && doModelo.papel !== 'numero' ? doModelo.texto : ''
+    const textoBruto = doModelo && doModelo.papel !== 'numero' ? doModelo.texto : ''
+    // F1c: "nenhum" é o texto de uma linha sem motivos próprios; ao lado de refs ou ressalvas ele só atrapalha
+    const textoDaA4 = textoBruto === 'nenhum' && (refs.length > 0 || notas.length > 0) ? '' : textoBruto
     campos.push(campoCsv([...refs, ...notas, ...(textoDaA4 === '' ? [] : [textoDaA4])].join('; ')))
     linhas.push(campos.join(','))
     motivosNovos.push(refs)
