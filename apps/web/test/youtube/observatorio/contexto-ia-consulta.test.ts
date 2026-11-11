@@ -144,9 +144,9 @@ describe('empacotarConsulta', () => {
     it('sem formato nulo a linha não sai', () => {
       expect(cab(empacotarConsulta(resultado({ formato: 'longos', limite: 500 })))).not.toMatch(/Formato não confirmado/)
     })
-    it('nota técnica do §3.5 só com filtro de lugar', () => {
+    it('a nota técnica do §3.5 é comentário de código: nunca sai na resposta (R5)', () => {
       const lugar = { estado: 'marcado' as const, calculadoEm: '2026-10-24T10:00:00Z', atrasado: false, emRecalculo: false, semLugarCalculado: 0, maisDeUmLugar: 0, maisDeUmLugarSobre: 'marcados' as const }
-      expect(cab(empacotarConsulta(resultado({}, undefined, {}, { lugar })))).toMatch(/niche_signals_gravar falhar/)
+      expect(cab(empacotarConsulta(resultado({}, undefined, {}, { lugar })))).not.toMatch(/niche_signals|gravarLugares|Nota técnica/)
       expect(cab(empacotarConsulta(resultado()))).not.toMatch(/niche_signals_gravar/)
     })
     it('"depois do cálculo", recálculo e atrasado', () => {

@@ -10,7 +10,7 @@ import type { Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import type { LinhaDaConsulta } from '@/lib/youtube/observatorio/consulta/tipos'
-import { empacotarConsulta, type ResultadoDaConsulta } from '../_contexto-ia/empacotar-consulta'
+import { empacotarConsulta, maisRecenteDosDados, type ResultadoDaConsulta } from '../_contexto-ia/empacotar-consulta'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Proxima = Cobertura['proximas'][number]
@@ -36,16 +36,20 @@ function comLinhas(r: ResultadoDaConsulta, k: readonly number[]): ResultadoDaCon
   }
 }
 
-function renderizar(r: ResultadoDaConsulta, agora: number): { texto: string; numeros: Numeros } {
-  const pacote = segmentar(empacotarConsulta(r), { geradoEm: agora, recente: null })
-  const t = montarTexto(pacote, '', 10_000_000, 'todos', undefined, { ia: true })
-  return { texto: t.texto, numeros: t.numerosNoTexto }
+const SEM_TETO = 10_000_000
+const milhar = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+/** Mede o texto inteiro (sem teto interno: quem corta é `melhorCorte`), mas a frase "O pacote tem X de Y caracteres" mostra o teto real `teto`. */
+function renderizar(r: ResultadoDaConsulta, agora: number, teto: number): { texto: string; numeros: Numeros } {
+  const pacote = segmentar(empacotarConsulta(r), { geradoEm: agora, recente: maisRecenteDosDados(r.dadosDe) })
+  const t = montarTexto(pacote, '', SEM_TETO, 'todos', undefined, { ia: true })
+  return { texto: t.texto.replace(`de ${milhar(SEM_TETO)} caracteres`, `de ${milhar(teto)} caracteres`), numeros: t.numerosNoTexto }
 }
 
 /** O maior número de linhas por bloco que cabe em `teto`: primeiro um `c` igual para todos, depois cada bloco sobe sozinho. `null` se nem 1 linha por bloco cabe. */
 function melhorCorte(r: ResultadoDaConsulta, teto: number, agora: number): number[] | null {
   const tams = r.blocos.map((b) => b.linhas.length)
-  const cabe = (k: readonly number[]): boolean => renderizar(comLinhas(r, k), agora).texto.length <= teto
+  const cabe = (k: readonly number[]): boolean => renderizar(comLinhas(r, k), agora, teto).texto.length <= teto
   const minimo = tams.map((n) => Math.min(n, 1))
   if (!cabe(minimo)) return null
   const topo = Math.max(...tams, 1)
@@ -79,13 +83,13 @@ export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entr
   let texto: string
   let numeros: Numeros
   let antesDoCorte = false
-  const inteiro = renderizar(r, agora)
+  const inteiro = renderizar(r, agora, tetoFinal)
   if (inteiro.texto.length <= tetoFinal) {
     texto = inteiro.texto; numeros = inteiro.numeros
   } else {
     const k = melhorCorte(r, tetoFinal, agora)
     final = comLinhas(r, k ?? todos.map(() => 0))
-    const f = renderizar(final, agora)
+    const f = renderizar(final, agora, tetoFinal)
     numeros = f.numeros
     if (f.texto.length > tetoFinal) {
       // nem uma linha por bloco cabe: o fim do texto cai e a Cobertura diz
