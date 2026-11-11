@@ -16,7 +16,7 @@ export interface AgregadoDoBloco {
   baseFraca: number; sincAtrasado: number
 }
 
-const CAUSA_CANAL_SEM_MEDIDA = 'medidas do canal não'
+const CAUSA_CANAL_SEM_MEDIDA = 'medidas do canal indisponíveis'
 
 function resumo(xs: number[], semOsVideos: string[], semOsCanais: string[]): PorMetrica {
   return { mediana: median([...xs]), q1: quant([...xs], 0.25), q3: quant([...xs], 0.75), n: xs.length, semOsVideos, semOsCanais }

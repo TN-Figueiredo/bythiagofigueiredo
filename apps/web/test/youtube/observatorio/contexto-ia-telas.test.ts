@@ -87,7 +87,9 @@ const noDisco = pastasComPagina(COMPETITORS).filter((p) => !PAGINAS_FORA_DO_BOTA
 describe('registro de telas (TELAS_IA)', () => {
   it('os onze ids são os da lista do spec', () => {
     // F2 T8: a décima segunda, `sugestoes`, não vem do mockup 22 (nasce pelo Cowork e pelo Claude Code; a página chegou na F3 T6)
-    expect(Object.keys(TELAS_IA).sort()).toEqual([...ONZE_IDS, 'sugestoes'].sort())
+    // A4 R3: a décima terceira, `consultar`, só existe pela ação (sem tela, sem botão, sem empacotador em EMPACOTAR)
+    expect(Object.keys(TELAS_IA).sort()).toEqual([...ONZE_IDS, 'sugestoes', 'consultar'].sort())
+    expect(TELAS_IA.consultar).toMatchObject({ estado: 'so_pela_acao', rota: null, pedeId: false })
     expect(ONZE_IDS).toHaveLength(11)
     expect(TELAS_IA.sugestoes).toMatchObject({ estado: 'existe', rota: 'sugestoes', pedeId: false })
   })

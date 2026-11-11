@@ -68,9 +68,11 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '@/lib/youtube/observatorio/comentarios/leitor-mencao',
     // A5 F2: frase fixa do canal agendado para guardar, módulo puro que a tela também usa
     '../_canais/remover-model',
+    // A4 R3: o empacotador da consulta lê o catálogo de métricas, o limiar da base e o relógio de São Paulo, todos módulos puros
+    '@/lib/youtube/observatorio/consulta/catalogo', '@/lib/youtube/observatorio/rules', '@/lib/youtube/observatorio/time',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
-  it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })
+  it('há catorze empacotadores', () => { expect(empacotadores).toHaveLength(14) })
   for (const p of empacotadores) {
     it(`${nome(p)}: valor só de permitidos, de irmãos empacotar-* e de contexto-ia/; nenhum módulo importado tem 'use client'`, () => {
       for (const i of importacoes(ler(p))) {

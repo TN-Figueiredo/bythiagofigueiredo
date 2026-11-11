@@ -55,7 +55,7 @@ export function montarConjunto(p: PedidoDaConsulta, e: EntradaDoConjunto): { lon
     const info = medidas.videos?.get(v.id)
     const doCanal = medidas.porCanal.get(v.ch)
     const medidasDoVideo: MedidasDoVideo | undefined = doCanal && !('naoCarregou' in doCanal) ? doCanal.porVideo.get(v.id) : undefined
-    const semMedidaDoCanal = doCanal === undefined ? 'medidas do canal não carregadas' : 'naoCarregou' in doCanal ? `medidas do canal não carregaram: ${doCanal.naoCarregou}` : null
+    const semMedidaDoCanal = doCanal === undefined ? 'medidas do canal não carregadas' : 'naoCarregou' in doCanal ? `medidas do canal indisponíveis: ${doCanal.naoCarregou}` : null
 
     const celulas: LinhaDaConsulta['celulas'] = {}
     const pedida = (m: MetricaDaConsulta) => p.metricas.includes(m)
