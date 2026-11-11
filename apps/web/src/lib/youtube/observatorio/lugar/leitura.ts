@@ -16,7 +16,13 @@ export const COLUNAS_DOS_LUGARES = 'video_id, chaves, semente_versao'
 /** A entrada é por cálculo (a chave leva `computado_em`); o prazo só limita o tempo que uma entrada órfã fica guardada. */
 const VALIDADE_S = 21_600
 const MINIMO_NA_LISTA = 3
-/** Etiqueta própria: a coleta expira a do Observatório a cada 20 min, e esta entrada já é por cálculo (a chave leva o `computed_at`). */
+/**
+ * Etiqueta própria: a coleta expira a do Observatório a cada 20 min, e esta entrada já é por cálculo (a chave leva o `computed_at`).
+ * NINGUÉM invalida esta etiqueta (sem `revalidateTag`): o frescor vem só da chave. Dívida declarada, limites do que pode ficar velho:
+ *  - até 6 h (`VALIDADE_S`) se `niche_signals_gravar` falhar depois de `gravarLugares` (as linhas novas existem, o `computed_at` não mudou);
+ *  - até ~24 h ao remover um canal concorrente (as linhas dele só somem na poda do próximo cálculo diário), mais as 6 h da entrada.
+ * O dado é público (vídeo de terceiro). Gatilho para pagar: 1º aviso do gravador com essa falha no Sentry, ou pedido de invalidação manual.
+ */
 export const etiquetaDosLugares = (siteId: string): string => 'observatorio-lugares:' + siteId
 
 export interface MapaDeLugares {
@@ -44,7 +50,12 @@ function montar(linhas: LinhaGravada[], lidoEm: number): MapaDeLugares {
   const versoes = new Set<number>()
   const ids: string[] = []
   const chavesPorVideo: number[][] = []
+  const vistos = new Set<string>()
   for (const l of linhas) {
+    // a paginação por deslocamento pode repetir uma linha na fronteira se a gravação roda durante a leitura; o repetido não conta duas vezes
+    // (o pulo de linha não tem conserto barato sem paginar por chave; a janela é a de um cron por dia e a chave muda no próximo computed_at)
+    if (vistos.has(l.video_id)) continue
+    vistos.add(l.video_id)
     versoes.add(l.semente_versao)
     ids.push(l.video_id)
     chavesPorVideo.push([...new Set(l.chaves ?? [])].map((c) => indice.get(c)!).sort((a, b) => a - b))
@@ -93,13 +104,19 @@ export function marcadosDe(m: MapaDeLugares, slug: string): Set<string> {
   return out
 }
 
+const POSICOES = new WeakMap<MapaDeLugares, Map<string, number>>()
+/** O índice id → posição, montado uma vez por mapa (laço sobre os vídeos do conjunto não vira O(C·R)). */
 function posicoes(m: MapaDeLugares): Map<string, number> {
-  const p = new Map<string, number>()
-  m.ids.forEach((v, k) => p.set(v, k))
+  let p = POSICOES.get(m)
+  if (!p) {
+    p = new Map<string, number>()
+    m.ids.forEach((v, k) => p!.set(v, k))
+    POSICOES.set(m, p)
+  }
   return p
 }
 
-/** Os slugs do vídeo; `[]` = linha com chaves vazias ("sem lugar"); `null` = o vídeo não tem linha. Para muitos vídeos use `semLinha`/`marcadosDe` (cada chamada monta o índice). */
+/** Os slugs do vídeo; `[]` = linha com chaves vazias ("sem lugar"); `null` = o vídeo não tem linha.  O índice é guardado por mapa (WeakMap): chamar em laço é O(1) por vídeo. */
 export function lugaresDe(m: MapaDeLugares, videoId: string): string[] | null {
   const k = posicoes(m).get(videoId)
   return k === undefined ? null : m.chavesPorVideo[k]!.map((i) => m.slugs[i]!)

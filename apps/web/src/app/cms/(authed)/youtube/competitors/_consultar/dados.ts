@@ -10,20 +10,24 @@ import { ABRIDOR_DE_SESSAO, type Abridor } from '../_chrome/abridor'
 import { contagemPorLugar, estadoDoLugar, lerMapaDeLugares } from '@/lib/youtube/observatorio/lugar/leitura'
 import { calculoLigadoNoAmbiente, lerEstadoDaAba } from '@/lib/youtube/observatorio/sinais/leitura'
 
-/** `sem_sessao` e leitura que falha viram `falhou`; lugares nunca calculados (ou tarefa desligada) viram `sem_calculo`: nenhum dos dois é lista vazia muda. */
+/**
+ * `sem_sessao` e leitura que falha viram `falhou`; as três ausências têm estado próprio (nunca calculado, tarefa desligada, calculado sem lugar com
+ * 3+ vídeos = `ok` com lista vazia): nenhuma é lista vazia muda. `atrasado` + `computadoEm` deixam o texto dizer desde quando a lista é velha.
+ */
 export type LugaresParaDefinicoes =
-  | { estado: 'ok'; lugares: Array<{ slug: string; n: number }> }
-  | { estado: 'sem_calculo' }
+  | { estado: 'ok'; lugares: Array<{ slug: string; n: number }>; totalDeVideos: number; computadoEm: string; atrasado: boolean }
+  | { estado: 'nunca' }
+  | { estado: 'desligado' }
   | { estado: 'falhou' }
 
 async function ler(siteId: string, agora: number): Promise<LugaresParaDefinicoes> {
   const db = getSupabaseServiceClient()
   const estadoDaAba = await lerEstadoDaAba(db, siteId, new Date(agora))
   const estado = estadoDoLugar(estadoDaAba, calculoLigadoNoAmbiente())
-  if (estado === 'falhou') return { estado: 'falhou' }
-  if (estado === 'nunca' || estado === 'desligado') return { estado: 'sem_calculo' }
-  const mapa = await lerMapaDeLugares(db, siteId, estadoDaAba?.computado_em ?? null)
-  return { estado: 'ok', lugares: contagemPorLugar(mapa) }
+  if (estado === 'falhou' || estadoDaAba === null) return { estado: 'falhou' }
+  if (estado === 'nunca' || estado === 'desligado') return { estado }
+  const mapa = await lerMapaDeLugares(db, siteId, estadoDaAba.computado_em ?? null)
+  return { estado: 'ok', lugares: contagemPorLugar(mapa), totalDeVideos: mapa.ids.length, computadoEm: estadoDaAba.computado_em ?? '', atrasado: estado === 'atrasado' }
 }
 
 export async function lugaresParaDefinicoes(agora: number, abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<LugaresParaDefinicoes> {

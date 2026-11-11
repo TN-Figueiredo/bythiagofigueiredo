@@ -32,11 +32,12 @@ beforeEach(() => {
 })
 
 const lista = (n: number) => Array.from({ length: n }, (_, i) => ({ slug: `pais:P${String(i).padStart(3, '0')}`, n: 500 - i }))
+const OK = { estado: 'ok', lugares: [] as Array<{ slug: string; n: number }>, totalDeVideos: 40, computadoEm: '2026-11-11T10:00:00Z', atrasado: false }
 const pedir = () => responder({ acao: 'definicoes' }, ABRIDOR_DE_SESSAO, AGORA)
 
 describe('definicoes: lugares com dados', () => {
   it('(pergunta 1) mostra o lugar de Hanói com a contagem', async () => {
-    m.lugares.mockResolvedValue({ estado: 'ok', lugares: [{ slug: 'local:vn-hanoi', n: 41 }, { slug: 'pais:VN', n: 30 }] })
+    m.lugares.mockResolvedValue({ ...OK, lugares: [{ slug: 'local:vn-hanoi', n: 41 }, { slug: 'pais:VN', n: 30 }] })
     const r = await pedir()
     expect(r.desfecho).toBe('ok')
     expect(r.texto).toContain('local:vn-hanoi')
@@ -44,7 +45,7 @@ describe('definicoes: lugares com dados', () => {
     expect(r.texto).not.toContain('mais 0 lugares')
   })
   it('128 lugares: 60 linhas, ordem como veio (contagem desc, slug asc), e a última diz "mais 68 lugares"', async () => {
-    m.lugares.mockResolvedValue({ estado: 'ok', lugares: lista(128) })
+    m.lugares.mockResolvedValue({ ...OK, lugares: lista(128) })
     const r = await pedir()
     const linhas = r.texto.split('\n').filter((l) => l.includes('pais:P'))
     expect(linhas).toHaveLength(60)
@@ -55,18 +56,49 @@ describe('definicoes: lugares com dados', () => {
     expect(r.texto.indexOf('pais:P059')).toBeLessThan(r.texto.indexOf('mais 68 lugares'))
   })
   it('exatamente 60 lugares: sem linha de "mais"', async () => {
-    m.lugares.mockResolvedValue({ estado: 'ok', lugares: lista(60) })
+    m.lugares.mockResolvedValue({ ...OK, lugares: lista(60) })
     const r = await pedir()
     expect(r.texto.split('\n').filter((l) => l.includes('pais:P'))).toHaveLength(60)
     expect(r.texto).not.toMatch(/mais \d+ lugares/)
   })
-  it('nenhum lugar com dados: a ausência é escrita, o bloco não some', async () => {
-    m.lugares.mockResolvedValue({ estado: 'ok', lugares: [] })
-    expect((await pedir()).texto).toContain('nenhum lugar calculado para este site')
+  const AUSENCIAS = {
+    vazio: 'nenhum lugar com 3 vídeos ou mais entre os 40 vídeos calculados',
+    nunca: 'lugares nunca calculados neste site',
+    desligado: 'lugares não calculados: tarefa desligada',
+  }
+  it('calculado, mas nenhum lugar com 3+ vídeos: diz isso (não "nenhum lugar calculado")', async () => {
+    m.lugares.mockResolvedValue({ ...OK, lugares: [] })
+    const t = (await pedir()).texto
+    expect(t).toContain(AUSENCIAS.vazio)
+    expect(t).not.toContain(AUSENCIAS.nunca); expect(t).not.toContain(AUSENCIAS.desligado); expect(t).not.toContain('nenhum lugar calculado')
   })
-  it('lugares nunca calculados (ou tarefa desligada): a mesma ausência escrita', async () => {
-    m.lugares.mockResolvedValue({ estado: 'sem_calculo' })
-    expect((await pedir()).texto).toContain('nenhum lugar calculado para este site')
+  it('cálculo sem nenhum vídeo marcado: "o cálculo não marcou nenhum vídeo de concorrente"', async () => {
+    m.lugares.mockResolvedValue({ ...OK, lugares: [], totalDeVideos: 0 })
+    expect((await pedir()).texto).toContain('o cálculo não marcou nenhum vídeo de concorrente')
+  })
+  it('nunca calculado: a sua frase, sem as outras duas', async () => {
+    m.lugares.mockResolvedValue({ estado: 'nunca' })
+    const t = (await pedir()).texto
+    expect(t).toContain(AUSENCIAS.nunca)
+    expect(t).not.toContain(AUSENCIAS.desligado); expect(t).not.toContain('nenhum lugar com 3 vídeos')
+  })
+  it('tarefa desligada: a sua frase, sem as outras duas', async () => {
+    m.lugares.mockResolvedValue({ estado: 'desligado' })
+    const t = (await pedir()).texto
+    expect(t).toContain(AUSENCIAS.desligado)
+    expect(t).not.toContain(AUSENCIAS.nunca); expect(t).not.toContain('nenhum lugar com 3 vídeos')
+  })
+  it('Phil I-1: cálculo fresco leva a data do cálculo e nenhum aviso de atraso', async () => {
+    m.lugares.mockResolvedValue({ ...OK, lugares: [{ slug: 'pais:VN', n: 5 }] })
+    const t = (await pedir()).texto
+    expect(t).toContain('calculados em 11/11 às 07:00, horário de Brasília')
+    expect(t).not.toContain('desatualizados')
+  })
+  it('Phil I-1: cálculo atrasado diz "desatualizados desde 05/11" e ainda lista os lugares', async () => {
+    m.lugares.mockResolvedValue({ ...OK, atrasado: true, computadoEm: '2026-11-05T13:00:00Z', lugares: [{ slug: 'pais:VN', n: 5 }] })
+    const t = (await pedir()).texto
+    expect(t).toContain('desatualizados desde 05/11')
+    expect(t).toContain('- pais:VN: 5 vídeos')
   })
   it('leitura falhou: "lista de lugares não carregou", e o resto das definições segue', async () => {
     m.lugares.mockResolvedValue({ estado: 'falhou' })

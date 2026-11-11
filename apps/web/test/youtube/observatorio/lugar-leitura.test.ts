@@ -93,6 +93,42 @@ describe('lerMapaDeLugares: os três estados e a conta por lugar', () => {
   })
 })
 
+describe('lerMapaDeLugares: repetição e índice', () => {
+  it('Phil M-1: video_id repetido (fronteira de página durante a gravação) é ignorado, não conta duas vezes', async () => {
+    const { lerMapaDeLugares, contagemPorLugar } = await carregar()
+    const m = await lerMapaDeLugares(banco([
+      { video_id: id(1), chaves: ['pais:VN'], semente_versao: 2 },
+      { video_id: id(1), chaves: ['pais:VN'], semente_versao: 2 },
+      { video_id: id(2), chaves: ['pais:VN'], semente_versao: 2 },
+    ]).db, SITE, 'a')
+    expect(m.ids).toEqual([id(1), id(2)])
+    expect(m.chavesPorVideo).toHaveLength(2)
+    expect(contagemPorLugar(m, 1)).toEqual([{ slug: 'pais:VN', n: 2 }])
+  })
+  it('Yannis M-4: lugaresDe e semLinha sobre o mesmo mapa montam o índice uma vez só', async () => {
+    const { lerMapaDeLugares, lugaresDe, semLinha } = await carregar()
+    const m = await lerMapaDeLugares(banco(Array.from({ length: 50 }, (_, i): Linha => ({ video_id: id(i), chaves: ['pais:VN'], semente_versao: 2 }))).db, SITE, 'a')
+    lugaresDe(m, id(1))
+    const set = vi.spyOn(Map.prototype, 'set')
+    try {
+      lugaresDe(m, id(2)); lugaresDe(m, id(3)); semLinha(m, [id(4), 'x'])
+      expect(set).not.toHaveBeenCalled()
+    } finally { set.mockRestore() }
+  })
+  it('Yannis M-5: o siteId está na chave: dois sites com o mesmo computed_at ("nunca") não dividem a entrada', async () => {
+    const { lerMapaDeLugares, cache } = await carregar()
+    const s1 = banco([{ video_id: id(1), chaves: ['pais:VN'], semente_versao: 2 }])
+    const s2 = banco([{ video_id: id(2), chaves: ['pais:BR'], semente_versao: 2 }])
+    const a = await lerMapaDeLugares(s1.db, 'S1', null)
+    const b = await lerMapaDeLugares(s2.db, 'S2', null)
+    expect(s1.leituras.video_lugares).toBe(1)
+    expect(s2.leituras.video_lugares).toBe(1)
+    expect(cache.entries.size).toBe(2)
+    expect(b.ids).not.toContain(id(1))
+    expect(a.ids).toEqual([id(1)])
+  })
+})
+
 describe('lerMapaDeLugares: cache por cálculo e falha', () => {
   it('(b) P-1: computed_at A = 1 leitura, repetição = 0, B = a 2ª; a entrada de A nunca serve B', async () => {
     const { lerMapaDeLugares, cache } = await carregar()

@@ -296,14 +296,23 @@ function unirDefinicoes(modelos: PacoteModelo[]): PacoteModelo {
 
 /** Teto de linhas de lugares em `definicoes`; o resto vira uma linha de "mais N lugares". */
 const LUGARES_EM_DEFINICOES = 60
-/** O bloco de lugares de `definicoes`: ausência e falha são escritas, nunca uma lista vazia muda. */
+const dataBR = (iso: string): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(new Date(iso))
+const horaBR = (iso: string): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
+/** O bloco de lugares de `definicoes`: cada ausência tem a sua frase e a falha é escrita, nunca uma lista vazia muda. */
 function blocoDeLugares(l: LugaresParaDefinicoes): string {
   if (l.estado === 'falhou') return 'Lugares com dados: a lista de lugares não carregou agora; tente de novo.'
-  if (l.estado === 'sem_calculo' || l.lugares.length === 0) return 'Lugares com dados: nenhum lugar calculado para este site.'
+  if (l.estado === 'nunca') return 'Lugares com dados: lugares nunca calculados neste site.'
+  if (l.estado === 'desligado') return 'Lugares com dados: lugares não calculados: tarefa desligada.'
+  const quando = `(calculados em ${dataBR(l.computadoEm)} às ${horaBR(l.computadoEm)}, horário de Brasília)`
+  const aviso = l.atrasado ? [`Lugares desatualizados desde ${dataBR(l.computadoEm)} (mais de 36 h sem novo cálculo; vídeos publicados depois não entram na conta).`] : []
+  if (l.lugares.length === 0) {
+    const vazio = l.totalDeVideos === 0 ? 'o cálculo não marcou nenhum vídeo de concorrente' : `nenhum lugar com 3 vídeos ou mais entre os ${l.totalDeVideos} vídeos calculados`
+    return [`Lugares com dados ${quando}: ${vazio}; pergunte pelo slug em \`consultar\`.`, ...aviso].join('\n')
+  }
   const linhas = l.lugares.slice(0, LUGARES_EM_DEFINICOES).map((x) => `- ${x.slug}: ${x.n} vídeos`)
   const resto = l.lugares.length - LUGARES_EM_DEFINICOES
   if (resto > 0) linhas.push(`mais ${resto} lugares com dados; pergunte pelo slug em \`consultar\``)
-  return ['Lugares com dados (no mínimo 3 vídeos de canais de terceiros cada):', ...linhas].join('\n')
+  return [`Lugares com dados (no mínimo 3 vídeos de canais de terceiros cada) ${quando}:`, ...aviso, ...linhas].join('\n')
 }
 
 /* ------------------------------------------------------------------ a resposta */
