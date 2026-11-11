@@ -247,7 +247,9 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const buraco = grao === 'dia' ? faltaDado : null
     const proprio = m.tela === 'canal-proprio' || m.tela === 'video-proprio'
     const semDado = buraco && proprio ? buraco : null
-    if (buraco) avisos.push(`série "${t.titulo}": ${fimDoDado(m, pedidoAte, ultimoComDado)}${semDado ? `; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram` : ''}`)
+    // re-revisão N-2: "ainda não chegaram" sugere espera; com buraco acima de 3 dias a frase já diz que a importação pode ter parado, e o anexo a contradiria
+    const atrasoNormal = buraco !== null && Math.round((Date.parse(`${pedidoAte}T00:00:00Z`) - Date.parse(`${ultimoComDado}T00:00:00Z`)) / 86_400_000) <= 3
+    if (buraco) avisos.push(`série "${t.titulo}": ${fimDoDado(m, pedidoAte, ultimoComDado)}${semDado && atrasoNormal ? `; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram` : ''}`)
     const faltam = semDado ? Math.round((Date.parse(`${semDado.ate}T00:00:00Z`) - Date.parse(`${semDado.de}T00:00:00Z`)) / 86_400_000) + 1 : 0
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
@@ -565,7 +567,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
       }
       // só `falhou` se TODOS falharam; um que falha entre outros vira linhas `falhou` daquele canal
-      if (canais.every((c) => c.tipo === 'falhou')) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
+      // re-revisão N-1: nenhum lido e algum falhou (o resto inexistente ou sem tempo) também é `falhou`, nunca `ok` vazio
+      if (lidosN === 0 && canais.some((c) => c.tipo === 'falhou')) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
       const tetoDaSerie = tetoFinal - (topo === '' ? 0 : topo.length + 1)
       const r = respostaDaSerieDeCanais(canais, { geradoEm: agora, recente }, { de: pedido.de!, ate: pedido.ate!, grao: pedido.grao ?? 'dia' }, pedido.limite.n, tetoDaSerie)
       for (const a of r.avisos) avisar(a.passo, a.extra)

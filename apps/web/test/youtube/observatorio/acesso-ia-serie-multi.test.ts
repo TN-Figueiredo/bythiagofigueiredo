@@ -355,6 +355,11 @@ describe('Yannis I-1: um canal que lança vira só aquele canal `falhou`', () =>
     expect(avisos).not.toContain('timeout do banco')
     expect(avisos).not.toContain(B)
   })
+  it('re-revisão N-1: [B lança, inexistente], zero lidos: `falhou`, nunca `ok` vazio', async () => {
+    fontes({ [B]: { modelo: concorrente('Canal B'), lanca: true } })
+    const r = await responder(PEDIDO([B, INEXISTENTE]), abrir, AGORA)
+    expect(r.desfecho).toBe('falhou')
+  })
   it('todos os canais falham: o desfecho da chamada é `falhou`', async () => {
     fontes({ [A]: { modelo: concorrente('Canal A'), lanca: true }, [B]: { modelo: concorrente('Canal B'), lanca: true } })
     const r = await responder(PEDIDO([A, B]), abrir, AGORA)
@@ -406,6 +411,17 @@ describe('Yannis I-3: o aviso do fim do dado depende do dono do canal e do taman
     const r = await responder(PEDIDO(['proprio'], ATE), abrir, AGORA)
     expect(r.texto).toContain('o YouTube entrega com 2 a 3 dias de atraso')
     expect(r.texto).not.toContain('pode ter parado')
+  })
+  it('re-revisão N-2: série de um canal só, próprio com 10 dias de buraco: sem "ainda não chegaram" no aviso', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(true, tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-10-31' })) } })
+    const r = await responder({ acao: 'serie', canal_id: PROPRIO_ID, de: '2026-10-25', ate: '2026-11-10', grao: 'dia' }, abrir, AGORA)
+    expect(r.texto).toContain('a importação pode ter parado')
+    expect(r.texto).not.toMatch(/pode ter parado[^\n]*ainda não chegaram/)
+  })
+  it('re-revisão N-2: série de um canal só, próprio com 3 dias de buraco: mantém "ainda não chegaram"', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(true, tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-07' })) } })
+    const r = await responder({ acao: 'serie', canal_id: PROPRIO_ID, de: '2026-11-01', ate: '2026-11-10', grao: 'dia' }, abrir, AGORA)
+    expect(r.texto).toMatch(/atraso[^\n]*ainda não chegaram/)
   })
   it('próprio com 10 dias de buraco: diz que a importação pode ter parado', async () => {
     fontes({ [PROPRIO_ID]: { modelo: proprio(true, tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-10-31' })) } })
