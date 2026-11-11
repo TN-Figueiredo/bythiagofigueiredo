@@ -560,6 +560,32 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     expect(igual.params.marca_mudou).toBe(false)
   })
 
+  it('acessoir-13: destaques, 2ª janela com a marca que a Cobertura deu: sem aviso de marca mudada', async () => {
+    dobra('outliers', sintetico('outliers', [lista('outliers', 'Vídeos', 120, 20)]))
+    const w1 = await responder({ acao: 'destaques' }, abrir, AGORA)
+    const prox = proximaDe(w1.texto)!
+    expect(typeof prox.marca).toBe('string')
+    const w2 = await responder(prox, abrir, AGORA)
+    expect(secaoDe(w2.texto)).not.toContain('A lista mudou')
+    expect(w2.params.marca_mudou).toBe(false)
+    const w3 = await responder(proximaDe(w2.texto)!, abrir, AGORA)
+    expect(secaoDe(w3.texto)).not.toContain('A lista mudou')
+    expect(w3.params.marca_mudou).toBe(false)
+  })
+
+  it('acessoir-13b: destaques com linhas largas (marca com o 9º caractere): cada janela segue a marca da anterior sem aviso', async () => {
+    dobra('outliers', sintetico('outliers', [lista('outliers', 'Vídeos', 120, 1500)]))
+    let e: Record<string, unknown> | null = { acao: 'destaques' }
+    const vistos: unknown[] = []
+    for (let i = 0; i < 20 && e; i += 1) {
+      const r = await responder(e, abrir, AGORA)
+      if (i > 0) { expect(secaoDe(r.texto)).not.toContain('A lista mudou'); expect(r.params.marca_mudou).toBe(false) }
+      vistos.push(e.marca)
+      e = proximaDe(r.texto)
+    }
+    expect(vistos.length).toBeGreaterThan(2)
+  }, 60_000)
+
   it('(i) último recurso: uma linha de 70.000 caracteres: linha_nao_cabe e o texto ≤ 60.000', async () => {
     dobra('canais', sintetico('canais', [lista('canais', 'Os canais acompanhados', 3, 70_000)]))
     const r = await responder({ acao: 'listar_canais' }, abrir, AGORA)
