@@ -117,9 +117,12 @@ function tabelaDoAgregado(b: ResultadoDaConsulta['blocos'][number], i: number, p
 }
 
 // ───────────────────────── cabeçalho
-/** O mais recente entre motor e medidas (a mesma fonte do `Dados de`), na hora de São Paulo; nulo se nenhum foi lido. */
-export const maisRecenteDosDados = (d: ResultadoDaConsulta['dadosDe']): string | null => {
-  const ms = [d.motor, d.medidas].flatMap((x) => (x === null ? [] : [Date.parse(x)])).filter((n) => !Number.isNaN(n))
+/** O mais recente entre motor, medidas e o `Medido em` de cada linha, na hora de São Paulo; nulo se nenhum foi lido.
+ *  As linhas entram porque a medida de um vídeo pode ser mais nova que o `Dados de` (prova em prod de 11/11: 06:01 x 00:22). */
+export const maisRecenteDosDados = (r: Pick<ResultadoDaConsulta, 'dadosDe' | 'blocos'>): string | null => {
+  const d = r.dadosDe
+  const isos = [d.motor, d.medidas, ...r.blocos.flatMap((b) => b.linhas.map((l) => l.medidoEm))]
+  const ms = isos.flatMap((x) => (x === null ? [] : [Date.parse(x)])).filter((n) => !Number.isNaN(n))
   return ms.length ? spDmHm(Math.max(...ms)) : null
 }
 const dh = (iso: string | null): string => {
