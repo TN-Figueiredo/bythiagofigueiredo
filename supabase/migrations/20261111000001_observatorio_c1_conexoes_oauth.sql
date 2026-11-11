@@ -371,3 +371,168 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.obs_ai_resolver_token(text, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.obs_ai_resolver_token(text, text, timestamptz) to service_role;
+
+-- ===== Seção 4: funções do dono =====
+-- Todas pegam o lock da pessoa primeiro e depois a liberação (for update); ordem fixa liberação → conexão → tokens.
+-- Negativa de regra = return com motivo; erro de infraestrutura = raise.
+
+create or replace function public.obs_ai_liberar(p_user uuid, p_site uuid, p_dias integer, p_agora timestamptz)
+returns table (motivo text, liberacao_id uuid, expires_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_aberta public.obs_ai_liberacoes%rowtype;
+  v_bloq text[] := '{}'::text[];
+  v_motivo text;
+  v_id uuid;
+  v_exp timestamptz;
+begin
+  if p_dias is null or p_dias < 1 or p_dias > 366 then
+    return query select 'dias'::text, null::uuid, null::timestamptz; return;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  select * into v_aberta from public.obs_ai_liberacoes l
+   where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
+  if found then
+    if v_aberta.expires_at > p_agora then
+      return query select 'ja_liberada'::text, v_aberta.id, v_aberta.expires_at; return;
+    end if;
+    -- vencida e não revogada: encerra (o gatilho propaga às conexões, chaves e tokens) e herda os bloqueios
+    update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'vencida' where l.id = v_aberta.id;
+    v_bloq := v_aberta.bloqueios;
+  end if;
+  v_motivo := public.obs_ai_motivo_inelegivel(p_user, p_site, p_agora);
+  if v_motivo is not null then
+    return query select v_motivo, null::uuid, null::timestamptz; return;
+  end if;
+  v_exp := p_agora + make_interval(days => p_dias);
+  begin
+    insert into public.obs_ai_liberacoes (site_id, user_id, expires_at, bloqueios)
+      values (p_site, p_user, v_exp, v_bloq) returning id into v_id;
+  exception when raise_exception then
+    if sqlerrm = 'obs_ai_teto' then
+      return query select 'teto'::text, null::uuid, null::timestamptz; return;
+    end if;
+    raise;
+  end;
+  return query select null::text, v_id, v_exp;
+end $$;
+revoke all on function public.obs_ai_liberar(uuid, uuid, integer, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_liberar(uuid, uuid, integer, timestamptz) to service_role;
+
+create or replace function public.obs_ai_liberar_cliente(p_user uuid, p_site uuid, p_cliente text)
+returns table (motivo text, bloqueios text[])
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_id uuid;
+  v_bloq text[];
+begin
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  select l.id into v_id from public.obs_ai_liberacoes l
+   where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
+  if v_id is null then
+    return query select 'sem_liberacao'::text, null::text[]; return;
+  end if;
+  update public.obs_ai_liberacoes l set bloqueios = array_remove(l.bloqueios, p_cliente)
+   where l.id = v_id returning l.bloqueios into v_bloq;
+  return query select null::text, v_bloq;
+end $$;
+revoke all on function public.obs_ai_liberar_cliente(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.obs_ai_liberar_cliente(uuid, uuid, text) to service_role;
+
+create or replace function public.obs_ai_estender_liberacao(p_liberacao uuid, p_dias integer, p_agora timestamptz)
+returns table (motivo text, expires_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_user uuid;
+  v_lib public.obs_ai_liberacoes%rowtype;
+  v_exp timestamptz;
+begin
+  if p_dias is null or p_dias < 1 or p_dias > 366 then
+    return query select 'dias'::text, null::timestamptz; return;
+  end if;
+  select l.user_id into v_user from public.obs_ai_liberacoes l where l.id = p_liberacao;
+  if v_user is null then
+    return query select 'nao_encontrada'::text, null::timestamptz; return;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || v_user::text));
+  select * into v_lib from public.obs_ai_liberacoes l where l.id = p_liberacao for update;
+  if not found then
+    return query select 'nao_encontrada'::text, null::timestamptz; return;
+  end if;
+  if v_lib.revoked_at is not null then
+    return query select 'revogada'::text, v_lib.expires_at; return;
+  end if;
+  v_exp := p_agora + make_interval(days => p_dias);
+  begin
+    update public.obs_ai_liberacoes l set expires_at = v_exp where l.id = p_liberacao;
+  exception when raise_exception then
+    if sqlerrm = 'obs_ai_teto' then
+      return query select 'teto'::text, v_lib.expires_at; return;
+    end if;
+    raise;
+  end;
+  return query select null::text, v_exp;
+end $$;
+revoke all on function public.obs_ai_estender_liberacao(uuid, integer, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_estender_liberacao(uuid, integer, timestamptz) to service_role;
+
+create or replace function public.obs_ai_cortar(p_user uuid, p_site uuid, p_cliente text, p_agora timestamptz)
+returns table (tabela text, id uuid, motivo text)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_lib_id uuid;
+  v_ids uuid[];
+begin
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  -- 1º a liberação (aberta, ativa ou vencida), depois conexão e tokens
+  select l.id into v_lib_id from public.obs_ai_liberacoes l
+   where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
+  if v_lib_id is null then
+    return query select null::text, null::uuid, 'sem_liberacao'::text; return;
+  end if;
+  if p_cliente is not null then
+    update public.obs_ai_liberacoes l set bloqueios = array_append(l.bloqueios, p_cliente)
+     where l.id = v_lib_id and not (p_cliente = any(l.bloqueios));
+    return query select 'obs_ai_liberacoes'::text, v_lib_id, null::text;
+    return query
+      with u as (
+        update public.obs_ai_conexoes c set revoked_at = p_agora, revogada_por = 'dono_cliente'
+         where c.liberacao_id = v_lib_id and c.cliente = p_cliente and c.revoked_at is null returning c.id)
+      select 'obs_ai_conexoes'::text, u.id, null::text from u;
+  else
+    select coalesce(array_agg(c.id), '{}'::uuid[]) into v_ids from public.obs_ai_conexoes c
+     where c.liberacao_id = v_lib_id and c.revoked_at is null;
+    update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'dono' where l.id = v_lib_id;
+    return query select 'obs_ai_liberacoes'::text, v_lib_id, null::text;
+    return query select 'obs_ai_conexoes'::text, x, null::text from unnest(v_ids) x;
+    return query
+      with u as (
+        update public.pipeline_api_keys k set revoked_at = p_agora
+         where k.site_id = p_site and k.user_id = p_user and k.revoked_at is null
+           and 'observatorio_leitura' = any(k.permissions) returning k.id)
+      select 'pipeline_api_keys'::text, u.id, null::text from u;
+  end if;
+end $$;
+revoke all on function public.obs_ai_cortar(uuid, uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_cortar(uuid, uuid, text, timestamptz) to service_role;
+
+create or replace function public.obs_ai_revogar_lgpd(p_user uuid)
+returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_n integer;
+begin
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  with l as (
+    select b.id from public.obs_ai_liberacoes b where b.user_id = p_user and b.revoked_at is null for update)
+  update public.obs_ai_liberacoes b set revoked_at = now(), revogada_por = 'lgpd'
+   from l where b.id = l.id;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+revoke all on function public.obs_ai_revogar_lgpd(uuid) from public, anon, authenticated;
+grant execute on function public.obs_ai_revogar_lgpd(uuid) to service_role;
