@@ -10,6 +10,8 @@ export interface Cobertura {
   numeros: PacoteSerializado['numeros']
   /** Comparar: pares cujo canal não foi encontrado (`de` = pares pedidos). Nunca é completo. */
   naoEncontrados?: { quantos: number; de: number }
+  /** A5 F2b: a `serie` de vários canais: pedidos, lidos, não encontrados e não lidos (prazo). */
+  canais?: { pedidos: number; lidos: number; naoEncontrados: number; naoLidos: number }
   /** Os números foram somados antes do corte do fim do texto. */
   numerosAntesDoCorte?: boolean
   /** Pediu série e ela não veio: a frase do vazio fala de série, não de lista. */
@@ -38,6 +40,7 @@ export function coberturaCompleta(c: Cobertura): boolean {
   if (c.lista && c.lista.ate !== c.lista.total) return false
   if (c.serie && (c.serie.pontos < c.serie.total || (c.serie.semData ?? 0) > 0)) return false
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) return false
+  if (c.canais && c.canais.lidos < c.canais.pedidos) return false
   if (c.apoio.cortadas.length > 0 || c.apoio.inteiras < c.apoio.total) return false
   if (c.cortesDeTamanho.length > 0) return false
   if (c.soNoTexto && c.soNoTexto.length > 0) return false
@@ -108,6 +111,10 @@ function montar(c: Cobertura, n: Nivel): string {
     L.push(n.cortesEmContagem ? `- Só no modo texto: ${t.length} tabelas.` : `- Só no modo texto (peça sem saida tabela): ${t.slice(0, 3).join('; ')}${t.length > 3 ? `, mais ${t.length - 3}` : ''}.`)
   }
   if (c.foraDoPacote) L.push(`- A tela mostra ${c.foraDoPacote.mostrados} de ${c.foraDoPacote.total} outliers (cada grupo é paginado na tela); os outros não estão neste pacote.`)
+  if (c.canais && c.canais.lidos < c.canais.pedidos) {
+    const k = c.canais
+    L.push(`- Canais: ${k.lidos} de ${k.pedidos} lidos${k.naoEncontrados > 0 ? `; ${k.naoEncontrados} não encontrado${k.naoEncontrados === 1 ? '' : 's'}` : ''}${k.naoLidos > 0 ? `; ${k.naoLidos} não lido${k.naoLidos === 1 ? '' : 's'} (o prazo da chamada acabou)` : ''}; as linhas desses canais saem "não medido".`)
+  }
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) L.push(`- Pares sem dado: ${c.naoEncontrados.quantos} de ${c.naoEncontrados.de} (canal não encontrado); a comparação não cobre esses canais.`)
   if (c.cortesDeTamanho.length > 0) {
     const r = c.cortesDeTamanho

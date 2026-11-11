@@ -462,5 +462,167 @@ export function respostaDaSerieEmTabela(
   }
 }
 
+/* ------------------------------------------------------------------ A5 F2b: vários canais */
+
+/** Um canal do pedido: lido (modelo reduzido à série), não encontrado ou não lido (o prazo acabou). `apelido` é `c1`, `c2`, … na ordem do pedido. */
+export type CanalDaSerieMulti =
+  | { tipo: 'lido'; apelido: string; canalId: string; m: PacoteModelo }
+  | { tipo: 'nao_encontrado' | 'nao_lido'; apelido: string; canalId: string }
+
+/** As linhas de um canal que não foi lido: uma `nao_medido` por data pedida até hoje (no máximo `n`, as mais recentes), com o motivo. Nunca o dado de outro canal. */
+function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
+  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : F.SERIE_CANAL_NAO_LIDO
+  const ate = menor(p.ate, hoje)
+  const sem = p.grao === 'semana' ? { diasMedidos: 0 } : {}
+  const linha = (data: string, resumo = false): PontoCsv => ({ data, canalId: c.canalId, apelido: c.apelido, medida: MEDIDA_RESTRITA, x: null, estado: 'nao_medido', motivo, ...sem, ...(resumo ? { resumo: true as const } : {}) })
+  if (ate < p.de) return [linha(p.grao === 'semana' ? segundaDe(p.de) : p.de, true)]
+  // só as `n` datas mais recentes: `de` pode ser 0001-01-01 e o laço nunca percorre o intervalo todo
+  const deDentro = p.grao === 'semana' ? maior(segundaDe(p.de), somaDias(segundaDe(ate), -7 * (n - 1))) : maior(p.de, somaDias(ate, -(n - 1)))
+  return datasDoPedido(deDentro, p.grao === 'semana' ? segundaDe(ate) : ate, p.grao).map((d) => linha(d))
+}
+
+export interface RespostaDaSerieMulti extends RespostaDaSerie {
+  canaisLidos: number
+  naoEncontrados: number
+  naoLidos: number
+}
+
+/**
+ * O modo tabela da `serie` de vários canais: um bloco de linhas por canal, na ordem do pedido (`c1`, `c2`, …), com o dicionário de cada canal e de cada base.
+ * Os modelos lidos são os MESMOS objetos que passam por `segmentar` (que lança com dado privado sem direito). Canal não encontrado ou não lido: linhas
+ * `nao_medido` com o motivo, nunca o dado de outro canal. O corte por tamanho tira as datas mais antigas de TODOS os canais por igual.
+ */
+export function respostaDaSerieDeCanais(
+  canais: readonly CanalDaSerieMulti[], ctx: ContextoDoPacote, pedido: { de: string; ate: string; grao: 'dia' | 'semana' }, n: number, teto: number,
+): RespostaDaSerieMulti {
+  const agora = ctxAgora(ctx)
+  const hoje = hojeSp(agora)
+  const lidos = canais.filter((c): c is Extract<CanalDaSerieMulti, { tipo: 'lido' }> => c.tipo === 'lido')
+  // o MESMO objeto vai a `segmentar` (lança com privado sem direito) e ao gerador
+  for (const c of lidos) segmentar(c.m, ctx)
+  const avisos: AvisoDaSerie[] = []
+  const seriesPorCanal = new Map(lidos.map((c) => [c.apelido, seriesDe(c.m, agora)] as const))
+  const todasAsSeries = [...seriesPorCanal.values()].flat()
+  let grao = pedido.grao
+  let convertida = false
+  let cortes = 0
+  const extras: string[] = []
+  const menores = todasAsSeries.map(menorDia).filter((d): d is string => d !== null)
+  const tmaxGeral = todasAsSeries.flatMap((s) => s.dias.filter((d): d is string => d !== null)).reduce((a, b) => (a > b ? a : b), '')
+  const ateDoPedido = menor(pedido.ate, grao === 'dia' ? maior(tmaxGeral, hoje) : tmaxGeral === '' ? hoje : tmaxGeral)
+  const diasDentro = menores.length === 0 ? Math.max(0, entre(pedido.de, menor(pedido.ate, hoje)) + 1) : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), ateDoPedido) + 1
+  if (grao === 'dia' && diasDentro > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasDentro, n)) }
+  const p = { de: pedido.de, ate: pedido.ate, grao }
+  const de = grao === 'semana' ? segundaDe(pedido.de) : pedido.de
+  const ate = grao === 'semana' ? domingoDe(pedido.ate) : pedido.ate
+  if (grao === 'semana') extras.push(F.SERIE_REGRA_DA_SEMANA)
+
+  const porCanal: Array<{ canal: CanalDaSerieMulti; pontos: PontoCsv[] }> = canais.map((c) => ({
+    canal: c,
+    pontos: c.tipo === 'lido' ? pontosDaSerie(c.m, c.canalId, c.apelido, p, agora) : pontosDoCanalAusente(c, p, hoje, n),
+  }))
+  const tudo = porCanal.flatMap((x) => x.pontos)
+  const infos: CanalDaSerie[] = canais.map((c) => (c.tipo === 'lido' ? infoDaSerie(c.m, c.canalId, c.apelido, agora) : { apelido: c.apelido, canalId: c.canalId, nome: '', medidas: [] }))
+
+  // por canal: a data que veio do texto, as linhas sem data, o atraso do dado e as tabelas só do modo texto (o apelido abre cada frase)
+  const soNoTexto: string[] = []
+  for (const c of lidos) {
+    const series = seriesPorCanal.get(c.apelido)!
+    for (const id of new Set(series.filter((s) => s.doTexto).map((s) => s.t.id))) {
+      const s = series.find((x) => x.t.id === id)!
+      const semData = s.dias.filter((d) => d === null).length
+      avisos.push({ passo: 'dias_do_texto', extra: { tabela: id, ...(semData > 0 ? { sem_data: semData } : {}) } })
+    }
+    for (const id of new Set(series.map((s) => s.t.id))) {
+      const s = series.find((x) => x.t.id === id)!
+      const semData = s.dias.filter((d) => d === null).length
+      if (semData > 0) extras.push(`${c.apelido}: tabela "${s.t.nomeNoCorte}": ${F.SERIE_DESCARTADAS(semData)}`)
+    }
+    const ultimo = series.flatMap((s) => s.dias.filter((d): d is string => d !== null)).reduce((a, b) => (a > b ? a : b), '')
+    const pedidoAte = menor(pedido.ate, hoje)
+    if (grao === 'dia' && ultimo !== '' && ultimo < pedidoAte) extras.push(`${c.apelido}: ${F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimo), ehDoProprio(c.m) ? 'do seu canal' : 'desta série')}`)
+    for (const t of c.m.tabelas.filter((x) => x.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[x.id] === undefined)) {
+      soNoTexto.push(t.nomeNoCorte)
+      extras.push(`${c.apelido}: tabela "${t.nomeNoCorte}": ${F.SERIE_SEM_DATA}`)
+    }
+  }
+  const datas = [...new Set(tudo.filter((x) => x.resumo !== true).map((x) => x.data))].sort()
+  const nenhumMedido = tudo.length > 0 && !tudo.some((x) => x.estado === 'medido' || x.estado === 'zero_medido')
+  const primeiraMinha = nenhumMedido ? F.SERIE_NENHUM_PONTO_CANAIS(dmy(de), dmy(ate)) : null
+  const semResumo = (ps: readonly PontoCsv[]): PontoCsv[] => ps.filter((x) => x.resumo !== true)
+  const soResumo = tudo.length > 0 && tudo.every((x) => x.resumo === true)
+  const total = soResumo ? quantasDatas(de, ate, grao) * canais.length : semResumo(tudo).length
+  const temProprio = lidos.some((c) => ehDoProprio(c.m))
+  const temConcorrente = lidos.some((c) => !ehDoProprio(c.m))
+
+  const montar = (ficam: number): { texto: string; pontos: PontoCsv[]; contados: number } => {
+    const depois = new Set(datas.slice(Math.max(0, datas.length - ficam)))
+    const ps = tudo.filter((x) => x.resumo === true || depois.has(x.data))
+    const contados = semResumo(ps).length
+    const legenda = novaLegenda()
+    const csv = csvDaSerie(ps, grao, legenda, infos)
+    const avisosDosModelos = lidos.flatMap((c) => [
+      ...c.m.avisos.map((a) => `${c.apelido}: ${a}`),
+      ...(c.m.privado.estado === 'incluido' ? (c.m.avisosPrivados ?? []).map((a) => `${c.apelido}: ${a}${F_MARCA}`) : []),
+    ])
+    const cortou = ficam < datas.length
+    const linhasAvisos = [...[...avisosDosModelos, ...extras].map((a) => `- ${naCelula(a)}`), ...(cortou ? [`- ${F.SERIE_CORTADA(contados, total, grao)}`] : [])]
+    const privada = ps.some((x) => x.privada === true && x.estado !== 'restrito') // restrito não é dado privado
+    const colunas = grao === 'semana'
+      ? ['semana_inicio', 'canal', 'medida', 'valor', 'estado', 'dias_medidos', 'motivo_id'] as const
+      : ['dia', 'canal', 'medida', 'valor', 'estado', 'motivo_id'] as const
+    const bloco = [
+      `## Série ${grao === 'semana' ? 'por semana' : 'por dia'} de ${canais.length} ${canais.length === 1 ? 'canal' : 'canais'}`,
+      ...(privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []),
+      ...(grao === 'semana' ? [F.SERIE_TOPO_DAS_SEMANAS(dm(de), dm(ate))] : []),
+      ...colunas.map((c) => F.dicionarioLinha(c, F.SERIE_DICIONARIO_COLUNAS[c])),
+      ...csv.dicionarioDeCanais,
+      F.graficoSugerido(F.FRASE_DO_GRAFICO.linha),
+      '```csv', csv.cabecalho, ...csv.linhas, '```',
+      F.SERIE_LINHAS(contados, total),
+    ].join('\n')
+    const minha = primeiraMinha ?? avisoDoCsv(semResumo(ps))
+    const partes = [
+      ...(minha ? [minha] : []),
+      `# Observatório · série de ${canais.length} ${canais.length === 1 ? 'canal' : 'canais'}`,
+      ...(temProprio && temConcorrente ? [F.SERIE_BASES_DIFERENTES] : []),
+      F.COMO_LER_TABELA,
+      ...lidos.flatMap((c) => (c.m.privado.estado === 'excluido' ? [textoDoPrivadoExcluido(c.m.privado)] : [])),
+      ...(linhasAvisos.length > 0 ? [['## Avisos', ...linhasAvisos].join('\n')] : []),
+      ...(legenda.linhas().length > 0 ? [legenda.linhas().join('\n')] : []),
+      bloco,
+    ]
+    return { texto: partes.join('\n\n'), pontos: ps, contados }
+  }
+
+  let ficam = Math.min(datas.length, n)
+  let melhor = montar(ficam)
+  if (melhor.texto.length > teto && ficam > 1) {
+    let lo = 1
+    let hi = ficam - 1
+    let achou = 1
+    while (lo <= hi) {
+      const meio = (lo + hi) >> 1
+      if (montar(meio).texto.length <= teto) { achou = meio; lo = meio + 1 } else hi = meio - 1
+    }
+    ficam = achou
+    melhor = montar(ficam)
+    avisos.push({ passo: 'serie_tabela_estourou' })
+  }
+  if (ficam < datas.length) cortes += 1
+  const rotulos = ficam < datas.length ? [`${melhor.contados} de ${total} linhas da série`] : []
+  const semXPorTabela = new Map<string, number>()
+  for (const x of tudo) if (x.motivo === F.MOTIVO_SEM_NUMERO_DE_MAQUINA) semXPorTabela.set(x.tabela ?? '', (semXPorTabela.get(x.tabela ?? '') ?? 0) + 1)
+  for (const [tabela, k] of semXPorTabela) avisos.push({ passo: 'csv_sem_x', extra: { tabela, n: k } })
+  const semXn = [...semXPorTabela.values()].reduce((a, b) => a + b, 0)
+  if (melhor.texto.length > teto) rotulos.push('o fim do texto')
+  const primeiraFinal = primeiraMinha ?? avisoDoCsv(semResumo(melhor.pontos))
+  return {
+    texto: melhor.texto, primeira: primeiraFinal, pontos: melhor.contados, total, de, ate, grao, convertida, cortes, rotulos, semX: semXn,
+    numeros: contar(semResumo(melhor.pontos)), incluiuPrivado: lidos.some((c) => c.m.privado.estado === 'incluido'), soNoTexto, nenhumMedido, avisos,
+    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length,
+  }
+}
+
 const F_MARCA = F.MARCA_PRIVADO
 const ctxAgora = (ctx: ContextoDoPacote): number => ctx.geradoEm

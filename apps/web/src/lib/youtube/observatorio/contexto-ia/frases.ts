@@ -200,6 +200,11 @@ export const SERIE_SEM_LEITURA_NENHUMA = 'ainda não há leitura de views deste 
 export const SERIE_A_TELA_COBRE = (de: string, ate: string) => `a tela cobre de ${de} a ${ate}` // novo
 export const SERIE_TOPO_DAS_SEMANAS = (de: string, ate: string) => `Semanas de ${de} a ${ate}, segunda a domingo` // novo
 export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para o canal pedido` // novo
+/** A5 F2b: a `serie` de vários canais. */
+export const SERIE_NENHUM_PONTO_CANAIS = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para os canais pedidos`
+export const SERIE_CANAL_NAO_ENCONTRADO = 'canal não encontrado'
+export const SERIE_CANAL_NAO_LIDO = 'não lido: o prazo da chamada acabou'
+export const SERIE_BASES_DIFERENTES = 'Bases diferentes nesta tabela: o seu canal soma só vídeos longos acompanhados, no dia do YouTube (Pacífico); os concorrentes, o canal inteiro com Shorts, no dia de São Paulo. Não compare sem citar as duas.'
 export const SERIE_BASE_CONCORRENTE = 'canal inteiro, todos os formatos (Shorts incluídos); ganho entre a leitura de D−1 e a de D, dia em horário de São Paulo' // novo
 export const SERIE_BASE_PROPRIO = (fora: number) => `só vídeos longos acompanhados, até 50${fora > 0 ? `; ${fora} fora da soma` : ''}; dia do YouTube em horário do Pacífico` // novo
 export const SERIE_BASE_VIDEO = 'só este vídeo; dia do YouTube em horário do Pacífico' // novo

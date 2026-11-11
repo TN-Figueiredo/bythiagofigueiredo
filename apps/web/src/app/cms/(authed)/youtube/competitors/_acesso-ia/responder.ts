@@ -18,11 +18,12 @@ import { SEMANA_FECHADA, type Celula, type PacoteModelo, type Tabela, type TelaI
 import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
-import { EMPACOTAR, type FaltouNoPar } from '../_contexto-ia'
+import { EMPACOTAR, resolverProprio, type FaltouNoPar, type OpcoesDoPacote } from '../_contexto-ia'
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 import { respostaEmTabela } from './resposta-tabela'
-import { diaDaLinha, diaValido, dmy, hojeSp, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
+import type { CanalDaSerieMulti } from './serie-tabela'
+import { diaDaLinha, diaValido, dmy, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -292,13 +293,21 @@ const resp = (desfecho: Resposta['desfecho'], texto: string, params: Params = {}
 const NAO_ENCONTRADO = (params: Params): Resposta => resp('nao_encontrado', FRASES_DA_FERRAMENTA.nao_encontrado, params)
 
 /** Com a tela como veio (`canal`), ou resolvendo `canal?`/`video?` entre a versão de concorrente e a própria. */
-async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: FaltouNoPar) {
+async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: FaltouNoPar, opcoes?: OpcoesDoPacote) {
   const chamar = async (tela: TelaId) => {
     const f = EMPACOTAR[tela]
     if (!f) throw new Error('sem empacotador')
-    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(faltou ? { faltou } : {}) }, abrir)
+    return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(faltou ? { faltou } : {}), ...(opcoes ? { opcoes } : {}) }, abrir)
   }
-  if (t.tela === 'canal?') return (await chamar('canal')) ?? (await chamar('canal-proprio'))
+  if (t.tela === 'canal?') {
+    // A5 F2b (K10): o canal é lido UMA vez e o ramo (concorrente ou próprio) sai de `m.tipo`
+    const umaLeitura = EMPACOTAR['canal?']
+    if (umaLeitura) {
+      const lido = await umaLeitura({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(opcoes ? { opcoes } : {}) }, abrir)
+      if (lido !== null) return lido
+    }
+    return (await chamar('canal')) ?? (await chamar('canal-proprio'))
+  }
   if (t.tela === 'video?') return (await chamar('video')) ?? (await chamar('video-proprio'))
   return chamar(t.tela)
 }
@@ -410,7 +419,7 @@ function proximasDaAcao(e: Entrada, modelo: PacoteModelo | null, ate90: { de: st
       return [{ chamada: { acao: 'serie', video_id: e.video_id, ...ate90 }, para: 'ver a série dia a dia dos últimos 90 dias deste vídeo' }]
     case 'serie':
       if (!serie?.convertida) return []
-      return [{ chamada: { acao: 'serie', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...(e.video_id ? { video_id: e.video_id } : {}), de: somaDias(e.ate, -399), ate: e.ate, grao: 'dia', ...daSaida(e) }, para: 'ver os últimos 400 dias no grão dia' }]
+      return [{ chamada: { acao: 'serie', ...(e.canal_id ? { canal_id: e.canal_id } : {}), ...(e.canal_ids ? { canal_ids: e.canal_ids } : {}), ...(e.video_id ? { video_id: e.video_id } : {}), de: somaDias(e.ate, -399), ate: e.ate, grao: 'dia', ...daSaida(e) }, para: 'ver os últimos 400 dias no grão dia' }]
     default:
       return []
   }
@@ -427,7 +436,25 @@ function comCobertura(corpo: string, cob: Cobertura, params: Params, t0: number,
   }, incluiuPrivado)
 }
 
-export async function responder(entradaCrua: unknown, abrir: Abridor, agora: number): Promise<Resposta> {
+/**
+ * O prazo DENTRO do `responder` (A5 F2b): `limiteMs` é o instante (no relógio `relogio`, o MESMO que a `executar` usa) até onde a `serie` de vários canais pode ler;
+ * sem ele nada é cortado. Só a `serie` com `canal_ids` o usa.
+ */
+export interface PrazoDaChamada { limiteMs: number; relogio: () => number }
+
+/** Uma corrida: a leitura contra `ms`. Quem perde não é cancelado (R10), mas o seu erro não vira rejeição sem dono. */
+async function contra<T>(leitura: Promise<T>, ms: number): Promise<{ tipo: 'lido'; valor: T } | { tipo: 'tempo' }> {
+  let relogio: ReturnType<typeof setTimeout> | undefined
+  const estouro = new Promise<{ tipo: 'tempo' }>((resolve) => { relogio = setTimeout(() => resolve({ tipo: 'tempo' }), Math.max(0, ms)) })
+  leitura.catch(() => undefined)
+  try {
+    return await Promise.race([leitura.then((valor) => ({ tipo: 'lido' as const, valor })), estouro])
+  } finally {
+    if (relogio !== undefined) clearTimeout(relogio)
+  }
+}
+
+export async function responder(entradaCrua: unknown, abrir: Abridor, agora: number, prazo?: PrazoDaChamada): Promise<Resposta> {
   let params: Params = {}
   const t0 = Date.now()
   try {
@@ -497,6 +524,63 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
       return comCobertura(texto, cob, { ...params, privado, comentarios, cortes: cortes.n, pares }, t0, privado || comentarios)
     }
 
+    /* ---- serie de vários canais (A5 F2b): um canal por vez, na ordem do pedido, com o prazo dentro do responder */
+    if (entrada.acao === 'serie' && entrada.canal_ids !== undefined) {
+      const relogio = prazo?.relogio ?? Date.now
+      const limite = prazo?.limiteMs
+      const canais: CanalDaSerieMulti[] = []
+      const duracoes: number[] = []
+      let recente: string | null = null
+      for (const [i, tela] of pedido.telas.entries()) {
+        const apelido = `c${i + 1}`
+        const idPedido = tela.id ?? ''
+        const antes = relogio()
+        // corte (a): antes de ler, se a estimativa (o máximo dos já lidos; no 1º, a de regras) já passa do limite, o canal não é lido
+        const estimativa = duracoes.length > 0 ? Math.max(...duracoes) : ACESSO_IA_RULES.estimativaPorCanalMs
+        if (limite !== undefined && antes + estimativa > limite) { canais.push({ tipo: 'nao_lido', apelido, canalId: idPedido }); cortes.n += 1; continue }
+        const ler = async (): Promise<{ modelo: PacoteModelo; id: string; recente: string | null } | null> => {
+          let alvo = tela
+          if (idPedido === 'proprio') {
+            const id = await resolverProprio(abrir)
+            if (id === null) return null
+            alvo = { ...tela, id }
+          }
+          const mt = await empacotar(alvo, abrir, undefined, { semComentarios: true })
+          return mt === null ? null : { modelo: mt.modelo, id: alvo.id ?? idPedido, recente: mt.recente }
+        }
+        // corte (b): cada canal corre contra o que falta do limite; perdendo a corrida o canal sai "não lido" e os anteriores seguem na resposta
+        const r = limite === undefined ? { tipo: 'lido' as const, valor: await ler() } : await contra(ler(), limite - antes)
+        if (r.tipo === 'tempo') { canais.push({ tipo: 'nao_lido', apelido, canalId: idPedido }); cortes.n += 1; continue }
+        duracoes.push(Math.max(0, relogio() - antes))
+        if (r.valor === null) { canais.push({ tipo: 'nao_encontrado', apelido, canalId: idPedido }); continue }
+        recente = recente ?? r.valor.recente
+        canais.push({ tipo: 'lido', apelido, canalId: r.valor.id, m: recortarSerie(r.valor.modelo, pedido, agora, cortes, true) })
+      }
+      const n_canais = canais.length
+      const lidosN = canais.filter((c) => c.tipo === 'lido').length
+      // A1c: nenhum canal pedido existe: a frase fechada MAIS os ids que a pessoa mandou (já validados pelo esquema)
+      if (canais.every((c) => c.tipo === 'nao_encontrado')) {
+        const quem = canais.map((c) => (c.canalId === 'proprio' ? 'não há canal próprio com vídeo neste site' : c.canalId)).join(', ')
+        return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
+      }
+      const tetoDaSerie = tetoFinal - (topo === '' ? 0 : topo.length + 1)
+      const r = respostaDaSerieDeCanais(canais, { geradoEm: agora, recente }, { de: pedido.de!, ate: pedido.ate!, grao: pedido.grao ?? 'dia' }, pedido.limite.n, tetoDaSerie)
+      for (const a of r.avisos) avisar(a.passo, a.extra)
+      cortes.n += r.cortes
+      if (r.total > 0) cortes.serie = { pontos: r.pontos, total: r.total, de: r.de, ate: r.ate, grao: r.grao, convertida: r.convertida, semData: 0 }
+      const cob: Cobertura = {
+        ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao } } : {}),
+        apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: r.rotulos, numeros: r.numeros, vazio: cortes.serie === undefined,
+        ...(r.soNoTexto.length > 0 ? { soNoTexto: r.soNoTexto } : {}),
+        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos },
+        ...(r.rotulos.some((x) => x.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
+        proximas: proximasDe(entrada, null, agora, r.pontos, cortes.serie),
+      }
+      return comCobertura(cabeEm(comTopo(r.texto, topo, r.primeira), tetoFinal), cob, {
+        ...params, privado: r.incluiuPrivado, comentarios: false, cortes: cortes.n, saida: 'tabela', sem_x: r.semX, linhas: r.pontos, total: r.total, n_canais, canais_lidos: lidosN,
+      }, t0, r.incluiuPrivado)
+    }
+
     /* ---- definicoes: a união das cinco telas */
     if (entrada.acao === 'definicoes') {
       const modelos: PacoteModelo[] = []
@@ -513,7 +597,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     /* ---- uma tela só */
     const tela = pedido.telas[0]
     if (!tela) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, params)
-    const montado = await empacotar(tela, abrir)
+    // a série não usa comentário: o canal é lido sem o leitor de comentários (A5 F2b)
+    const montado = await empacotar(tela, abrir, undefined, entrada.acao === 'serie' ? { semComentarios: true } : undefined)
     if (montado === null) return NAO_ENCONTRADO(params)
     let modelo = montado.modelo
     const tetoDoTexto = tetoFinal - (topo === '' ? 0 : topo.length + 1)

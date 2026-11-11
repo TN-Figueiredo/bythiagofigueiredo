@@ -414,3 +414,25 @@ describe('A5 F1b T6: saida pela ferramenta registrada', () => {
     expect((espiao.mock.calls[0]![0] as { saida?: string }).saida).toBe('tabela')
   })
 })
+
+describe('A5 F2b T10/T11: serie com canal_ids pela ferramenta registrada e o prazo que chega ao responder', () => {
+  const A = '11111111-1111-4111-8111-111111111111'
+  const B = '22222222-2222-4222-8222-222222222222'
+  it('canal_ids chega ao responder como lista (a ferramenta não o tira em silêncio) e o exemplo de vários canais está na descrição', async () => {
+    const espiao = vi.fn<Responder>(respondeOk)
+    const { client } = await conectar(espiao)
+    await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'serie', canal_ids: ['proprio', A, B], de: '2026-10-05', ate: '2026-11-08', grao: 'semana', saida: 'tabela' } }))
+    expect(espiao).toHaveBeenCalledTimes(1)
+    expect(espiao.mock.calls[0]![0]).toMatchObject({ acao: 'serie', canal_ids: ['proprio', A, B], saida: 'tabela' })
+    expect(DESCRICAO).toContain('"canal_ids":["proprio","<uuid 1>","<uuid 2>"]')
+  })
+  it('a executar passa ao responder o limiteMs (agora + prazo − margem da tabela) e o MESMO relógio', async () => {
+    const espiao = vi.fn<Responder>(respondeOk)
+    const relogio = () => AGORA + 1_000
+    await rodar({ acao: 'definicoes' }, espiao, AGORA, relogio)
+    const prazo = espiao.mock.calls[0]![3]!
+    // decorrido 1.000 desde t0: sobra = 60.000 − 1.000 − 5.000 − 3.000 = 51.000, vale o prazo da ferramenta (50.000)
+    expect(prazo.limiteMs).toBe(AGORA + 1_000 + 50_000 - ACESSO_IA_RULES.margemDaTabelaMs)
+    expect(prazo.relogio).toBe(relogio)
+  })
+})

@@ -18,7 +18,9 @@ export interface Resposta {
   incluiuPrivado: boolean
   params: Record<string, string | number | boolean | string[]>
 }
-export type Responder = (entrada: unknown, c: ContextoDoObservatorio, agora: number) => Promise<Resposta>
+/** A5 F2b: até onde o `responder` pode ler (no relógio `relogio`, o mesmo de `executarChamada`): o prazo menos a margem da tabela. */
+export interface PrazoDaChamada { limiteMs: number; relogio: () => number }
+export type Responder = (entrada: unknown, c: ContextoDoObservatorio, agora: number, prazo?: PrazoDaChamada) => Promise<Resposta>
 
 const R = ACESSO_IA_RULES
 /** Depois disto não cabe nem a taxa: (teto − reserva − folga − uma ida). 47.000. */
@@ -83,7 +85,7 @@ export async function executarChamada(
   let relogio: ReturnType<typeof setTimeout> | undefined
   try {
     const estouro = new Promise<typeof ESTOUROU>((resolve) => { relogio = setTimeout(() => resolve(ESTOUROU), prazo) })
-    const r = await Promise.race([responder(entrada, c, agora()), estouro])
+    const r = await Promise.race([responder(entrada, c, agora(), { limiteMs: agora() + prazo - R.margemDaTabelaMs, relogio: agora }), estouro])
     if (r === ESTOUROU) desfechoDeFalha = 'tempo'
     else resposta = r
   } catch {
