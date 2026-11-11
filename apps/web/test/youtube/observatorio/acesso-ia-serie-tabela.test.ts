@@ -23,6 +23,7 @@ const C1 = '11111111-1111-4111-8111-111111111111'
 /** 10/11/2026 12:00 em São Paulo (terça). O dia de hoje do pedido é 2026-11-10. */
 const AGORA = Date.UTC(2026, 10, 10, 15, 0, 0)
 const HOJE = '2026-11-10'
+const N = 400
 const TELAS: TelaId[] = ['canais', 'canal', 'video', 'comparar', 'outliers', 'insights', 'mudancas', 'fila', 'canal-proprio', 'video-proprio', 'ritmo', 'sugestoes']
 const pacote = (modelo: PacoteModelo) => ({ modelo, recente: '10/11/2026 09:10', estado: {} as Record<string, string> })
 const dobra = (tela: TelaId, modelo: PacoteModelo | null) => (m.empacotar[tela] as ReturnType<typeof vi.fn>).mockImplementation(async () => (modelo === null ? null : pacote(modelo)))
@@ -30,6 +31,8 @@ const dobra = (tela: TelaId, modelo: PacoteModelo | null) => (m.empacotar[tela] 
 beforeEach(() => {
   m.captured.length = 0
   for (const t of TELAS) m.empacotar[t] = vi.fn(async () => null)
+  // `canal?` é a entrada de produção (uma leitura, ramo por `m.tipo`); aqui ela escolhe entre os dois dobrados, como o modelo de cada teste os põe
+  m.empacotar['canal?'] = vi.fn(async (p: never, a: never) => (await m.empacotar['canal']!(p, a)) ?? (await m.empacotar['canal-proprio']!(p, a)))
 })
 
 /* ------------------------------------------------------------------ fixtures */
@@ -82,7 +85,7 @@ const csvDe = (texto: string): string[] => {
   const resto = texto.slice(a + 7)
   return resto.slice(0, resto.indexOf('\n```')).split('\n')
 }
-const pontos = (mm: PacoteModelo, p: { de: string; ate: string; grao: 'dia' | 'semana' }): PontoCsv[] => pontosDaSerie(mm, C1, 'c1', p, AGORA)
+const pontos = (mm: PacoteModelo, p: { de: string; ate: string; grao: 'dia' | 'semana' }): PontoCsv[] => pontosDaSerie(mm, C1, 'c1', p, AGORA, N)
 const dias7 = (segunda: string, c: (d: string, i: number) => Celula): Array<{ dia: string; celula: Celula }> => Array.from({ length: 7 }, (_, i) => ({ dia: mais(segunda, i), celula: c(mais(segunda, i), i) }))
 
 /* ------------------------------------------------------------------ somaDaSemana (pura) */
@@ -211,7 +214,7 @@ describe('pontosDaSerie', () => {
 
   it('semana corrente: o motivo é semana ainda aberta (termina em dd/mm)', () => {
     const mm = modelo(tabela({ ultimo: '2026-11-09', celula: (d) => (d < '2026-10-03' ? semReg() : d <= '2026-11-09' ? med(ganhoDe(d)) : semReg()) }))
-    const ps = pontosDaSerie(mm, C1, 'c1', { de: '2026-11-09', ate: '2026-11-10', grao: 'semana' }, AGORA)
+    const ps = pontosDaSerie(mm, C1, 'c1', { de: '2026-11-09', ate: '2026-11-10', grao: 'semana' }, AGORA, N)
     expect(ps).toHaveLength(1)
     expect(ps[0]).toMatchObject({ data: '2026-11-09', x: null, motivo: 'semana ainda aberta (termina em 15/11)', diasMedidos: 1 })
   })
@@ -594,7 +597,7 @@ describe('I2 (dono 10/11): o dia ainda aberto sai vazio, como a semana aberta', 
   const DIA = { de: '2026-11-08', ate: '2026-11-10', grao: 'dia' as const }
   it('concorrente (dia de São Paulo): hoje é nao_medido/x null com o motivo; ontem segue medido', () => {
     const mm = modelo([tabela({ ultimo: '2026-11-10' })], {})
-    const ps = pontosDaSerie(mm, C1, 'c1', DIA, AGORA)
+    const ps = pontosDaSerie(mm, C1, 'c1', DIA, AGORA, N)
     const hoje = ps.find((p) => p.data === '2026-11-10')!
     expect(hoje).toMatchObject({ estado: 'nao_medido', x: null, motivo: 'dia ainda aberto (termina às 23:59 de São Paulo)' })
     expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'medido' })
@@ -604,13 +607,13 @@ describe('I2 (dono 10/11): o dia ainda aberto sai vazio, como a semana aberta', 
     const cedo = Date.UTC(2026, 10, 10, 5, 0, 0)
     const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-09', inicio: '2026-08-01' })
     const mm = modelo([priv], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio')
-    const ps = pontosDaSerie(mm, C1, 'c1', DIA, cedo)
+    const ps = pontosDaSerie(mm, C1, 'c1', DIA, cedo, N)
     expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'nao_medido', x: null, motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
     expect(ps.find((p) => p.data === '2026-11-08')).toMatchObject({ estado: 'medido' })
   })
   it('concorrente no mesmo relógio (02:00 de SP): o dia aberto é o 10/11, não o 09/11', () => {
     const cedo = Date.UTC(2026, 10, 10, 5, 0, 0)
-    const ps = pontosDaSerie(modelo([tabela({ ultimo: '2026-11-10' })], {}), C1, 'c1', DIA, cedo)
+    const ps = pontosDaSerie(modelo([tabela({ ultimo: '2026-11-10' })], {}), C1, 'c1', DIA, cedo, N)
     expect(ps.find((p) => p.data === '2026-11-10')).toMatchObject({ estado: 'nao_medido' })
     expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'medido' })
   })
@@ -645,15 +648,47 @@ describe('acessoir-14: pedido até hoje, dado só até 07/11 (o YouTube entrega 
     expect(r.texto).toContain('linhas: 10 de 10')
   })
   it('pontosDaSerie: sem linhas além de hoje (ate 9999 dá os dias até hoje + 1 resumo)', () => {
-    const ps = pontosDaSerie(modelo([priv()], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-11-01', ate: '9999-12-31', grao: 'dia' }, AGORA)
+    const ps = pontosDaSerie(modelo([priv()], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-11-01', ate: '9999-12-31', grao: 'dia' }, AGORA, N)
     expect(ps.filter((p) => p.resumo !== true).map((p) => p.data)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'])
     expect(ps.filter((p) => p.resumo === true).length).toBe(1)
   })
-  it('concorrente com o mesmo atraso também avisa (a frase não diz "seu canal")', async () => {
+  it('concorrente com 3 dias de buraco: a frase não culpa o YouTube nem diz "seu canal", e não diz "ainda não chegaram"', async () => {
     dobra('canal', modelo(tabela({ ultimo: '2026-11-07' })))
     const r = await responder(PEDIDO, abrir, AGORA)
-    expect(r.texto).toContain('Pedido até 10/11/2026; o dado desta série vai só até 07/11/2026')
-    expect(r.texto).toContain('08/11/2026 a 10/11/2026 ainda não chegaram')
+    expect(r.texto).toContain('Pedido até 10/11/2026; não há leitura deste canal depois de 07/11/2026')
+    expect(r.texto).not.toContain('YouTube entrega')
+    expect(r.texto).not.toContain('ainda não chegaram')
+  })
+  it('Yannis I-3 (texto): próprio com 10 dias de buraco diz que a importação pode ter parado', async () => {
+    dobra('canal-proprio', modelo([tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-10-31', inicio: '2026-08-01' })], incluido, 'canal-proprio'))
+    const r = await responder({ ...PEDIDO, de: '2026-10-25' }, abrir, AGORA)
+    expect(r.texto).toContain('passa do atraso normal do YouTube (2 a 3 dias): a importação pode ter parado')
+    expect(r.texto).not.toContain('o YouTube entrega com 2 a 3 dias de atraso')
+  })
+  it('Yannis I-3 (tabela): concorrente com buraco longo não culpa o YouTube', async () => {
+    dobra('canal', modelo(tabela({ ultimo: '2026-11-01' })))
+    const r = await responder({ ...PEDIDO, saida: 'tabela' }, abrir, AGORA)
+    expect(r.texto).toContain('Pedido até 10/11/2026; não há leitura deste canal depois de 01/11/2026')
+    expect(r.texto).not.toContain('YouTube entrega')
+  })
+  it('Yannis m-6: série de vídeo próprio não diz "do seu canal"', async () => {
+    dobra('video-proprio', modelo([priv()], incluido, 'video-proprio'))
+    const r = await responder({ acao: 'serie', video_id: C1, de: '2026-11-01', ate: '2026-11-10', grao: 'dia' }, abrir, AGORA)
+    expect(r.texto).toContain('o dado deste vídeo vai só até 07/11/2026')
+    expect(r.texto).not.toContain('do seu canal')
+  })
+  it('Yannis m-4: a Cobertura de "dias medidos" não conta o dia de dentro que saiu nao_medido', async () => {
+    const t = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-07', inicio: '2026-08-01', celula: (d) => (d === '2026-11-03' ? semReg() : med(ganhoDe(d))) })
+    dobra('canal-proprio', modelo([t], incluido, 'canal-proprio'))
+    const r = await responder(PEDIDO, abrir, AGORA)
+    expect(r.texto).toContain('Série: 6 de 10 dias medidos entre 01/11/2026 e 10/11/2026')
+  })
+  it('Yannis m-3: às 02:00 de SP do dia 11 (21h do dia 10 no Pacífico) o próprio não ganha linha para o 11/11', () => {
+    const cedo = Date.UTC(2026, 10, 11, 5, 0, 0)
+    const mm = modelo([priv()], incluido, 'canal-proprio')
+    const ps = pontosDaSerie(mm, C1, 'c1', { de: '2026-11-08', ate: '2026-11-11', grao: 'dia' }, cedo, N).filter((p) => p.resumo !== true)
+    expect(ps[ps.length - 1]).toMatchObject({ data: '2026-11-10', motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
+    expect(ps.some((p) => p.data === '2026-11-11')).toBe(false)
   })
   it('sem atraso (dado até o dia pedido): nenhum aviso novo e a Cobertura segue completa', async () => {
     dobra('canal', modelo(tabela({ ultimo: '2026-11-10' })))

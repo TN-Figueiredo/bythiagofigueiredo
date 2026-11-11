@@ -15,7 +15,7 @@ import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { SEMANA_FECHADA, type Celula, type PacoteModelo, type Tabela, type TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import type { Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
+import type { PrazoDaChamada, Resposta } from '@/lib/pipeline/mcp/observatorio/executar'
 import type { Abridor } from '../_chrome/abridor'
 import { ehSoDoLadoA } from '../_contexto-ia/empacotar-comparar'
 import { EMPACOTAR, resolverProprio, type FaltouNoPar, type OpcoesDoPacote } from '../_contexto-ia'
@@ -23,7 +23,7 @@ import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acess
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 import { respostaEmTabela } from './resposta-tabela'
 import type { CanalDaSerieMulti } from './serie-tabela'
-import { diaDaLinha, diaValido, dmy, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
+import { diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -138,7 +138,7 @@ const TEXTO_FORA = {
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
 
 /** `serie`: o que o recorte da série fez, para a Cobertura (números do próprio recorte). `convertida`: passou ao grão semana por tamanho. */
-interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number; semDado?: { de: string; ate: string } }
+interface InfoSerie { pontos: number; medidos?: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number; semDado?: { de: string; ate: string } }
 interface Cortes { n: number; serie?: InfoSerie }
 
 export { degrausDoLimite }
@@ -243,8 +243,11 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       avisos.push(`série "${t.titulo}": ainda são ${dentro.length} pontos no grão semana; ficam os ${n} mais recentes`)
       dentro = dentro.filter((x) => mantidos.has(x.i))
     }
-    const semDado = grao === 'dia' ? faltaDado : null
-    if (semDado) avisos.push(`série "${t.titulo}": ${F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimoComDado), m.tela === 'canal-proprio' || m.tela === 'video-proprio' ? 'do seu canal' : 'desta série')}; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram`)
+    // Yannis I-3: o buraco sempre é dito; "ainda não chegaram" (e a contagem de dias pedidos) só no próprio, onde o atraso do YouTube é a causa esperada
+    const buraco = grao === 'dia' ? faltaDado : null
+    const proprio = m.tela === 'canal-proprio' || m.tela === 'video-proprio'
+    const semDado = buraco && proprio ? buraco : null
+    if (buraco) avisos.push(`série "${t.titulo}": ${fimDoDado(m, pedidoAte, ultimoComDado)}${semDado ? `; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram` : ''}`)
     const faltam = semDado ? Math.round((Date.parse(`${semDado.ate}T00:00:00Z`) - Date.parse(`${semDado.de}T00:00:00Z`)) / 86_400_000) + 1 : 0
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
@@ -252,7 +255,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       const dts = dentro.map((x) => x.dia).sort()
       // grão semana: o `dia` de cada ponto é o último dia medido da semana; a Cobertura começa na segunda da 1ª semana mostrada, como a tabela
       const deMostrado = dts[0] === undefined ? de : grao === 'semana' ? segundaDe(dts[0]) : dts[0]
-      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData + faltam, ...(semDado ? { semDado, ate: pedidoAte } : {}) }
+      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData + faltam, ...(semDado ? { semDado, ate: pedidoAte, medidos: dentro.filter((x) => medidaNaLinha(x.linha)).length } : {}) }
     }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou
@@ -300,13 +303,8 @@ async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: Fa
     return f({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(faltou ? { faltou } : {}), ...(opcoes ? { opcoes } : {}) }, abrir)
   }
   if (t.tela === 'canal?') {
-    // A5 F2b (K10): o canal é lido UMA vez e o ramo (concorrente ou próprio) sai de `m.tipo`
-    const umaLeitura = EMPACOTAR['canal?']
-    if (umaLeitura) {
-      const lido = await umaLeitura({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(opcoes ? { opcoes } : {}) }, abrir)
-      if (lido !== null) return lido
-    }
-    return (await chamar('canal')) ?? (await chamar('canal-proprio'))
+    // A5 F2b (K10): o canal é lido UMA vez e o ramo (concorrente ou próprio) sai de `m.tipo`; sem fallback para `canal` e `canal-proprio`
+    return EMPACOTAR['canal?']({ ...(t.id !== undefined ? { id: t.id } : {}), sp: t.sp, ...(opcoes ? { opcoes } : {}) }, abrir)
   }
   if (t.tela === 'video?') return (await chamar('video')) ?? (await chamar('video-proprio'))
   return chamar(t.tela)
@@ -436,11 +434,7 @@ function comCobertura(corpo: string, cob: Cobertura, params: Params, t0: number,
   }, incluiuPrivado)
 }
 
-/**
- * O prazo DENTRO do `responder` (A5 F2b): `limiteMs` é o instante (no relógio `relogio`, o MESMO que a `executar` usa) até onde a `serie` de vários canais pode ler;
- * sem ele nada é cortado. Só a `serie` com `canal_ids` o usa.
- */
-export interface PrazoDaChamada { limiteMs: number; relogio: () => number }
+/** O prazo DENTRO do `responder` (A5 F2b): o tipo `PrazoDaChamada` é da `executar`; só a `serie` com `canal_ids` o usa e sem ele nada é cortado. */
 
 /** Uma corrida: a leitura contra `ms`. Quem perde não é cancelado (R10), mas o seu erro não vira rejeição sem dono. */
 async function contra<T>(leitura: Promise<T>, ms: number): Promise<{ tipo: 'lido'; valor: T } | { tipo: 'tempo' }> {
@@ -538,20 +532,27 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         // corte (a): antes de ler, se a estimativa (o máximo dos já lidos; no 1º, a de regras) já passa do limite, o canal não é lido
         const estimativa = duracoes.length > 0 ? Math.max(...duracoes) : ACESSO_IA_RULES.estimativaPorCanalMs
         if (limite !== undefined && antes + estimativa > limite) { canais.push({ tipo: 'nao_lido', apelido, canalId: idPedido }); cortes.n += 1; continue }
-        const ler = async (): Promise<{ modelo: PacoteModelo; id: string; recente: string | null } | null> => {
-          let alvo = tela
-          if (idPedido === 'proprio') {
-            const id = await resolverProprio(abrir)
-            if (id === null) return null
-            alvo = { ...tela, id }
+        // Yannis I-1: a leitura que lança (timeout do banco, resolução do próprio) derruba só ESTE canal: ele sai `falhou` e os outros seguem
+        const ler = async (): Promise<{ modelo: PacoteModelo; id: string; recente: string | null } | null | 'falhou'> => {
+          try {
+            let alvo = tela
+            if (idPedido === 'proprio') {
+              const id = await resolverProprio(abrir)
+              if (id === null) return null
+              alvo = { ...tela, id }
+            }
+            const mt = await empacotar(alvo, abrir, undefined, { semComentarios: true })
+            return mt === null ? null : { modelo: mt.modelo, id: alvo.id ?? idPedido, recente: mt.recente }
+          } catch {
+            avisar('serie_canal_falhou') // sem mensagem, sem id: só o nome do passo
+            return 'falhou'
           }
-          const mt = await empacotar(alvo, abrir, undefined, { semComentarios: true })
-          return mt === null ? null : { modelo: mt.modelo, id: alvo.id ?? idPedido, recente: mt.recente }
         }
         // corte (b): cada canal corre contra o que falta do limite; perdendo a corrida o canal sai "não lido" e os anteriores seguem na resposta
         const r = limite === undefined ? { tipo: 'lido' as const, valor: await ler() } : await contra(ler(), limite - antes)
         if (r.tipo === 'tempo') { canais.push({ tipo: 'nao_lido', apelido, canalId: idPedido }); cortes.n += 1; continue }
         duracoes.push(Math.max(0, relogio() - antes))
+        if (r.valor === 'falhou') { canais.push({ tipo: 'falhou', apelido, canalId: idPedido }); continue }
         if (r.valor === null) { canais.push({ tipo: 'nao_encontrado', apelido, canalId: idPedido }); continue }
         recente = recente ?? r.valor.recente
         canais.push({ tipo: 'lido', apelido, canalId: r.valor.id, m: recortarSerie(r.valor.modelo, pedido, agora, cortes, true) })
@@ -563,6 +564,8 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         const quem = canais.map((c) => (c.canalId === 'proprio' ? 'não há canal próprio com vídeo neste site' : c.canalId)).join(', ')
         return resp('nao_encontrado', `${FRASES_DA_FERRAMENTA.nao_encontrado}: ${quem}`, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
       }
+      // só `falhou` se TODOS falharam; um que falha entre outros vira linhas `falhou` daquele canal
+      if (canais.every((c) => c.tipo === 'falhou')) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, { ...params, saida: 'tabela', n_canais, canais_lidos: 0 })
       const tetoDaSerie = tetoFinal - (topo === '' ? 0 : topo.length + 1)
       const r = respostaDaSerieDeCanais(canais, { geradoEm: agora, recente }, { de: pedido.de!, ate: pedido.ate!, grao: pedido.grao ?? 'dia' }, pedido.limite.n, tetoDaSerie)
       for (const a of r.avisos) avisar(a.passo, a.extra)
@@ -572,7 +575,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao } } : {}),
         apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: r.rotulos, numeros: r.numeros, vazio: cortes.serie === undefined,
         ...(r.soNoTexto.length > 0 ? { soNoTexto: r.soNoTexto } : {}),
-        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos },
+        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos, falharam: r.falharam },
         ...(r.rotulos.some((x) => x.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
         proximas: proximasDe(entrada, null, agora, r.pontos, cortes.serie),
       }
@@ -747,7 +750,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const fora = montado.modelo.paginado
     const cob: Cobertura = {
       ...(lista ? { lista } : {}),
-      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semDado ? { semDado: cortes.serie.semDado } : {}), ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
+      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semDado ? { semDado: cortes.serie.semDado, ...(cortes.serie.medidos !== undefined ? { medidos: cortes.serie.medidos } : {}) } : {}), ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
       ...(textoFora ? { textoFora } : {}), ...(soNoTexto.length > 0 ? { soNoTexto } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}), ...(janelasAnterioresPerderam ? { janelasAnterioresPerderam: true } : {}),
       ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),

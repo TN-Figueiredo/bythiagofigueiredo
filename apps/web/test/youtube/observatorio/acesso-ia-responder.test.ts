@@ -40,6 +40,8 @@ const dobra = (tela: TelaId, modelo: PacoteModelo | null) => (m.empacotar[tela] 
 beforeEach(() => {
   m.captured.length = 0
   for (const t of TELAS) m.empacotar[t] = vi.fn(async () => null)
+  // `canal?` é a entrada de produção (uma leitura, ramo por `m.tipo`); aqui ela escolhe entre os dois dobrados, como o modelo de cada teste os põe
+  m.empacotar['canal?'] = vi.fn(async (p: never, a: never) => (await m.empacotar['canal']!(p, a)) ?? (await m.empacotar['canal-proprio']!(p, a)))
 })
 
 /* ------------------------------------------------------------------ fixtures */

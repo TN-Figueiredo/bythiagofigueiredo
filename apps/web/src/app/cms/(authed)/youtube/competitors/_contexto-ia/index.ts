@@ -134,19 +134,14 @@ export async function empacotarCanalOuProprio(pedido: PedidoMontado, abrir: Abri
   return null
 }
 
-/** `proprio` da `serie` com `canal_ids`: o id do "meu canal" pela mesma regra do `comparar` (`escolherPrincipal`: a escolha do dono, ou o canal próprio mais ativo). `null` = o site não tem canal próprio com vídeo. Nunca lança. */
+/** `proprio` da `serie` com `canal_ids`: o id do "meu canal" pela mesma regra do `comparar` (`escolherPrincipal`: a escolha do dono, ou o canal próprio mais ativo). `null` = o site não tem canal próprio com vídeo. LANÇA se a leitura falhar (Yannis m-2: falha não é "não há canal próprio"); quem chama trata como canal `falhou`. */
 export async function resolverProprio(abrir: Abridor = ABRIDOR_DE_SESSAO): Promise<string | null> {
-  try {
-    const pagina = await abrir.observatorio()
-    return principalDoMotor(pagina.obs, await pagina.meuCanalLembrado)
-  } catch {
-    return null
-  }
+  const pagina = await abrir.observatorio()
+  return principalDoMotor(pagina.obs, await pagina.meuCanalLembrado)
 }
 
-
-/** `'canal?'` (A5 F2b): a entrada da `serie` por canal, que lê o canal uma vez; o responder a usa quando ela existe. */
-export const EMPACOTAR: { [T in TelaId]?: Empacotador } & { 'canal?'?: Empacotador } = {
+/** `'canal?'` (A5 F2b): a entrada da `serie` por canal, que lê o canal uma vez; o responder a usa sempre (obrigatória, sem fallback). */
+export const EMPACOTAR: { [T in TelaId]?: Empacotador } & { 'canal?': Empacotador } = {
   'canal?': (pedido, abrir) => empacotarCanalOuProprio(pedido, abrir),
   canais: async ({ sp }, abrir = ABRIDOR_DE_SESSAO) => {
     const m = await montarCanais(sp, undefined, abrir)

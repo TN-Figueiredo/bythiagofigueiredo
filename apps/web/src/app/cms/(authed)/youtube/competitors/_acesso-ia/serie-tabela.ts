@@ -155,6 +155,9 @@ function seriesDe(m: PacoteModelo, agora: number): Serie[] {
     .filter((t) => t.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[t.id] !== undefined && !(t.privada && privadoNegado(m)))
     .flatMap((t) => { const d = diasDaSerie(t, agora); return MEDIDAS_DA_TABELA[t.id]!.map((c) => ({ t, col: c.col, medida: c.medida, ...d })) })
 }
+/** A frase de "o dado acaba antes do dia pedido" (`SERIE_FIM_DO_DADO`): a causa (atraso do YouTube) só vale para o próprio e só até 3 dias. */
+export const fimDoDado = (m: PacoteModelo, pedidoAte: string, ultimo: string): string =>
+  F.SERIE_FIM_DO_DADO(dmy(pedidoAte), dmy(ultimo), { proprio: ehDoProprio(m), dias: entre(ultimo, pedidoAte), video: m.tela === 'video' || m.tela === 'video-proprio' })
 const regraDe = (t: Tabela): 'soma' | 'ultima' | null => (t.semana === 'soma' ? 'soma' : t.semana === 'ultima' ? 'ultima' : null)
 const estadoDaSoma = (x: number | null): PontoCsv['estado'] => (x === null ? 'nao_medido' : x === 0 ? 'zero_medido' : 'medido')
 
@@ -189,7 +192,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
   const fimDaLeitura = lidos[lidos.length - 1]
   const resumoDaTela = (data: string): PontoCsv => ponto(data, null, 'nao_medido', F.SERIE_A_TELA_COBRE(dmy(tmin), dmy(tmax)), semDia, true)
   // acessoir-14: no grão dia o fim da janela é o que vier por último entre o fim da tabela e hoje (o dado do próprio chega com 2 a 3 dias de atraso: esses dias saem `nao_medido`, um por dia)
-  const limiteDeFrente = p.grao === 'dia' ? maior(tmax, hoje) : tmax
+  const limiteDeFrente = p.grao === 'dia' ? maior(tmax, t.fuso === 'pacifico' ? hojePacifico(agora) : hoje) : tmax
   if (ate < tmin || de > limiteDeFrente) return [resumoDaTela(de)]
 
   // o que está ANTES da tabela vira UMA linha-resumo (não uma linha por dia: de 0001-01-01 saíam 105 mil); a conversão para a semana também conta só o que a tabela tem
@@ -252,15 +255,17 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
  * Os pontos da série de um canal (ou vídeo): data crescente, depois a medida na ordem das colunas. Só lê tabela `dia_a_dia` que está em `MEDIDAS_DA_TABELA` (as demais saem da série).
  * Próprio sem o direito: uma linha `restrito` por dia (ou semana) pedido, sem número nenhum.
  */
-export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, agora: number): PontoCsv[] {
+export function pontosDaSerie(m: PacoteModelo, canalId: string, apelido: string, p: { de: string; ate: string; grao: 'dia' | 'semana' }, agora: number, n: number): PontoCsv[] {
   const hoje = hojeSp(agora)
   const series = seriesDe(m, agora)
   const porSerie = series.map((s) => pontosDaSeriePorMedida(s, canalId, apelido, p, hoje, agora))
   const negado = m.privado
   // sem tabela para dar o fim, o teto é hoje (nunca um intervalo até 9999-12-31)
   const ateRestrito = menor(p.ate, hoje)
+  // só as `n` datas mais recentes (como `pontosDoCanalAusente`): `de` pode ser 0100-01-01 e o laço nunca percorre o intervalo todo
+  const deRestrito = p.grao === 'semana' ? maior(segundaDe(p.de), somaDias(segundaDe(ateRestrito), -7 * (n - 1))) : maior(p.de, somaDias(ateRestrito, -(n - 1)))
   const restritos: PontoCsv[] = ehDoProprio(m) && negado.estado === 'excluido'
-    ? datasDoPedido(p.grao === 'semana' ? segundaDe(p.de) : p.de, p.grao === 'semana' ? segundaDe(ateRestrito) : ateRestrito, p.grao).map((data): PontoCsv => ({
+    ? datasDoPedido(deRestrito, p.grao === 'semana' ? segundaDe(ateRestrito) : ateRestrito, p.grao).map((data): PontoCsv => ({
       data, canalId, apelido, medida: MEDIDA_RESTRITA, x: null, estado: 'restrito', motivo: textoDoPrivadoExcluido(negado), ...(p.grao === 'semana' ? { diasMedidos: 0 } : {}), privada: true,
     }))
     : []
@@ -361,7 +366,7 @@ export function respostaDaSerieEmTabela(
   const tmaxGeral = maiores.reduce((a, b) => (a > b ? a : b), '')
   const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), menor(pedido.ate, grao === 'dia' ? maior(tmaxGeral, hojeSp(agora)) : tmaxGeral)) + 1
   if (grao === 'dia' && diasDentro > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasDentro, n)) }
-  const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, agora)
+  const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, agora, n)
   const info = infoDaSerie(m, pedido.canalId, pedido.apelido, agora)
   const de = grao === 'semana' ? segundaDe(pedido.de) : pedido.de
   const ate = grao === 'semana' ? domingoDe(pedido.ate) : pedido.ate
@@ -381,7 +386,7 @@ export function respostaDaSerieEmTabela(
   // acessoir-14: o pedido passa do último dia com dado (até hoje): o aviso diz até onde vai o dado; as linhas dos dias que faltam já estão em `tudo`
   const ultimoComDado = tmaxGeral
   const pedidoAte = menor(pedido.ate, hojeSp(agora))
-  if (grao === 'dia' && ultimoComDado !== '' && ultimoComDado < pedidoAte) extras.push(F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimoComDado), ehDoProprio(m) ? 'do seu canal' : 'desta série'))
+  if (grao === 'dia' && ultimoComDado !== '' && ultimoComDado < pedidoAte) extras.push(fimDoDado(m, pedidoAte, ultimoComDado))
   const datas = [...new Set(tudo.filter((p) => p.resumo !== true).map((p) => p.data))]
   const soNoTexto = m.tabelas.filter((t) => t.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[t.id] === undefined).map((t) => t.nomeNoCorte)
   for (const nome of soNoTexto) extras.push(`tabela "${nome}": ${F.SERIE_SEM_DATA}`)
@@ -464,17 +469,18 @@ export function respostaDaSerieEmTabela(
 
 /* ------------------------------------------------------------------ A5 F2b: vários canais */
 
-/** Um canal do pedido: lido (modelo reduzido à série), não encontrado ou não lido (o prazo acabou). `apelido` é `c1`, `c2`, … na ordem do pedido. */
+/** Um canal do pedido: lido (modelo reduzido à série), não encontrado, não lido (o prazo acabou) ou `falhou` (a leitura lançou: só esse canal). `apelido` é `c1`, `c2`, … na ordem do pedido. */
 export type CanalDaSerieMulti =
   | { tipo: 'lido'; apelido: string; canalId: string; m: PacoteModelo }
-  | { tipo: 'nao_encontrado' | 'nao_lido'; apelido: string; canalId: string }
+  | { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou'; apelido: string; canalId: string }
 
 /** As linhas de um canal que não foi lido: uma `nao_medido` por data pedida até hoje (no máximo `n`, as mais recentes), com o motivo. Nunca o dado de outro canal. */
-function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
-  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : F.SERIE_CANAL_NAO_LIDO
+function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
+  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : c.tipo === 'falhou' ? F.SERIE_CANAL_FALHOU : F.SERIE_CANAL_NAO_LIDO
+  const estado = c.tipo === 'falhou' ? 'falhou' : 'nao_medido'
   const ate = menor(p.ate, hoje)
   const sem = p.grao === 'semana' ? { diasMedidos: 0 } : {}
-  const linha = (data: string, resumo = false): PontoCsv => ({ data, canalId: c.canalId, apelido: c.apelido, medida: MEDIDA_RESTRITA, x: null, estado: 'nao_medido', motivo, ...sem, ...(resumo ? { resumo: true as const } : {}) })
+  const linha = (data: string, resumo = false): PontoCsv => ({ data, canalId: c.canalId, apelido: c.apelido, medida: MEDIDA_RESTRITA, x: null, estado, motivo, ...sem, ...(resumo ? { resumo: true as const } : {}) })
   if (ate < p.de) return [linha(p.grao === 'semana' ? segundaDe(p.de) : p.de, true)]
   // só as `n` datas mais recentes: `de` pode ser 0001-01-01 e o laço nunca percorre o intervalo todo
   const deDentro = p.grao === 'semana' ? maior(segundaDe(p.de), somaDias(segundaDe(ate), -7 * (n - 1))) : maior(p.de, somaDias(ate, -(n - 1)))
@@ -485,6 +491,7 @@ export interface RespostaDaSerieMulti extends RespostaDaSerie {
   canaisLidos: number
   naoEncontrados: number
   naoLidos: number
+  falharam: number
 }
 
 /**
@@ -519,7 +526,7 @@ export function respostaDaSerieDeCanais(
 
   const porCanal: Array<{ canal: CanalDaSerieMulti; pontos: PontoCsv[] }> = canais.map((c) => ({
     canal: c,
-    pontos: c.tipo === 'lido' ? pontosDaSerie(c.m, c.canalId, c.apelido, p, agora) : pontosDoCanalAusente(c, p, hoje, n),
+    pontos: c.tipo === 'lido' ? pontosDaSerie(c.m, c.canalId, c.apelido, p, agora, n) : pontosDoCanalAusente(c, p, hoje, n),
   }))
   const tudo = porCanal.flatMap((x) => x.pontos)
   const infos: CanalDaSerie[] = canais.map((c) => (c.tipo === 'lido' ? infoDaSerie(c.m, c.canalId, c.apelido, agora) : { apelido: c.apelido, canalId: c.canalId, nome: '', medidas: [] }))
@@ -540,7 +547,7 @@ export function respostaDaSerieDeCanais(
     }
     const ultimo = series.flatMap((s) => s.dias.filter((d): d is string => d !== null)).reduce((a, b) => (a > b ? a : b), '')
     const pedidoAte = menor(pedido.ate, hoje)
-    if (grao === 'dia' && ultimo !== '' && ultimo < pedidoAte) extras.push(`${c.apelido}: ${F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimo), ehDoProprio(c.m) ? 'do seu canal' : 'desta série')}`)
+    if (grao === 'dia' && ultimo !== '' && ultimo < pedidoAte) extras.push(`${c.apelido}: ${fimDoDado(c.m, pedidoAte, ultimo)}`)
     for (const t of c.m.tabelas.filter((x) => x.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[x.id] === undefined)) {
       soNoTexto.push(t.nomeNoCorte)
       extras.push(`${c.apelido}: tabela "${t.nomeNoCorte}": ${F.SERIE_SEM_DATA}`)
@@ -620,7 +627,7 @@ export function respostaDaSerieDeCanais(
   return {
     texto: melhor.texto, primeira: primeiraFinal, pontos: melhor.contados, total, de, ate, grao, convertida, cortes, rotulos, semX: semXn,
     numeros: contar(semResumo(melhor.pontos)), incluiuPrivado: lidos.some((c) => c.m.privado.estado === 'incluido'), soNoTexto, nenhumMedido, avisos,
-    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length,
+    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length, falharam: canais.filter((c) => c.tipo === 'falhou').length,
   }
 }
 

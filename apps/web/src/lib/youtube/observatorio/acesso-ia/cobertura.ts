@@ -3,7 +3,7 @@ import type { PacoteSerializado } from '../contexto-ia/segmentar'
 
 export interface Cobertura {
   lista?: { titulo: string; de: number; ate: number; total: number; concorrentes?: boolean }
-  serie?: { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; semData?: number; semDado?: { de: string; ate: string } }
+  serie?: { pontos: number; medidos?: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; semData?: number; semDado?: { de: string; ate: string } }
   apoio: { inteiras: number; total: number; cortadas: Array<{ titulo: string; saiu: number; de: number }> }
   foraDoPacote?: { mostrados: number; total: number }
   cortesDeTamanho: string[]
@@ -11,7 +11,7 @@ export interface Cobertura {
   /** Comparar: pares cujo canal não foi encontrado (`de` = pares pedidos). Nunca é completo. */
   naoEncontrados?: { quantos: number; de: number }
   /** A5 F2b: a `serie` de vários canais: pedidos, lidos, não encontrados e não lidos (prazo). */
-  canais?: { pedidos: number; lidos: number; naoEncontrados: number; naoLidos: number }
+  canais?: { pedidos: number; lidos: number; naoEncontrados: number; naoLidos: number; falharam?: number }
   /** Os números foram somados antes do corte do fim do texto. */
   numerosAntesDoCorte?: boolean
   /** Pediu série e ela não veio: a frase do vazio fala de série, não de lista. */
@@ -89,7 +89,8 @@ function montar(c: Cobertura, n: Nivel): string {
     // acessoir-14: pediu dias que o dado ainda não alcança: a Cobertura conta os dias PEDIDOS e diz quais ainda não chegaram
     const unidade = s.semDado ? 'dias medidos' : 'pontos'
     const falta = s.semDado ? `; ${dmy(s.semDado.de)} a ${dmy(s.semDado.ate)} ainda não chegaram` : ''
-    L.push((n.serieCurta ? `- Série: ${s.pontos} de ${s.total} ${unidade}, grão ${s.grao}${falta}.` : `- Série: ${s.pontos} de ${s.total} ${unidade} entre ${dmy(s.de)} e ${dmy(s.ate)}, grão ${s.grao}${falta}.`) + sem)
+    const quantos = s.semDado ? (s.medidos ?? s.pontos) : s.pontos
+    L.push((n.serieCurta ? `- Série: ${quantos} de ${s.total} ${unidade}, grão ${s.grao}${falta}.` : `- Série: ${quantos} de ${s.total} ${unidade} entre ${dmy(s.de)} e ${dmy(s.ate)}, grão ${s.grao}${falta}.`) + sem)
   }
   if (c.apoio.total > 0 || c.apoio.cortadas.length > 0) {
     const cort = c.apoio.cortadas
@@ -113,7 +114,7 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.foraDoPacote) L.push(`- A tela mostra ${c.foraDoPacote.mostrados} de ${c.foraDoPacote.total} outliers (cada grupo é paginado na tela); os outros não estão neste pacote.`)
   if (c.canais && c.canais.lidos < c.canais.pedidos) {
     const k = c.canais
-    L.push(`- Canais: ${k.lidos} de ${k.pedidos} lidos${k.naoEncontrados > 0 ? `; ${k.naoEncontrados} não encontrado${k.naoEncontrados === 1 ? '' : 's'}` : ''}${k.naoLidos > 0 ? `; ${k.naoLidos} não lido${k.naoLidos === 1 ? '' : 's'} (o prazo da chamada acabou)` : ''}; as linhas desses canais saem "não medido".`)
+    L.push(`- Canais: ${k.lidos} de ${k.pedidos} lidos${k.naoEncontrados > 0 ? `; ${k.naoEncontrados} não encontrado${k.naoEncontrados === 1 ? '' : 's'}` : ''}${k.naoLidos > 0 ? `; ${k.naoLidos} não lido${k.naoLidos === 1 ? '' : 's'} (o prazo da chamada acabou)` : ''}${(k.falharam ?? 0) > 0 ? `; ${k.falharam} falhou (tente de novo)` : ''}; as linhas desses canais saem ${(k.falharam ?? 0) > 0 ? '"não medido" ou "falhou"' : '"não medido"'}.`)
   }
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) L.push(`- Pares sem dado: ${c.naoEncontrados.quantos} de ${c.naoEncontrados.de} (canal não encontrado); a comparação não cobre esses canais.`)
   if (c.cortesDeTamanho.length > 0) {

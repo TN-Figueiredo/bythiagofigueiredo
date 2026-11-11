@@ -9,7 +9,7 @@ const m = vi.hoisted(() => ({ pacote: null as unknown, proprio: null as unknown 
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia', () => ({
-  EMPACOTAR: new Proxy({}, { get: (_t, k) => (k === 'canal' ? async () => m.pacote : k === 'canal-proprio' ? async () => m.proprio : async () => null) }),
+  EMPACOTAR: new Proxy({}, { get: (_t, k) => (k === 'canal?' ? async () => m.pacote ?? m.proprio : k === 'canal' ? async () => m.pacote : k === 'canal-proprio' ? async () => m.proprio : async () => null) }),
 }))
 
 import { diaDaLinha, responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'

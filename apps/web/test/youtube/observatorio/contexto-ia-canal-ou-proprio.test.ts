@@ -22,7 +22,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal', a
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-proprio', async (orig) => ({ ...(await orig<object>()), empacotarCanalProprio: vi.fn(() => ({ tela: 'canal-proprio', tabelas: [], foco: [], avisos: [], definicoes: [], naoMede: [], citados: [] })), modeloDeCanalProprio: vi.fn(() => ({})) }))
 vi.mock('@/lib/youtube/observatorio/contexto-ia/mascarar', () => ({ mascararCrus: (m: unknown) => m }))
 
-import { empacotarCanalOuProprio, EMPACOTAR } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
+import { empacotarCanalOuProprio, EMPACOTAR, resolverProprio } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { ABRIDOR_DE_SESSAO } from '@/app/cms/(authed)/youtube/competitors/_chrome/abridor'
 
@@ -63,12 +63,25 @@ describe('empacotarCanalOuProprio (uma leitura)', () => {
   })
 })
 
+describe('Yannis m-2: resolverProprio não engole o erro', () => {
+  it('a leitura do observatório que falha chega a quem chamou (antes virava "não há canal próprio")', async () => {
+    const falha = { observatorio: async () => { throw new Error('banco fora') } } as never
+    await expect(resolverProprio(falha)).rejects.toThrow('banco fora')
+  })
+})
+
 describe('pela serie (responder): o canal é lido uma vez e sem comentários', () => {
   const AGORA = Date.UTC(2026, 10, 10, 15, 0, 0)
   const pedido = { acao: 'serie', canal_id: ID, de: '2026-11-01', ate: '2026-11-07' }
   it('serie por canal_id de um canal próprio: montarCanal 1 vez (hoje 2)', async () => {
     h.montarCanal.mockResolvedValue(proprio)
     await responder(pedido, ABRIDOR_DE_SESSAO, AGORA)
+    expect(h.montarCanal).toHaveBeenCalledTimes(1)
+  })
+  it('Yannis m-1: id que não existe: montarCanal 1 vez (antes 3, pelo fallback)', async () => {
+    h.montarCanal.mockResolvedValue({ tipo: 'nao_encontrado', pagina: {}, recente: null })
+    const r = await responder(pedido, ABRIDOR_DE_SESSAO, AGORA)
+    expect(r.desfecho).toBe('nao_encontrado')
     expect(h.montarCanal).toHaveBeenCalledTimes(1)
   })
   it('serie de um concorrente: leitor de comentários 0 vezes', async () => {

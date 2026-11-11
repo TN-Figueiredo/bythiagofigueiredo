@@ -9,13 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const m = vi.hoisted(() => ({
   empacotar: {} as Record<string, ReturnType<typeof import('vitest')['vi']['fn']>>,
   captured: [] as unknown[][],
-  proprio: { id: 'proprio-resolvido' as string | null, chamadas: 0 },
+  proprio: { id: 'proprio-resolvido' as string | null, chamadas: 0, lanca: false },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => m.captured.push(a), captureException: (...a: unknown[]) => m.captured.push(a) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_contexto-ia', () => ({
   EMPACOTAR: m.empacotar,
-  resolverProprio: async () => { m.proprio.chamadas += 1; return m.proprio.id },
+  resolverProprio: async () => { m.proprio.chamadas += 1; if (m.proprio.lanca) throw new Error('falha ao ler o observatorio'); return m.proprio.id },
 }))
 
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
@@ -61,22 +61,23 @@ const proprio = (incluido: boolean, t: Tabela = tabela({ id: 'privado-views-por-
   privado: incluido ? { estado: 'incluido', itens: 'views por dia' } : { estado: 'excluido', motivo: 'sem_direito', itens: 'views por dia' },
 })
 
-interface Fonte { modelo: PacoteModelo; atraso?: number }
+interface Fonte { modelo: PacoteModelo; atraso?: number; lanca?: boolean }
 const lidos: string[] = []
-/** `canal` e `canal-proprio` respondem pelo id (o responder tenta os dois, como o registro de verdade); o atraso é por canal, em timers falsos. */
+/** `canal?` é o caminho de produção (uma leitura por id, o ramo sai do modelo); `canal` e `canal-proprio` são espiões que ficam sem chamada: qualquer uso é um fallback que não deve existir. O atraso é por canal, em timers falsos. */
 function fontes(f: Record<string, Fonte>, ordemInvertida = false): void {
-  const pelaTela = (tela: 'canal' | 'canal-proprio') => async ({ id }: { id?: string }) => {
+  m.empacotar['canal?'] = vi.fn(async ({ id }: { id?: string }) => {
     const x = f[id ?? '']
-    if (!x || x.modelo.tela !== tela) return null
+    if (!x) return null
     lidos.push(id!)
+    if (x.lanca) throw new Error('timeout do banco')
     if (x.atraso !== undefined) {
       if (ordemInvertida) await Promise.resolve()
       await new Promise<void>((res) => setTimeout(res, x.atraso))
     }
     return { modelo: x.modelo, recente: '10/11/2026 09:10', estado: {} }
-  }
-  m.empacotar['canal'] = vi.fn(pelaTela('canal'))
-  m.empacotar['canal-proprio'] = vi.fn(pelaTela('canal-proprio'))
+  })
+  m.empacotar['canal'] = vi.fn(async () => null)
+  m.empacotar['canal-proprio'] = vi.fn(async () => null)
 }
 
 const csvDe = (texto: string): string[] => {
@@ -91,6 +92,7 @@ beforeEach(() => {
   m.captured.length = 0
   m.proprio.id = PROPRIO_ID
   m.proprio.chamadas = 0
+  m.proprio.lanca = false
   lidos.length = 0
 })
 afterEach(() => { vi.useRealTimers() })
@@ -330,3 +332,102 @@ describe('T11 (5): registro de n_canais e canais_lidos', () => {
 
 /** O tamanho do texto da pior fixture (6 canais × 90 dias), medido e gravado literal; o teste (3) falha se a montagem do CSV mudar. */
 const MEDIDO_6X90 = 31_887
+
+/* ------------------------------------------------------------------ revisão Yannis da F2b */
+
+describe('Yannis I-1: um canal que lança vira só aquele canal `falhou`', () => {
+  it('[A, B, C] com B lançando: ok, c1 e c3 medidos, c2 todo `falhou`, canais_lidos 2, a Cobertura diz "1 falhou"', async () => {
+    fontes({ [A]: { modelo: concorrente('Canal A') }, [B]: { modelo: concorrente('Canal B'), lanca: true }, [C]: { modelo: concorrente('Canal C') } })
+    const r = await responder(PEDIDO([A, B, C]), abrir, AGORA)
+    expect(r.desfecho).toBe('ok')
+    const csv = csvDe(r.texto).slice(1)
+    const por = (ap: string) => csv.filter((l) => l.split(',')[1] === ap)
+    expect(por('c1').length).toBe(8)
+    expect(por('c1').every((l) => l.includes(',medido,'))).toBe(true)
+    expect(por('c3').every((l) => l.includes(',medido,'))).toBe(true)
+    expect(por('c2').length).toBe(8)
+    expect(por('c2').every((l) => l.includes(',falhou,'))).toBe(true)
+    expect(r.params).toMatchObject({ n_canais: 3, canais_lidos: 2 })
+    expect(r.texto).toContain('1 falhou')
+    expect(r.texto).not.toContain('timeout do banco')
+    const avisos = JSON.stringify(m.captured)
+    expect(avisos).toContain('serie_canal_falhou')
+    expect(avisos).not.toContain('timeout do banco')
+    expect(avisos).not.toContain(B)
+  })
+  it('todos os canais falham: o desfecho da chamada é `falhou`', async () => {
+    fontes({ [A]: { modelo: concorrente('Canal A'), lanca: true }, [B]: { modelo: concorrente('Canal B'), lanca: true } })
+    const r = await responder(PEDIDO([A, B]), abrir, AGORA)
+    expect(r.desfecho).toBe('falhou')
+  })
+  it('m-2: `proprio` cuja resolução lança vira c1 `falhou` (não "não há canal próprio"), os outros seguem', async () => {
+    m.proprio.lanca = true
+    fontes({ [A]: { modelo: concorrente('Canal A') } })
+    const r = await responder(PEDIDO(['proprio', A]), abrir, AGORA)
+    expect(r.desfecho).toBe('ok')
+    const csv = csvDe(r.texto).slice(1)
+    expect(csv.filter((l) => l.split(',')[1] === 'c1').every((l) => l.includes(',falhou,'))).toBe(true)
+    expect(csv.filter((l) => l.split(',')[1] === 'c2').every((l) => l.includes(',medido,'))).toBe(true)
+    expect(r.texto).not.toContain('não há canal próprio com vídeo neste site')
+  })
+})
+
+describe('Yannis I-2: a linha `restrito` do próprio tem teto de n', () => {
+  it('[proprio sem direito, A] com de=0100-01-01: total e linhas restrito ≤ 400, rápido', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(false) }, [A]: { modelo: concorrente('Canal A') } })
+    const t0 = performance.now()
+    const r = await responder(PEDIDO(['proprio', A], { de: '0100-01-01', ate: '2026-11-08' }), abrir, AGORA)
+    const ms1 = performance.now() - t0
+    expect(r.desfecho).toBe('ok')
+    expect(Number(r.params.total)).toBeLessThanOrEqual(400 + 90)
+    const c1 = csvDe(r.texto).slice(1).filter((l) => l.split(',')[1] === 'c1')
+    expect(c1.length).toBeLessThanOrEqual(400)
+    expect(c1.every((l) => l.split(',')[4] === 'restrito')).toBe(true)
+    expect(ms1).toBeLessThan(300)
+  })
+  it('no grão semana o teto também vale', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(false) }, [A]: { modelo: concorrente('Canal A') } })
+    const r = await responder(PEDIDO(['proprio', A], { de: '0100-01-01', ate: '2026-11-08', grao: 'semana' }), abrir, AGORA)
+    expect(Number(r.params.total)).toBeLessThanOrEqual(400 + 20)
+  })
+})
+
+describe('Yannis I-3: o aviso do fim do dado depende do dono do canal e do tamanho do buraco', () => {
+  const ATE = { ate: '2026-11-10' }
+  it('concorrente com 9 dias de buraco: não culpa o YouTube e não diz "ainda não chegaram"', async () => {
+    fontes({ [A]: { modelo: concorrente('Canal A', tabela({ ultimo: '2026-11-01' })) } })
+    const r = await responder(PEDIDO([A], ATE), abrir, AGORA)
+    expect(r.texto).toContain('Pedido até 10/11/2026; não há leitura deste canal depois de 01/11/2026')
+    expect(r.texto).not.toContain('YouTube entrega')
+    expect(r.texto).not.toContain('ainda não chegaram')
+  })
+  it('próprio com 3 dias de buraco: a frase do atraso normal do YouTube', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(true, tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-07' })) } })
+    const r = await responder(PEDIDO(['proprio'], ATE), abrir, AGORA)
+    expect(r.texto).toContain('o YouTube entrega com 2 a 3 dias de atraso')
+    expect(r.texto).not.toContain('pode ter parado')
+  })
+  it('próprio com 10 dias de buraco: diz que a importação pode ter parado', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(true, tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-10-31' })) } })
+    const r = await responder(PEDIDO(['proprio'], ATE), abrir, AGORA)
+    expect(r.texto).toContain('passa do atraso normal do YouTube (2 a 3 dias): a importação pode ter parado')
+    expect(r.texto).not.toContain('o YouTube entrega com 2 a 3 dias de atraso')
+  })
+})
+
+describe('Yannis m-1: sem fallback de `canal?`', () => {
+  it('id inexistente: o `canal?` roda 1 vez para ele e `canal` e `canal-proprio` nunca são chamados', async () => {
+    fontes({ [A]: { modelo: concorrente('Canal A') } })
+    await responder(PEDIDO([A, INEXISTENTE]), abrir, AGORA)
+    const chamadas = (m.empacotar['canal?'] as unknown as { mock: { calls: Array<[{ id?: string }]> } }).mock.calls
+    expect(chamadas.filter((c) => c[0].id === INEXISTENTE).length).toBe(1)
+    expect(m.empacotar['canal']).not.toHaveBeenCalled()
+    expect(m.empacotar['canal-proprio']).not.toHaveBeenCalled()
+  })
+  it('vários canais passam pelo caminho real: o 1º é do próprio e o 2º concorrente, cada um lido 1 vez', async () => {
+    fontes({ [PROPRIO_ID]: { modelo: proprio(true) }, [A]: { modelo: concorrente('Canal A') } })
+    const r = await responder(PEDIDO(['proprio', A]), abrir, AGORA)
+    expect(r.params.canais_lidos).toBe(2)
+    expect((m.empacotar['canal?'] as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(2)
+  })
+})
