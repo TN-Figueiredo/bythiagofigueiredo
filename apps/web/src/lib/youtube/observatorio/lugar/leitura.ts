@@ -10,7 +10,9 @@ import { ORCAMENTO_DA_ENTRADA } from '../medidas-telas/carregar-do-site'
 import type { lerEstadoDaAba } from '../sinais/leitura'
 
 /** Sobe quando o formato do mapa guardado muda. */
-const MAPA_V = 1
+export const MAPA_V = 1
+/** As colunas lidas (o retrato de `test/youtube/observatorio/versao-das-entradas.test.ts` as confere). */
+export const COLUNAS_DOS_LUGARES = 'video_id, chaves, semente_versao'
 /** A entrada é por cálculo (a chave leva `computado_em`); o prazo só limita o tempo que uma entrada órfã fica guardada. */
 const VALIDADE_S = 21_600
 const MINIMO_NA_LISTA = 3
@@ -57,7 +59,7 @@ function montar(linhas: LinhaGravada[], lidoEm: number): MapaDeLugares {
 export async function lerMapaDeLugares(db: SupabaseClient, siteId: string, computadoEm: string | null): Promise<MapaDeLugares> {
   const ler = async (): Promise<MapaDeLugares> => {
     const linhas = await readAll<LinhaGravada>('video_lugares', () =>
-      db.from('video_lugares').select('video_id, chaves, semente_versao').eq('site_id', siteId).eq('origem', 'competidor').order('video_id'))
+      db.from('video_lugares').select(COLUNAS_DOS_LUGARES).eq('site_id', siteId).eq('origem', 'competidor').order('video_id'))
     const mapa = montar(linhas, Date.now())
     if (JSON.stringify(mapa).length > ORCAMENTO_DA_ENTRADA) throw new AcimaDoOrcamento(mapa)
     return mapa

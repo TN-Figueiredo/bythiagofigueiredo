@@ -1,7 +1,7 @@
 // @vitest-environment node
 // F3-cache T1: a guarda da versão das entradas do cache do Observatório. A chave do cache passou a ser fixa (sem o texto do
 // callback), então uma entrada sobrevive ao deploy e a ÚNICA fronteira entre formatos é a versão nos `keyParts`. Aqui, para cada
-// uma das 8 `ENTRADAS`, o callback REAL roda sobre uma fixture com todas as colunas preenchidas e se calcula a forma do valor
+// uma das 9 `ENTRADAS`, o callback REAL roda sobre uma fixture com todas as colunas preenchidas e se calcula a forma do valor
 // gravado (chaves ordenadas e tipo de cada folha, recursivo; array pela forma do 1º item) mais as listas de colunas pedidas.
 // Forma mudou e a versão não → falha "suba a versão". Não cobre: mesma forma com conteúdo diferente (janela, filtro) e
 // migration de RPC/view; isso vale o prazo da entrada e a regra de revisão "mudou filtro ou janela → sobe a versão".
@@ -139,6 +139,21 @@ async function rodarSinal(): Promise<{ forma: unknown; colunas: string[] }> {
   return { forma: e.length ? forma(JSON.parse(e[0]![1].body)) : 'ENTRADA NÃO GRAVADA', colunas: ['obs_db_size_daily: ' + COLUNAS_DO_SINAL] }
 }
 
+async function rodarLugares(): Promise<{ forma: unknown; colunas: string[] }> {
+  vi.resetModules()
+  const cache = createFakeNextCache()
+  vi.doMock('next/cache', () => cache.module)
+  vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+  const { lerMapaDeLugares, COLUNAS_DOS_LUGARES } = await import('@/lib/youtube/observatorio/lugar/leitura')
+  const linhas = [{ video_id: 'v1', chaves: ['local:vn-hanoi', 'pais:VN'], semente_versao: 2 }, { video_id: 'v2', chaves: [], semente_versao: 2 }]
+  const q: Record<string, unknown> = {}
+  q.select = () => q; q.eq = () => q; q.order = () => q
+  q.range = async () => ({ data: linhas, error: null })
+  await lerMapaDeLugares({ from: () => q } as never, 's1', 'A')
+  const e = [...cache.entries].filter(([k]) => k.startsWith('lugares-mapa:'))
+  return { forma: e.length ? forma(JSON.parse(e[0]![1].body)) : 'ENTRADA NÃO GRAVADA', colunas: ['video_lugares: ' + COLUNAS_DOS_LUGARES] }
+}
+
 /**
  * O RETRATO. A versão é a constante do código (PACK_VERSION, MEDIDAS_TELAS_V) ou o `v1` dos keyParts das duas entradas do chrome do arquivo.
  * Mudou a forma ou as colunas → suba a versão no código E reescreva a linha daqui (versao e forma) no mesmo commit.
@@ -152,21 +167,23 @@ const GUARDA: Record<string, { versao: number; forma: string }> = {
   'medidas-telas-video': { versao: 3, forma: 'ad2aac2c0dc80e00' },
   'arquivo-aviso-leve': { versao: 1, forma: 'b676d0410b27a83c' },
   'arquivo-sinal-banco': { versao: 1, forma: 'c0be82a26816598e' },
+  'lugares-mapa': { versao: 1, forma: '8255115176327912' },
 }
 
 async function hoje(): Promise<Record<string, { versao: number; forma: string; detalhe: unknown }>> {
   const m = await rodarMedidas()
-  const outras: Record<string, { forma: unknown; colunas: string[] }> = { 'observatorio-pack': await rodarPacote(), ...m, 'arquivo-aviso-leve': await rodarAviso(), 'arquivo-sinal-banco': await rodarSinal() }
+  const outras: Record<string, { forma: unknown; colunas: string[] }> = { 'observatorio-pack': await rodarPacote(), ...m, 'arquivo-aviso-leve': await rodarAviso(), 'arquivo-sinal-banco': await rodarSinal(), 'lugares-mapa': await rodarLugares() }
   const { PACK_VERSION } = await import('@/lib/youtube/observatorio/pack')
   const { MEDIDAS_TELAS_V } = await import('@/lib/youtube/observatorio/medidas-telas/carregar-do-site')
   const { AVISO_LEVE_V } = await import('@/lib/youtube/observatorio/arquivo-mensal/aviso-leve')
   const { SINAL_BANCO_V } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome')
-  const versaoDe = (nome: string): number => (nome === 'observatorio-pack' ? PACK_VERSION : nome.startsWith('medidas-telas') ? MEDIDAS_TELAS_V : nome === 'arquivo-aviso-leve' ? AVISO_LEVE_V : SINAL_BANCO_V)
+  const { MAPA_V } = await import('@/lib/youtube/observatorio/lugar/leitura')
+  const versaoDe = (nome: string): number => (nome === 'lugares-mapa' ? MAPA_V : nome === 'observatorio-pack' ? PACK_VERSION : nome.startsWith('medidas-telas') ? MEDIDAS_TELAS_V : nome === 'arquivo-aviso-leve' ? AVISO_LEVE_V : SINAL_BANCO_V)
   return Object.fromEntries(Object.entries(outras).map(([nome, v]) => [nome, { versao: versaoDe(nome), forma: sha(v), detalhe: v }]))
 }
 
 describe('versão das entradas do cache (a chave é fixa: a versão é a única fronteira entre formatos)', () => {
-  it('as oito ENTRADAS têm retrato, e nenhuma deixou de gravar (a fixture é cheia)', async () => {
+  it('as nove ENTRADAS têm retrato, e nenhuma deixou de gravar (a fixture é cheia)', async () => {
     const { ENTRADAS } = await import('@/lib/youtube/observatorio/cache-tag')
     const h = await hoje()
     expect(Object.keys(h).sort()).toEqual([...Object.values(ENTRADAS)].sort())
