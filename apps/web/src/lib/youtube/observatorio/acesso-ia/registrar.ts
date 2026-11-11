@@ -128,6 +128,8 @@ const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDeParam | u
     return ok.length > 0 ? ok : undefined
   },
   por: (v) => (daLista(['minuto', 'dia'])(v) ? v : undefined),
+  // A4 T1: sha256 do texto entregue (só em `ok`)
+  resposta_sha256: (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela
 }
 /** Para o teste de completude: as chaves que têm forma. Só leitura; o mapa não sai daqui. */
