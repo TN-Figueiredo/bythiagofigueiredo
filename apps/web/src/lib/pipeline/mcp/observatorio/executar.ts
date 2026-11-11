@@ -17,7 +17,7 @@ export interface Resposta {
   texto: string
   desfecho: 'ok' | 'nao_encontrado' | 'pedido_invalido' | 'falhou'
   incluiuPrivado: boolean
-  params: Record<string, string | number | boolean | string[]>
+  params: Record<string, string | number | boolean | string[] | Record<string, number>>
 }
 /** A5 F2b: até onde o `responder` pode ler (no relógio `relogio`, o mesmo de `executarChamada`): o prazo menos a margem da tabela. */
 export interface PrazoDaChamada { limiteMs: number; relogio: () => number }
@@ -106,7 +106,7 @@ export async function executarChamada(
     prova: c.prova,
     acao,
     // A4 T1: o hash é do texto entregue (só `ok`); nunca vem do chamador. Recusa não leva a chave (divergência declarada do spec 4)
-    params: { ...resposta.params, acao, desfecho: resposta.desfecho, resposta_sha256: entregue ? createHash('sha256').update(resposta.texto, 'utf8').digest('hex') : undefined } as Record<string, string | number | boolean | string[]>,
+    params: { ...resposta.params, acao, desfecho: resposta.desfecho, resposta_sha256: entregue ? createHash('sha256').update(resposta.texto, 'utf8').digest('hex') : undefined } as Resposta['params'],
     incluiuPrivado: entregue ? resposta.incluiuPrivado : false,
     caracteres: entregue ? resposta.texto.length : null,
     resultado: 'ok',

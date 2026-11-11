@@ -78,14 +78,15 @@ function fraseDoEsquema(erro: z.ZodError): string {
 const par = (r: Record<string, string>): string[] => Object.entries(r).map(([k, v]) => `${k}=${v}`).sort()
 
 /** Só campos já validados pelo esquema. */
-function paramsDaEntrada(e: Entrada): Params {
+export function paramsDaEntrada(e: Entrada, campos: readonly string[] = CAMPOS): Params {
   const p: Params = {}
   const x = e as Record<string, unknown>
-  for (const k of CAMPOS) {
+  for (const k of campos) {
     if (k === 'acao' || k === 'parametros') continue
     const v = x[k]
     if (typeof v === 'string') p[k] = v
     else if (typeof v === 'number' && Number.isInteger(v)) p[k] = v
+    else if (typeof v === 'boolean') p[k] = v
     else if (Array.isArray(v) && v.every((s) => typeof s === 'string')) p[k] = v as string[]
   }
   const ps = x.parametros
