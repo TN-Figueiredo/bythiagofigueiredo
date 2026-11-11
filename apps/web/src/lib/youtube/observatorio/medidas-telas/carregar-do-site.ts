@@ -43,8 +43,10 @@ export interface MedidasDoSite {
   esgotou: number
   /** E5a T8 (Outliers): de cada vídeo lido, só o que a tela não acha nas medidas (`was_live` e `missing_since`). Ausente = quem montou o conjunto não o trouxe. */
   videos?: Map<string, InfoDoVideo>
+  /** A4 T3: o menor `lidoEm` (ISO) das entradas servidas; leitura fria, cache desligado ou `LeituraParcial` contam `agoraMs`; `null` só se nenhum canal foi lido. */
+  lidoEmMaisAntigo: string | null
 }
-export interface InfoDoVideo { wasLive: boolean | null; missingSince: number | null }
+export interface InfoDoVideo { wasLive: boolean | null; missingSince: number | null; likesHidden: boolean | null; commentsDisabled: boolean | null }
 
 /** Lançado dentro do cache quando alguma parte voltou não lida: o Next não guarda o que lança. Carrega o que foi lido. */
 export class LeituraParcial extends Error {
@@ -187,11 +189,8 @@ async function lerExtras(sb: SupabaseClient, siteId: string, agoraMs: number): P
   }
 }
 
-/**
- * E5a T14a: os quatro leitores baratos de UM canal, pela mesma entrada de cache de `carregarMedidasDoSite` (mesma função, mesma chave:
- * a página do canal depois da lista não relê). Devolve os planos mesmo parciais (`LeituraParcial`); qualquer outro erro lança.
- */
-export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, last: number | null, avisos: Avisos): Promise<InsumosPlanos> {
+/** Como `lerPlanosDoCanal`, e devolve também quando a entrada servida foi lida (`agoraMs` se fria, desligada ou parcial). */
+export async function lerPlanosComIdadeDoCanal(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, last: number | null, avisos: Avisos): Promise<{ planos: InsumosPlanos; lidoEm: number }> {
   try {
     let entrada: EntradaDoCanal
     if (!observatoryCacheEnabled() || last === null) entrada = await lerParaOCache(sb, o, avisos)
@@ -201,11 +200,19 @@ export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; 
       entrada = o.agoraMs - guardada.lidoEm > TETO_SERVIR_VELHO_MS ? await lerParaOCache(sb, o, avisos) : guardada
       registrarIdadeServida(Math.max(0, o.agoraMs - entrada.lidoEm))
     }
-    return entrada.planos
+    return { planos: entrada.planos, lidoEm: entrada.lidoEm }
   } catch (err) {
-    if (err instanceof LeituraParcial) return err.insumos
+    if (err instanceof LeituraParcial) return { planos: err.insumos, lidoEm: o.agoraMs }
     throw err
   }
+}
+
+/**
+ * E5a T14a: os quatro leitores baratos de UM canal, pela mesma entrada de cache de `carregarMedidasDoSite` (mesma função, mesma chave:
+ * a página do canal depois da lista não relê). Devolve os planos mesmo parciais (`LeituraParcial`); qualquer outro erro lança.
+ */
+export async function lerPlanosDoCanal(sb: SupabaseClient, o: { siteId: string; channelId: string; agoraMs: number }, last: number | null, avisos: Avisos): Promise<InsumosPlanos> {
+  return (await lerPlanosComIdadeDoCanal(sb, o, last, avisos)).planos
 }
 
 export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedidas): Promise<MedidasDoSite> {
@@ -220,6 +227,7 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
   const porCanal: MedidasDoSite['porCanal'] = new Map()
   const videos = new Map<string, InfoDoVideo>()
   let esgotou = 0
+  let lidoEmMaisAntigoMs: number | null = null
   const proprios = new Set(p.obs.channels.filter((c) => c.own).map((c) => c.id))
   const aLer = [...new Set(p.canais)].filter((id) => !proprios.has(id))
   const lastDe = new Map(p.obs.channels.map((c) => [c.id, c.sync.last]))
@@ -228,8 +236,9 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
     const o = { siteId: p.siteId, channelId, agoraMs: p.agoraMs }
     const last = lastDe.get(channelId) ?? null
     let planos: InsumosPlanos
+    let lidoEm: number
     try {
-      planos = await lerPlanosDoCanal(sb, o, last, avisos)
+      ;({ planos, lidoEm } = await lerPlanosComIdadeDoCanal(sb, o, last, avisos))
     } catch {
       falhou(channelId, 'leitura', 'erro_do_banco')
       return { naoCarregou: 'erro_do_banco' }
@@ -238,11 +247,12 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
       falhou(channelId, f.medida, f.causa)
     }
     if (!planos.canal.lido) return { naoCarregou: planos.canal.causa }
+    lidoEmMaisAntigoMs = lidoEmMaisAntigoMs === null ? lidoEm : Math.min(lidoEmMaisAntigoMs, lidoEm)
     const insumos = remontar(planos)
     if (insumos.videos.lido) {
       for (const v of insumos.videos.dados) {
         const ms = v.missingSince === null ? Number.NaN : Date.parse(v.missingSince)
-        videos.set(v.id, { wasLive: v.wasLive, missingSince: Number.isNaN(ms) ? null : ms })
+        videos.set(v.id, { wasLive: v.wasLive, missingSince: Number.isNaN(ms) ? null : ms, likesHidden: v.likesHidden, commentsDisabled: v.commentsDisabled })
       }
     }
     const series = p.seriesDe?.get(channelId)
@@ -285,5 +295,5 @@ export async function carregarMedidasDoSite(sb: SupabaseClient, p: PedidoDasMedi
   const extras: MedidasDoSite['extras'] = extrasLidos === 'tempo_esgotado' ? { lido: false, causa: 'tempo_esgotado' } : extrasLidos
   if (!extras.lido) avisos.add('extras', extras.causa, '-')
   avisos.fechar()
-  return { porCanal, extras, falhas, esgotou, videos }
+  return { porCanal, extras, falhas, esgotou, videos, lidoEmMaisAntigo: lidoEmMaisAntigoMs === null ? null : new Date(lidoEmMaisAntigoMs).toISOString() }
 }
