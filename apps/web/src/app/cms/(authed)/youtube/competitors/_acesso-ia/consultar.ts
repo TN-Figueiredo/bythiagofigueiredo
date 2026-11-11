@@ -9,6 +9,9 @@ import type { ENTRADA } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import type { Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
+import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
+import { SEM_CSV_LISTA_VAZIA } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import { respostaEmTabela } from './resposta-tabela'
 import type { LinhaDaConsulta } from '@/lib/youtube/observatorio/consulta/tipos'
 import { empacotarConsulta, maisRecenteDosDados, type ResultadoDaConsulta } from '../_contexto-ia/empacotar-consulta'
 
@@ -23,6 +26,21 @@ export interface RespostaDaConsulta {
   texto: string
   cobertura: Cobertura
   params: Record<string, string | number | boolean | string[] | Record<string, number>>
+  /** A5 F1c: avisos do modo tabela (`avisar` no responder). */
+  avisos?: Array<{ passo: string; extra?: Record<string, number | string> }>
+}
+
+/** `limite` vale no total (A5 F1c, como na A4 §3.1: "itens entregues"): o corte vai nos blocos na ordem, longos e depois Shorts. */
+function comLimiteNoTotal(r: ResultadoDaConsulta, limite: number): ResultadoDaConsulta {
+  let resta = limite
+  return {
+    ...r,
+    blocos: r.blocos.map((b) => {
+      const fica = Math.min(b.linhas.length, resta)
+      resta -= fica
+      return { ...b, linhas: b.linhas.slice(0, fica), cortadasPorLimite: b.cortadasPorLimite + (b.linhas.length - fica) }
+    }),
+  }
 }
 
 /** Mostra as `k[i]` primeiras linhas de cada bloco; o que sobra entra em `cortadasPorTamanho`. */
@@ -76,26 +94,45 @@ function melhorCorte(r: ResultadoDaConsulta, teto: number, agora: number): numbe
 const temReacao = (ls: readonly LinhaDaConsulta[]): boolean =>
   ls.some((l) => (['likes', 'comentarios', 'engajamento'] as const).some((m) => { const c = l.celulas[m]; return c !== undefined && c.x !== null && (c.estado === 'medido' || c.estado === 'zero_medido') }))
 
-export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entrada, { acao: 'consultar' }>, tetoFinal: number, agora: number): RespostaDaConsulta {
+export function respostaDaConsulta(r0: ResultadoDaConsulta, entrada: Extract<Entrada, { acao: 'consultar' }>, tetoFinal: number, agora: number): RespostaDaConsulta {
+  const emTabela = entrada.saida === 'tabela' && r0.blocos.some((b) => b.linhas.length > 0)
+  const r = emTabela ? comLimiteNoTotal(r0, r0.pedido.limite) : r0
   const p = r.pedido
   const todos = r.blocos.map((b) => b.linhas.length)
   let final = r
   let texto: string
   let numeros: Numeros
   let antesDoCorte = false
-  const inteiro = renderizar(r, agora, tetoFinal)
-  if (inteiro.texto.length <= tetoFinal) {
-    texto = inteiro.texto; numeros = inteiro.numeros
+  let semX = 0
+  const avisos: NonNullable<RespostaDaConsulta['avisos']> = []
+  if (emTabela) {
+    // A5 F1c: as duas listas em CSV pela mesma função das listas da A5 (janela única: inicio 1, n = limite no total)
+    const modelo = empacotarConsulta(r)
+    const t = respostaEmTabela(modelo, { geradoEm: agora, recente: maisRecenteDosDados(r.dadosDe) }, { inicio: 1, n: p.limite }, Math.min(tetoFinal, ACESSO_IA_RULES.tetoDaJanela))
+    avisos.push(...t.avisos)
+    texto = t.texto
+    numeros = t.numeros
+    semX = t.semX
+    let resta = t.linhasDaPrincipal
+    final = comLinhas(r, r.blocos.map((b) => { const k = Math.min(b.linhas.length, resta); resta -= k; return k }))
+    if (texto.length > tetoFinal) { texto = texto.slice(0, Math.max(0, tetoFinal - FRASE_DO_FIM.length)) + FRASE_DO_FIM; antesDoCorte = true }
   } else {
-    const k = melhorCorte(r, tetoFinal, agora)
-    final = comLinhas(r, k ?? todos.map(() => 0))
-    const f = renderizar(final, agora, tetoFinal)
-    numeros = f.numeros
-    if (f.texto.length > tetoFinal) {
-      // nem uma linha por bloco cabe: o fim do texto cai e a Cobertura diz
-      texto = f.texto.slice(0, Math.max(0, tetoFinal - FRASE_DO_FIM.length)) + FRASE_DO_FIM
-      antesDoCorte = true
-    } else texto = f.texto
+    const inteiro = renderizar(r, agora, tetoFinal)
+    if (inteiro.texto.length <= tetoFinal) {
+      texto = inteiro.texto; numeros = inteiro.numeros
+    } else {
+      const k = melhorCorte(r, tetoFinal, agora)
+      final = comLinhas(r, k ?? todos.map(() => 0))
+      const f = renderizar(final, agora, tetoFinal)
+      numeros = f.numeros
+      if (f.texto.length > tetoFinal) {
+        // nem uma linha por bloco cabe: o fim do texto cai e a Cobertura diz
+        texto = f.texto.slice(0, Math.max(0, tetoFinal - FRASE_DO_FIM.length)) + FRASE_DO_FIM
+        antesDoCorte = true
+      } else texto = f.texto
+    }
+    // pediu tabela e não há vídeo (sem lista principal): texto, com a linha fixa no topo; o registro grava `saida: texto`
+    if (entrada.saida === 'tabela') texto = `${SEM_CSV_LISTA_VAZIA}\n${texto}`
   }
 
   const mostradas = final.blocos.map((b) => b.linhas.length)
@@ -136,8 +173,9 @@ export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entr
     ...(r.leituraMaisAntiga ? { dados_de: r.leituraMaisAntiga.slice(0, 13) } : {}),
     n_metricas: p.metricas.length, n_faixas: p.janelaIdade === 'todas' ? 0 : p.janelaIdade.length,
     privado: false, comentarios: false, cortes: rotulos.length,
+    ...(entrada.saida === 'tabela' ? { saida: emTabela ? 'tabela' : 'texto', ...(emTabela ? { sem_x: semX } : {}) } : {}),
   }
-  return { texto, cobertura, params }
+  return { texto, cobertura, params, ...(avisos.length > 0 ? { avisos } : {}) }
 }
 
 /** Até 3 (o rodapé corta o resto): mais linhas, outra ordem, o canal e o vídeo do topo. Quem chama passa por `validas`. */

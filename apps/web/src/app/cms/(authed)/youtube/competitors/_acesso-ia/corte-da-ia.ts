@@ -34,6 +34,8 @@ export const TEXTO_SEMPRE_FORA: ReadonlySet<string> = new Set(['canais-notas', '
 export function classeDa(tela: TelaId, tabela: { id: string; tipo: 'lista' | 'fixa' | string }): ClasseNaIa {
   if (tabela.tipo === 'fixa') return 'resumo-da-tela'
   if (tabela.id.startsWith('privado-')) return 'geral'
+  // A5 F1c: a consultar tem duas listas principais (uma por formato), em ordem: longos e depois Shorts
+  if (tela === 'consultar') return tabela.id === 'consulta-longos' || tabela.id === 'consulta-shorts' ? 'principal' : 'resumo-da-tela'
   return CLASSES_NA_IA[tela as TelaComLista]?.[tabela.id] ?? 'geral'
 }
 

@@ -565,6 +565,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         return resp(desfecho, `${feito.frase}${linhaDaProxima}`, params)
       }
       const r = respostaDaConsulta(feito, entrada, tetoFinal, agora)
+      for (const a of r.avisos ?? []) avisar(a.passo, a.extra)
       return comCobertura(r.texto, r.cobertura, { ...params, ...r.params, cortes: r.params.cortes as number }, t0)
     }
 

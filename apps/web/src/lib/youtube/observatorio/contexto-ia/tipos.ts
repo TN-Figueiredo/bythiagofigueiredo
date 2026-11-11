@@ -14,7 +14,8 @@ export type Celula =
   // decisão 75: as mesmas palavras da pastilha da tela. `falhou` = a leitura ou a conferência de permissão falhou; `restrito` = acesso negado com certeza.
   | { papel: 'numero'; estado: 'falhou'; motivo: string; origem: string }
   | { papel: 'numero'; estado: 'restrito'; motivo: string; origem: string }
-  | { papel: 'base' | 'rotulo'; texto: string; origem: string }
+  // `maquina` (A5 F1c): o valor que o CSV escreve no lugar do texto da tela (hora ISO em vez de "11/11 08:05"); o modo texto ignora.
+  | { papel: 'base' | 'rotulo'; texto: string; origem: string; maquina?: string }
   | { papel: 'terceiros'; texto: string; origem: string } // uma linha só; sai neutralizado
 
 export interface Tabela {
