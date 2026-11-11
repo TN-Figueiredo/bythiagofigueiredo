@@ -32,7 +32,7 @@ import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
 import { lotesParaMostrar, paginarGrade, TAMANHO_PAGINA } from './grade-paginacao'
 import { usePaginaGrade, type PaginaGradeEstado } from './use-pagina-grade'
-import { Tabela } from './tabela'
+import { Tabela, type ReacoesPromessa } from './tabela'
 import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import type { ProprioVideosView } from '../_proprio/videos-model'
 import { Trocas } from './trocas'
@@ -151,13 +151,15 @@ function avisoDoAlcance(v: CanalVideosView): { texto: string; estado: EstadoAuse
   return p.motivoAlcance && (e === 'falhou' || e === 'restrito') ? { texto: p.motivoAlcance, estado: e } : null
 }
 
-export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false }: {
+export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false, reacoes }: {
   videos: CanalVideosView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync?: () => void
   /** Os lotes de 24 da grade (`usePaginaGrade`): moram na tela, que os sobe no Voltar do Histórico. */
   pg: PaginaGradeEstado
   onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void
   raiz: RefObject<HTMLElement | null>
   proprio?: boolean
+  /** Reações do canal concorrente (sinalizadores de `medidas`); ausente = canal próprio. */
+  reacoes?: ReacoesPromessa
 }) {
   const all = videos.videos
   const listaRef = useRef(lista)
@@ -291,7 +293,7 @@ export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSy
           {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
           {lista.secoes.length
             ? state.ver === 'lista'
-              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} avisoAlcance={proprio ? avisoDoAlcance(videos) : null} />
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} reacoes={reacoes} avisoAlcance={proprio ? avisoDoAlcance(videos) : null} />
               : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} limite={pagina.limite} />
             : null}
           <div id="cv-fim" tabIndex={-1} />
@@ -323,7 +325,9 @@ export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSy
   )
 }
 
-export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null, topo = null, celulas = null, blocos = null, hojeSP }: {
+export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null, topo = null, celulas = null, blocos = null, hojeSP, reacoes }: {
+  /** T13: sinalizadores de curtidas/comentários por id do vídeo, derivados de `medidas` (a célula da Lista decide depois que resolve). */
+  reacoes?: ReacoesPromessa;
   /** M6a T13c: hoje em São Paulo, para a frase do mês fora no diálogo de remover. */
   hojeSP?: string;
   view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions
@@ -558,7 +562,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos videos={view.videos} state={state} lista={lista} pg={pg} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
+            <AbaVideos videos={view.videos} state={state} lista={lista} pg={pg} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} reacoes={reacoes} />
           </PinProvider>
           {state.tab === 'trocas' ? (
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}

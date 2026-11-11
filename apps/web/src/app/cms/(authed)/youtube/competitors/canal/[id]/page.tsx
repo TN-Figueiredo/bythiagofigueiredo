@@ -11,6 +11,7 @@ import { LeituraDoNicho } from '../../_canal/leitura'
 import { BlocosDoCanal, CelulasDoCanal, TopoDoCanal } from '../../_canal/medidas/blocos-do-canal'
 import { contextoDoCanal, lerMedidasDoCanal } from '../../_canal/medidas/contexto-do-canal'
 import { canalNaoCarregou } from '../../_canal/medidas/canal-derivado-async'
+import { reacoesDaPromessa } from '../../_canal/medidas/reacoes-do-canal'
 import { EsqueletoDasCelulas, EsqueletoDosBlocos, EsqueletoDoTopo } from '../../_canal/medidas/esqueleto'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type PropsAssistidoDoCanal, type PropsOrigemDoCanal } from '../../_canal/montar'
 import { nicheOptions } from '../../_canais/view-model'
@@ -107,6 +108,8 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   // as medidas chegam depois do primeiro HTML: três elementos de servidor, cada um no seu Suspense, com a MESMA promessa
   const contexto = contextoDoCanal(obs, view, m.pagina.now, { siteId: m.pagina.siteId, provas: { leitura: m.pagina.leitura, edicao: null }, permissaoFalhou: m.pagina.negativa === 'nao_foi_possivel_conferir' })
   const promessa = medidas ?? Promise.resolve(canalNaoCarregou())
+  // T13: os sinalizadores de curtidas/comentários (de `medidas`) chegam à Lista por promessa; nunca rejeita (falha vira null = metade sem sinalizador)
+  const reacoes = medidas ? reacoesDaPromessa(medidas, view.videos.videos) : null
   const topo = <Suspense key="topo-do-canal" fallback={<EsqueletoDoTopo />}><TopoDoCanal medidas={promessa} contexto={contexto} /></Suspense>
   const celulas = <Suspense key="celulas-do-canal" fallback={<EsqueletoDasCelulas />}><CelulasDoCanal medidas={promessa} contexto={contexto} /></Suspense>
   const blocos = <Suspense key="blocos-do-canal" fallback={<EsqueletoDosBlocos />}><BlocosDoCanal medidas={promessa} contexto={contexto} /></Suspense>
@@ -115,7 +118,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
       perguntarIa={{ tela: 'canal', id: id, nomeDaTela: TELAS_IA['canal'].nome, exemplos: TELAS_IA['canal'].exemplos, onGerar: gerarPacoteIa }}>
       <AbEntradasProvider valor={valorAbEntradas({ podeEditar: m.pagina.canEdit, abertos: null })}>
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} hojeSP={dayPt(new Date(m.pagina.now))} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
-        topo={topo} celulas={celulas} blocos={blocos}
+        topo={topo} celulas={celulas} blocos={blocos} reacoes={reacoes}
         actions={{ onSyncOne: syncCompetitorNow, onPedir: pedirRemocaoCanal, onDesfazer: desfazerRemocaoCanal, onApagar: apagarCanalSemGuardarAction, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
       </AbEntradasProvider>
     </TrailChrome>
