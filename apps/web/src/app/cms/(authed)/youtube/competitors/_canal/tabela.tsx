@@ -7,6 +7,7 @@
  * (`onSort`); o menu ⋯ é o mesmo da grade. Dado ausente é "não medido" (classe `obs-ch-nm`), nunca zero.
  */
 import Link from 'next/link'
+import { Suspense, use } from 'react'
 import type { CanalSort } from '@/lib/youtube/observatorio/links'
 import { notaDoDivisor } from './grade'
 import type { ListaView } from './lista'
@@ -16,6 +17,7 @@ import { AGUARDANDO, type ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
 import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import type { EstadoAusencia } from '../_chrome/ausencia/estado'
+import { reacaoComEstado } from '@/lib/youtube/observatorio/medidas/engajamento'
 
 /** Coluna ordenável -> ordenação (a mesma do select "Ordenar"). */
 const COLUNAS: Array<[CanalSort, string]> = [['recentes', 'Publicado'], ['vistos', 'Views'], ['vpd', 'Views/dia'], ['multiplo', 'Múltiplo']]
@@ -53,7 +55,7 @@ function Cabecalho({ state, onSort, proprio }: { state: CanalState; onSort: (s: 
   )
 }
 
-const Nm = ({ children }: { children: string }) => <span className="obs-ch-nm">{children}</span>
+const Nm = ({ children }: { children: React.ReactNode }) => <span className="obs-ch-nm">{children}</span>
 /** Decisão 75: célula sem número do vídeo próprio. `falhou` e `restrito` ganham a pastilha da forma certa (sem role: o aviso é UM, acima da tabela); `nao_medido` segue a hachura com a palavra do motivo. */
 function Ausente({ estado, palavra }: { estado: EstadoAusencia | null; palavra: string }) {
   return estado === 'falhou' || estado === 'restrito' ? <PastilhaAusencia estado={estado} /> : <Nm>{palavra}</Nm>
@@ -75,7 +77,43 @@ function marcas(v: ChannelVideoView): string[] {
   return m
 }
 
-function Linha({ v, sort, href, onAmpliar, onTrocas }: {
+/** Sinalizadores por id do vídeo, só as exceções (curtidas ocultas ou valor 0 com sinalizador lido); id ausente = metade sem sinalizador. `null` = não deu para ler. */
+export type Reacoes = Record<string, { likesHidden: boolean | null; commentsDisabled: boolean | null }>
+/** A promessa das reações: `undefined` = canal próprio (a célula de hoje); `null` = sem sinalizador nenhum. */
+export type ReacoesPromessa = Promise<Reacoes | null> | null
+
+/** Fallback enquanto `medidas` não resolve: nunca "0" e nunca "não medido" para um 0 cru (pode ser zero falso ou verdadeiro). */
+export function fallbackDaReacao(cru: number | null, texto: string | null) {
+  if (cru == null) return <Nm>não medido</Nm>
+  if (cru === 0) return <Nm><span aria-hidden="true">…</span><span className="obs-ch-sr">lendo</span></Nm>
+  return <>{texto ?? <Nm>não medido</Nm>}</>
+}
+/** A célula decidida: a mesma regra de `reacao` (`reacaoComEstado`); mostra o texto já formatado do vídeo. */
+function decidida(cru: number | null, sinal: boolean | null, texto: string | null) {
+  return reacaoComEstado(cru, sinal).x === null ? <Nm>não medido</Nm> : <>{texto ?? <Nm>não medido</Nm>}</>
+}
+const DuasCelulas = ({ curtidas, comentarios }: { curtidas: React.ReactNode; comentarios: React.ReactNode }) => (
+  <>
+    <td className="r num" data-label="Curtidas">{curtidas}</td>
+    <td className="r num" data-label="Comentários">{comentarios}</td>
+  </>
+)
+function LeituraDeReacao({ v, reacoes }: { v: ChannelVideoView; reacoes: Promise<Reacoes | null> }) {
+  const r = use(reacoes)?.[v.id]
+  return <DuasCelulas curtidas={decidida(v.likes, r?.likesHidden ?? null, v.likesText)} comentarios={decidida(v.comments, r?.commentsDisabled ?? null, v.commentsText)} />
+}
+function CelulasDeReacao({ v, reacoes }: { v: ChannelVideoView; reacoes: ReacoesPromessa | undefined }) {
+  if (reacoes === undefined) return <DuasCelulas curtidas={v.likesText ?? <Nm>não medido</Nm>} comentarios={v.commentsText ?? <Nm>não medido</Nm>} />
+  if (reacoes === null) return <DuasCelulas curtidas={decidida(v.likes, null, v.likesText)} comentarios={decidida(v.comments, null, v.commentsText)} />
+  return (
+    <Suspense fallback={<DuasCelulas curtidas={fallbackDaReacao(v.likes, v.likesText)} comentarios={fallbackDaReacao(v.comments, v.commentsText)} />}>
+      <LeituraDeReacao v={v} reacoes={reacoes} />
+    </Suspense>
+  )
+}
+
+function Linha({ v, sort, href, onAmpliar, onTrocas, reacoes }: {
+  reacoes?: ReacoesPromessa
   v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
 }) {
   const on = (s: CanalSort) => (sort === s ? ' on' : '')
@@ -110,8 +148,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
           ? <span className={v.multTier ? 't-' + v.multTier : undefined}>{v.multText}{v.multWord ? <> <span className="lv">{v.multWord}</span></> : null}</span>
           : <Nm>{sem}</Nm>}
       </td>
-      <td className="r num" data-label="Curtidas">{v.likesText ?? <Nm>não medido</Nm>}</td>
-      <td className="r num" data-label="Comentários">{v.commentsText ?? <Nm>não medido</Nm>}</td>
+      <CelulasDeReacao v={v} reacoes={reacoes} />
       {ehProprio(v)
         ? <td className="r num" data-label="Cliques">{v.cliquesText ?? (v.semImpressao ? <Zero /> : <Ausente estado={v.cliquesEstado} palavra={v.cliquesMissing ?? 'não medido'} />)}</td>
         : <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>}
@@ -120,7 +157,9 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
   )
 }
 
-export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas, proprio = false, avisoAlcance = null }: {
+export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar, onTrocas, proprio = false, avisoAlcance = null, reacoes }: {
+  /** As reações vindas de `medidas` (canal concorrente); ausente = canal próprio. */
+  reacoes?: ReacoesPromessa
   lista: ListaView; state: CanalState; nome: string
   /** A Lista do canal próprio: colunas Impressões e Cliques. */
   proprio?: boolean
@@ -145,7 +184,7 @@ export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar
                 <th scope="rowgroup" colSpan={NCOLS}>{s.divisor.label} ({s.divisor.count})<small>{notaDoDivisor(s.divisor, state.sort)}</small></th>
               </tr>
             ) : null}
-            {s.itens.map(v => <Linha key={v.id} v={v} sort={state.sort} href={hrefDe(v)} onAmpliar={onAmpliar} onTrocas={onTrocas} />)}
+            {s.itens.map(v => <Linha key={v.id} v={v} sort={state.sort} href={hrefDe(v)} onAmpliar={onAmpliar} onTrocas={onTrocas} reacoes={reacoes} />)}
           </tbody>
         ))}
       </table>
