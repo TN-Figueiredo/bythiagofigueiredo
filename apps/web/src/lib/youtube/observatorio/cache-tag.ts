@@ -24,6 +24,7 @@ export const ENTRADAS = {
   video: 'medidas-telas-video',
   avisoArquivo: 'arquivo-aviso-leve',
   sinalBanco: 'arquivo-sinal-banco',
+  lugares: 'lugares-mapa',
 } as const
 export type Entrada = (typeof ENTRADAS)[keyof typeof ENTRADAS]
 
