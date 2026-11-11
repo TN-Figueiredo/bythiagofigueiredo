@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   resolverChave,
+  resolverChavePorId,
   PERFIL,
   ehDoPerfil,
   ehSoDoPerfil,
@@ -254,5 +255,51 @@ describe('fraseDeVencida', () => {
   })
   it('instante inválido não inventa data', () => {
     expect(fraseDeVencida('lixo')).toBe('chave vencida: peça outra ao dono')
+  })
+})
+
+describe.each([
+  ['hash', resolverChave],
+  ['id', resolverChavePorId],
+])('leitura por %s: mesma regra', (_via, resolver) => {
+  const ler = (resposta: Resposta) => resolver(clienteSimulado(resposta).sb, 'x', AGORA)
+
+  it('ativa', async () => {
+    expect((await ler({ data: LINHA, error: null })).estado).toBe('ativa')
+  })
+  it('vencida', async () => {
+    expect((await ler({ data: { ...LINHA, expires_at: iso(AGORA - 1) }, error: null })).estado).toBe('vencida')
+  })
+  it('expires_at === agora é vencida', async () => {
+    expect((await ler({ data: { ...LINHA, expires_at: iso(AGORA) }, error: null })).estado).toBe('vencida')
+  })
+  it('ausente (dado nulo)', async () => {
+    expect(await ler({ data: null, error: null })).toEqual({ estado: 'ausente' })
+  })
+  it('PGRST116 é ausente', async () => {
+    expect(await ler({ data: null, error: { code: 'PGRST116' } })).toEqual({ estado: 'ausente' })
+  })
+  it('erro do banco', async () => {
+    expect(await ler({ data: null, error: { code: '57014' } })).toEqual({ estado: 'erro', code: '57014' })
+  })
+  it('linha fora de forma', async () => {
+    expect(await ler({ data: { ...LINHA, id: '' }, error: null })).toEqual({ estado: 'erro', code: 'linha_invalida' })
+  })
+  it('validade inválida', async () => {
+    expect(await ler({ data: { ...LINHA, expires_at: 'amanhã' }, error: null })).toEqual({
+      estado: 'erro',
+      code: 'validade_invalida',
+    })
+  })
+})
+
+describe('resolverChavePorId: a consulta', () => {
+  it('filtra por id e só por chave não revogada, na tabela certa', async () => {
+    const { sb, chamadas } = clienteSimulado({ data: LINHA, error: null })
+    await resolverChavePorId(sb, 'id-pedido', AGORA)
+    expect(chamadas.find((c) => c.metodo === 'from')?.args).toEqual(['pipeline_api_keys'])
+    expect(chamadas.find((c) => c.metodo === 'select')?.args).toEqual(['*'])
+    expect(chamadas.find((c) => c.metodo === 'eq')?.args).toEqual(['id', 'id-pedido'])
+    expect(chamadas.find((c) => c.metodo === 'is')?.args).toEqual(['revoked_at', null])
   })
 })

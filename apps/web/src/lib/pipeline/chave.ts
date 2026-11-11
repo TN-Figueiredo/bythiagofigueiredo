@@ -75,12 +75,15 @@ const LINHA = z.object({
 })
 
 export async function resolverChave(sb: SupabaseClient, keyHash: string, agora: number): Promise<ResultadoDaChave> {
-  const { data, error } = await sb
-    .from('pipeline_api_keys')
-    .select('*')
-    .eq('key_hash', keyHash)
-    .is('revoked_at', null)
-    .single()
+  return lerLinha(sb.from('pipeline_api_keys').select('*').eq('key_hash', keyHash).is('revoked_at', null).single(), agora)
+}
+
+export async function resolverChavePorId(sb: SupabaseClient, id: string, agora: number): Promise<ResultadoDaChave> {
+  return lerLinha(sb.from('pipeline_api_keys').select('*').eq('id', id).is('revoked_at', null).single(), agora)
+}
+
+async function lerLinha(consulta: PromiseLike<{ data: unknown; error: { code?: string } | null }>, agora: number): Promise<ResultadoDaChave> {
+  const { data, error } = await consulta
 
   if (error && error.code !== 'PGRST116') return { estado: 'erro', code: error.code || 'desconhecido' }
   if (!data) return { estado: 'ausente' }
