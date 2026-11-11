@@ -116,6 +116,16 @@ describe('responder: o texto do pacote da tela certa', () => {
     expect(r.incluiuPrivado).toBe(false)
   })
 
+  it('definicoes: o cabeçalho traz o dado mais recente das telas, nunca "nenhuma sincronização registrada"', async () => {
+    const velho = '12/10/2026 08:00'
+    for (const t of ['canais', 'comparar', 'outliers', 'insights', 'mudancas'] as const) {
+      m.empacotar[t]!.mockImplementation(async () => ({ modelo: comTela(modeloCheio(), t), recente: t === 'canais' ? velho : RECENTE, estado: {} }))
+    }
+    const r = await responder({ acao: 'definicoes' }, abrir, AGORA)
+    expect(r.texto).toContain('Dado mais recente: 13/10/2026 09:10')
+    expect(r.texto).not.toContain('nenhuma sincronização registrada')
+  })
+
   it('semEquivalente e janelaUsada vão no topo e não somem', async () => {
     dobra('outliers', comTela(modeloCheio(), 'outliers'))
     const r = await responder({ acao: 'destaques', formato: 'todos' }, abrir, AGORA)
