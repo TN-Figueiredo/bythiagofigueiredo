@@ -17,6 +17,9 @@ export const spDateStart = (date: string) => Date.parse(date.slice(0, 10) + 'T00
 /** 'YYYY-MM-DD' of the São Paulo calendar day containing `ms`. */
 export const spDateOf = (ms: number) => new Date(ms - SP_OFF).toISOString().slice(0, 10)
 
+/** 'DD/MM HH:MM' no horário de São Paulo; o único lugar fora do relógio que conhece o fuso. */
+export const spDmHm = (ms: number) => { const d = new Date(ms - SP_OFF).toISOString(); return `${d.slice(8, 10)}/${d.slice(5, 7)} ${d.slice(11, 16)}` }
+
 export interface Clock {
   now: number; seriesStart: number; snap0: number
   snapTime(i: number): number; snapIdxAtOrAfter(t: number): number; snapIdxAtOrBefore(t: number): number

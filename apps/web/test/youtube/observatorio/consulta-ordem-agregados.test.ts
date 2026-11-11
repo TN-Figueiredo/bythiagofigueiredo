@@ -160,6 +160,23 @@ describe('agregar', () => {
     const w = mundo(undefined, { naoCarregou: { 'luke-damant': 'tempo_esgotado' } }, { metricas: ['likes'], formato: 'longos', janelaIdade: ['0-30'] })
     const l = montarConjunto(w.p, w.entrada).longos
     const ag = agregar(l, w.p, w.entrada).porMetrica.likes!
-    expect(ag.semOsCanais).toEqual(['Luke Damant'].map(() => l.find(x => x.canalId === 'luke-damant')!.canal))
+    expect(ag.semOsCanais).toEqual(['luke-damant'])
+  })
+  it('(Yannis M1) canal ausente de porCanal (medidas não carregadas): o agregado de curtidas também diz "sem os canais"', () => {
+    const w = mundo(undefined, {}, { metricas: ['likes'], formato: 'longos', janelaIdade: ['0-30'] })
+    const entrada = { ...w.entrada, medidas: { ...w.entrada.medidas, porCanal: new Map() } }
+    const l = montarConjunto(w.p, entrada).longos
+    expect(l.length).toBeGreaterThan(0)
+    expect(agregar(l, w.p, entrada).porMetrica.likes!.semOsCanais.sort()).toEqual([...new Set(l.map(x => x.canalId))].sort())
+  })
+  it('(Yannis M2) ordenar por métrica fora de `metricas` ordena igual a quando ela entra na lista', () => {
+    const w = mundo(undefined, {}, { formato: 'longos', ordenarPor: 'vpd7', metricas: ['views'] })
+    const w2 = mundo(undefined, {}, { formato: 'longos', ordenarPor: 'vpd7', metricas: ['views', 'vpd7'] })
+    const ctx = { canalAtrasado: (id: string) => ['atrasado', 'erro'].includes(w.obs.channel(id)!.sync.state) }
+    const fora = ids(ordenar(montarConjunto(w.p, w.entrada).longos, w.p, ctx))
+    const dentro = ids(ordenar(montarConjunto(w2.p, w2.entrada).longos, w2.p, ctx))
+    expect(fora.length).toBeGreaterThan(3)
+    expect(fora).toEqual(dentro)
+    expect(fora).not.toEqual(ids(montarConjunto(w.p, w.entrada).longos))
   })
 })

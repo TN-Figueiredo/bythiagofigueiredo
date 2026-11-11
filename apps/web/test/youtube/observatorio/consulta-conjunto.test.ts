@@ -151,10 +151,10 @@ describe('montarConjunto', () => {
   })
 
   it('(l) varredura: o módulo não importa multiplierAt, loadRows nem leitores crus, e não faz conta própria', () => {
-    for (const f of ['conjunto.ts', 'catalogo.ts', 'tipos.ts']) {
+    for (const f of ['conjunto.ts', 'catalogo.ts', 'tipos.ts', 'ordem.ts', 'agregados.ts']) {
       const src = fs.readFileSync(path.join(DIR, f), 'utf8').split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')
       expect(src, f).not.toMatch(/multiplierAt|loadRows|lerVideosDoCanal|lerMarcasDoCanal|extrairLugares|medidasDoCanal/)
-      expect(src, f).not.toMatch(/median\(|quant\(/)
+      if (f !== 'agregados.ts') expect(src, f).not.toMatch(/median\(|quant\(/) // o agregado usa median/quant do motor, de propósito
     }
   })
 

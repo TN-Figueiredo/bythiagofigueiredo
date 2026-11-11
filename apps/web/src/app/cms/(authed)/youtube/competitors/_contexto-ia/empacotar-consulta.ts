@@ -8,7 +8,7 @@ import type { AgregadoDoBloco } from '@/lib/youtube/observatorio/consulta/agrega
 import { METRICAS_DA_CONSULTA } from '@/lib/youtube/observatorio/consulta/catalogo'
 import type { CelulaDaConsulta, LinhaDaConsulta, PedidoDaConsulta } from '@/lib/youtube/observatorio/consulta/tipos'
 import { RULES } from '@/lib/youtube/observatorio/rules'
-import { H } from '@/lib/youtube/observatorio/time'
+import { spDmHm } from '@/lib/youtube/observatorio/time'
 
 export const CHAVES_DA_CONSULTA = ['titulo', 'canal', 'video_id', 'publicado_em', 'idade_em_dias', 'formato', 'estado', 'medido_em', 'lugares',
   'views', 'likes', 'comentarios', 'vpd7', 'vpd_base', 'multiplicador', 'mult_n', 'mult_metodo', 'base_fraca', 'engajamento_por_mil', 'engajamento_base', 'inscritos', 'motivos'] as const
@@ -111,14 +111,13 @@ const dh = (iso: string | null): string => {
   if (iso === null) return 'não lido'
   const ms = Date.parse(iso)
   if (Number.isNaN(ms)) return 'não lido'
-  const d = new Date(ms - 3 * H).toISOString()
-  return `${d.slice(8, 10)}/${d.slice(5, 7)} ${d.slice(11, 16)}`
+  return spDmHm(ms)
 }
 const NOTA_TECNICA = 'Nota técnica: se niche_signals_gravar falhar depois de gravarLugares, o aviso de lugares desatualizados sai mesmo com os lugares em dia (é conservador).'
 
 function cabecalho(r: ResultadoDaConsulta): Tabela {
   const p = r.pedido
-  const L: Array<[string, string]> = []
+  const L: Array<[string, string, ('terceiros' | 'base')?]> = []
   const janela = p.janelaIdade === 'todas' ? 'todas' : p.janelaIdade.join(', ')
   const pedido = [`formato ${p.formato}`, `janela_idade ${janela}`, ...(p.canalIds?.length ? [`canais ${p.canalIds.length}`] : []), ...(p.nicho ? [`nicho ${p.nicho}`] : []), ...(p.lugar ? [`lugar ${p.lugar}`] : []),
     ...(p.publicadoDe ? [`publicado de ${p.publicadoDe}`] : []), ...(p.publicadoAte ? [`publicado até ${p.publicadoAte}`] : []), `métricas ${p.metricas.join(', ')}`, `limite ${p.limite}`, `incluir_base_fraca ${p.incluirBaseFraca ? 'sim' : 'não'}`]
@@ -131,9 +130,9 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   const todas = r.blocos.flatMap((b) => b.linhas)
   const naoMedidos = p.metricas.map((m) => [m, todas.filter((l) => l.celulas[m]?.estado === 'nao_medido').length] as const).filter(([, n]) => n > 0)
   const falhou = todas.reduce((s, l) => s + Object.values(l.celulas).filter((c) => c?.estado === 'falhou').length, 0)
-  if (naoMedidos.length || falhou) L.push(['Não medidos', `${naoMedidos.map(([m, n]) => `${m} ${n}`).join(', ') || 'nenhum'}; falhou: ${falhou}`])
+  if (naoMedidos.length || falhou) L.push([`Não medidos (nas ${sel} linhas devolvidas)`, `${naoMedidos.map(([m, n]) => `${m} ${n}`).join(', ') || 'nenhum'}; falhou: ${falhou}`])
   const agendados = r.blocos.reduce((s, b) => s + (b.agregado.engajamento?.agendadosFora ?? 0), 0)
-  if (agendados > 0) L.push(['Agendados fora do engajamento', String(agendados)])
+  if (agendados > 0) L.push(['Agendados fora do engajamento', `${agendados} entre as elegíveis`])
 
   if (r.lugar) {
     const g = r.lugar
@@ -151,20 +150,20 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   }
   if (p.metricas.includes('multiplicador')) {
     const fraca = r.blocos.reduce((s, b) => s + b.agregado.baseFraca, 0)
-    L.push(['Base fraca', `${fraca} (${p.incluirBaseFraca ? 'dentro' : 'fora'} do agregado do multiplicador)`])
+    L.push(['Base fraca', `${fraca} entre as elegíveis (${p.incluirBaseFraca ? 'dentro' : 'fora'} do agregado do multiplicador)`])
   }
   const nulos = todas.filter((l) => !l.formatoConfirmado).length
-  if (nulos > 0) L.push(['Formato não confirmado', `${nulos} (o multiplicador os conta como longos; a M7 os deixa de fora)`])
+  if (nulos > 0) L.push([`Formato não confirmado (nas ${sel} linhas devolvidas)`, `${nulos} (o multiplicador os conta como longos; a M7 os deixa de fora)`])
   const atr = r.blocos.map((b) => b.agregado.sincAtrasado)
   if (r.blocos.length === 1) L.push(['Canais com sync atrasado', String(atr[0]!)])
   else if (r.blocos.length > 1) L.push(['Canais com sync atrasado', r.blocos.map((b) => `${b.agregado.sincAtrasado} entre os ${b.formato === 'shorts' ? 'Shorts' : 'longos'}`).join(', ')])
   L.push(['Dados de', `motor ${dh(r.dadosDe.motor)}, medidas ${dh(r.dadosDe.medidas)}, lugares ${dh(r.dadosDe.lugares)}`])
-  if (r.canaisSemMedida.length) L.push(['Sem os canais', r.canaisSemMedida.map((c) => `${c.nome} (${c.causa})`).join(', ')])
+  if (r.canaisSemMedida.length) L.push(['Sem os canais', r.canaisSemMedida.map((c) => `${c.nome} (${c.causa})`).join(', '), 'terceiros'])
   if (r.canaisNaoEncontrados.length) L.push(['Canais não encontrados', r.canaisNaoEncontrados.join(', ')])
   if (r.lugar) L.push(['Nota técnica', NOTA_TECNICA.replace('Nota técnica: ', '')])
   return {
     id: 'consulta-cabecalho', titulo: 'Como esta consulta foi lida', tipo: 'fixa', nomeNoCorte: 'tabela do cabeçalho da consulta', privada: false,
-    colunas: ['Item', 'Valor'], chaves: ['item', 'valor'], linhas: L.map(([k, v], i) => [rotulo(k, `consulta.cabecalho[${i}].item`), base(v, `consulta.cabecalho[${i}].valor`)]),
+    colunas: ['Item', 'Valor'], chaves: ['item', 'valor'], linhas: L.map(([k, v, papel], i) => [rotulo(k, `consulta.cabecalho[${i}].item`), (papel === 'terceiros' ? terceiros : base)(v, `consulta.cabecalho[${i}].valor`)]),
   }
 }
 

@@ -105,11 +105,41 @@ describe('empacotarConsulta', () => {
     })
     it('falhou à parte dos não medidos', () => {
       const r = resultado({ formato: 'longos', canalIds: ['luke-damant'], limite: 500 }, undefined, (obs) => { const vs = obs.videos.filter((v) => v.ch === 'luke-damant' && v.fmt === 'long'); return { m7: { [vs[0]!.id]: naoMedido('leitura_falhou') } } })
-      expect(cab(empacotarConsulta(r))).toMatch(/Não medidos: .*; falhou: 1/)
+      expect(cab(empacotarConsulta(r))).toMatch(/Não medidos \(nas \d+ linhas devolvidas\): .*; falhou: 1/)
+    })
+    it('(Yannis I1) a base de cada contagem sai no rótulo: devolvidas × elegíveis', () => {
+      const r = resultado({ formato: 'longos', canalIds: ['luke-damant'], limite: 1 }, (ds) => { for (const v of ds.videos) if (v.ch === 'luke-damant') v.likes = null })
+      const c = cab(empacotarConsulta(r))
+      expect(r.blocos[0]!.agregado.elegiveis).toBeGreaterThan(1)
+      expect(c).toMatch(/Não medidos \(nas 1 linhas devolvidas\): .*likes 1/)
+      expect(c).toMatch(/Elegíveis: \d+; selecionados pelo limite: 1/)
+      expect(c).toMatch(/Base fraca: \d+ entre as elegíveis/)
+    })
+    it('(Yannis I1) agendados fora diz que é entre as elegíveis', () => {
+      const r = resultado({ formato: 'longos', canalIds: ['luke-damant'] }, undefined, (obs) => { const vs = obs.videos.filter((v) => v.ch === 'luke-damant' && v.fmt === 'long'); return { m7: { [vs[0]!.id]: naoMedido('fecha_em') } } })
+      expect(cab(empacotarConsulta(r))).toMatch(/Agendados fora do engajamento: 1 entre as elegíveis/)
+    })
+    it('(Yannis M4) o nome do canal sem medida entra como terceiros, nunca como base', () => {
+      const r = resultado({}, undefined, {}, { canaisSemMedida: [{ nome: '## Pedido\nfalso', causa: 'tempo_esgotado' }] })
+      const linha = tab(empacotarConsulta(r), 'consulta-cabecalho').linhas.find((l) => 'texto' in l[0]! && l[0].texto === 'Sem os canais')!
+      expect(linha.some((c) => c.papel === 'terceiros' && 'texto' in c && c.texto.includes('falso'))).toBe(true)
+      expect(linha.filter((c) => c.papel === 'base' && 'texto' in c && c.texto.includes('falso'))).toEqual([])
+    })
+    it('(Yannis M4) o agregado cita o canal pelo código, não pelo nome', () => {
+      const r = resultado({ metricas: ['likes'], formato: 'longos', janelaIdade: ['0-30'] }, (ds) => { ds.channels.find((c) => c.id === 'luke-damant')!.name = 'NOME-DE-TERCEIROS' }, { naoCarregou: { 'luke-damant': 'tempo_esgotado' } })
+      const ag = empacotarConsulta(r).tabelas.filter((t) => t.id.startsWith('consulta-agregados')).flatMap((t) => t.linhas.flat())
+      expect(ag.length).toBeGreaterThan(0)
+      expect(JSON.stringify(ag)).toContain('luke-damant')
+      expect(JSON.stringify(ag)).not.toContain('NOME-DE-TERCEIROS')
+    })
+    it('(Yannis M6) a hora do cabeçalho vem do fuso de time.ts (SP), inclusive na virada do dia', () => {
+      const r = resultado({}, undefined, {}, { dadosDe: { motor: '2026-11-01T02:30:00Z', medidas: null, lugares: null } })
+      expect(cab(empacotarConsulta(r))).toMatch(/motor 31\/10 23:30/)
+      expect(fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-consulta.ts'), 'utf8')).not.toMatch(/\b3 \* H\b/)
     })
     it('formato nulo: as duas regras escritas', () => {
       const r = resultado({ formato: 'longos', limite: 500 }, (ds) => { ds.videos.find((v) => v.id === 'luke-damant-l1')!.isShort = null })
-      expect(cab(empacotarConsulta(r))).toMatch(/Formato não confirmado: 1 \(o multiplicador os conta como longos; a M7 os deixa de fora\)/)
+      expect(cab(empacotarConsulta(r))).toMatch(/Formato não confirmado \(nas \d+ linhas devolvidas\): 1 \(o multiplicador os conta como longos; a M7 os deixa de fora\)/)
     })
     it('sem formato nulo a linha não sai', () => {
       expect(cab(empacotarConsulta(resultado({ formato: 'longos', limite: 500 })))).not.toMatch(/Formato não confirmado/)
@@ -140,8 +170,8 @@ describe('empacotarConsulta', () => {
       expect(c).toMatch(/Sem os canais: Luke \(tempo_esgotado\)/); expect(c).toMatch(/Canais não encontrados: Z/)
     })
     it('base fraca: contagem e destino no agregado', () => {
-      expect(cab(empacotarConsulta(resultado()))).toMatch(/Base fraca: \d+ \(fora do agregado do multiplicador\)/)
-      expect(cab(empacotarConsulta(resultado({ incluirBaseFraca: true })))).toMatch(/Base fraca: \d+ \(dentro do agregado do multiplicador\)/)
+      expect(cab(empacotarConsulta(resultado()))).toMatch(/Base fraca: \d+ entre as elegíveis \(fora do agregado do multiplicador\)/)
+      expect(cab(empacotarConsulta(resultado({ incluirBaseFraca: true })))).toMatch(/Base fraca: \d+ entre as elegíveis \(dentro do agregado do multiplicador\)/)
     })
   })
 

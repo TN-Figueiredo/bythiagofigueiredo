@@ -16,15 +16,15 @@ export interface AgregadoDoBloco {
   baseFraca: number; sincAtrasado: number
 }
 
-const CAUSA_CANAL_SEM_MEDIDA = 'medidas do canal indisponíveis'
-
 function resumo(xs: number[], semOsVideos: string[], semOsCanais: string[]): PorMetrica {
   return { mediana: median([...xs]), q1: quant([...xs], 0.25), q3: quant([...xs], 0.75), n: xs.length, semOsVideos, semOsCanais }
 }
 
 export function agregar(todas: LinhaDaConsulta[], p: PedidoDaConsulta, e: EntradaDoConjunto): AgregadoDoBloco {
   const porMetrica: AgregadoDoBloco['porMetrica'] = {}
-  const semCanais = (m: MetricaDaConsulta): string[] => [...new Set(todas.filter((l) => l.celulas[m]?.causa?.startsWith(CAUSA_CANAL_SEM_MEDIDA)).map((l) => l.canal))]
+  // canal sem medida: ausente de `porCanal` ou com `naoCarregou`; o código do canal (não o nome) vai para o texto
+  const semMedida = (id: string): boolean => { const c = e.medidas.porCanal.get(id); return c === undefined || 'naoCarregou' in c }
+  const semCanais = (m: MetricaDaConsulta): string[] => [...new Set(todas.filter((l) => l.celulas[m]?.estado !== 'medido' && l.celulas[m]?.estado !== 'zero_medido' && semMedida(l.canalId)).map((l) => l.canalId))]
   const medidos = (m: MetricaDaConsulta, f: (l: LinhaDaConsulta) => boolean = () => true): number[] =>
     todas.filter((l) => f(l) && l.celulas[m]?.x != null).map((l) => l.celulas[m]!.x!)
 

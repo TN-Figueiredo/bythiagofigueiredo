@@ -58,7 +58,8 @@ export function montarConjunto(p: PedidoDaConsulta, e: EntradaDoConjunto): { lon
     const semMedidaDoCanal = doCanal === undefined ? 'medidas do canal não carregadas' : 'naoCarregou' in doCanal ? `medidas do canal indisponíveis: ${doCanal.naoCarregou}` : null
 
     const celulas: LinhaDaConsulta['celulas'] = {}
-    const pedida = (m: MetricaDaConsulta) => p.metricas.includes(m)
+    // a métrica de ordenação entra na conta mesmo fora de `metricas`: a ordem não depende de o tradutor lembrar de incluí-la
+    const pedida = (m: MetricaDaConsulta) => m === p.ordenarPor || p.metricas.includes(m)
     const motivos: string[] = []
     if (v.isShort === null) motivos.push('formato não confirmado')
     if (ch.removalRequestedAt) motivos.push('canal agendado para apagar')
