@@ -6,7 +6,7 @@ import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ACOES } from '@/lib/youtube/observatorio/acesso-ia/acoes'
-import { EXEMPLO_DA_ACAO, TODOS_OS_CAMPOS } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
+import { EXEMPLO_DA_ACAO, EXEMPLO_DA_SERIE_DE_CANAIS, TODOS_OS_CAMPOS } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { executarChamada, type Responder } from './executar'
 
@@ -20,7 +20,8 @@ export const DESCRICAO =
   // para o cliente que ignora as `instructions` (não se sabe se o conector web do Claude.ai as entrega)
   'Toda resposta termina com "Cobertura" (quanto você viu e as próximas chamadas): diga a cobertura antes de recomendar e ofereça aprofundar. ' +
   'Um pedido válido por ação (troque <uuid> pelo id da coluna Id de listar_canais):\n' +
-  ACOES.map((a) => `- ${EXEMPLO_DA_ACAO[a]}`).join('\n')
+  ACOES.map((a) => `- ${EXEMPLO_DA_ACAO[a]}`).join('\n') +
+  `\n- vários canais na mesma série (até 6; só em tabela): ${EXEMPLO_DA_SERIE_DE_CANAIS}`
 
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
 export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5'
@@ -47,13 +48,13 @@ const FORMA = {
   acao: z.union([z.enum(ACOES), z.string()]).describe('A ação.'),
   canal_id: z.string().optional().describe('uuid do canal ou id do YouTube (canal, serie, mudancas).'),
   video_id: z.string().optional().describe('uuid ou id do YouTube do vídeo (video, serie).'),
-  canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. Para comparar com o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
+  canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. serie: de 1 a 6 canais na mesma tabela (sempre CSV). Para incluir o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
   janela: z.union([z.string(), z.number()]).optional().describe('7, 30, 90 ou todas.'),
   formato: z.string().optional().describe('todos, longos ou shorts.'),
   nicho: z.string().optional(),
   a_partir_da_linha: z.union([z.number(), z.string()]).optional().describe('listar_canais, destaques, mudancas: a 1ª linha desta janela (padrão 1); a seção Cobertura diz qual pedir a seguir.'),
   marca: z.string().optional().describe('devolvida pela Cobertura; repita na janela seguinte.'),
-  saida: z.string().optional().describe('listar_canais, destaques, mudancas e serie (de um canal): "tabela" devolve CSV para gráfico e planilha; padrão "texto".'),
+  saida: z.string().optional().describe('listar_canais, destaques, mudancas e serie: "tabela" devolve CSV para gráfico e planilha; padrão "texto".'),
   de: z.string().optional().describe('serie: AAAA-MM-DD.'),
   ate: z.string().optional().describe('serie: AAAA-MM-DD.'),
   grao: z.string().optional().describe('serie: dia ou semana.'),
