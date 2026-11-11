@@ -22,6 +22,7 @@ import { EMPACOTAR, resolverProprio, type FaltouNoPar, type OpcoesDoPacote } fro
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 import { respostaEmTabela } from './resposta-tabela'
+import { lugaresParaDefinicoes, type LugaresParaDefinicoes } from '../_consultar/dados'
 import type { CanalDaSerieMulti } from './serie-tabela'
 import { diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
@@ -291,6 +292,27 @@ function unirDefinicoes(modelos: PacoteModelo[]): PacoteModelo {
     avisos: unicos(modelos.flatMap((m) => m.avisos)), naoMede: unicos(modelos.flatMap((m) => m.naoMede)),
     privado: { estado: 'na' }, comentarios: { estado: 'na' }, vazio: null, motivoDoMagro: null, listasCompletas: false,
   }
+}
+
+/** Teto de linhas de lugares em `definicoes`; o resto vira uma linha de "mais N lugares". */
+const LUGARES_EM_DEFINICOES = 60
+const dataBR = (iso: string): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(new Date(iso))
+const horaBR = (iso: string): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
+/** O bloco de lugares de `definicoes`: cada ausência tem a sua frase e a falha é escrita, nunca uma lista vazia muda. */
+function blocoDeLugares(l: LugaresParaDefinicoes): string {
+  if (l.estado === 'falhou') return 'Lugares com dados: a lista de lugares não carregou agora; tente de novo.'
+  if (l.estado === 'nunca') return 'Lugares com dados: lugares nunca calculados neste site.'
+  if (l.estado === 'desligado') return 'Lugares com dados: lugares não calculados: tarefa desligada.'
+  const quando = `(calculados em ${dataBR(l.computadoEm)} às ${horaBR(l.computadoEm)}, horário de Brasília)`
+  const aviso = l.atrasado ? [`Lugares desatualizados desde ${dataBR(l.computadoEm)} (mais de 36 h sem novo cálculo; vídeos publicados depois não entram na conta).`] : []
+  if (l.lugares.length === 0) {
+    const vazio = l.totalDeVideos === 0 ? 'o cálculo não marcou nenhum vídeo de concorrente' : `nenhum lugar com 3 vídeos ou mais entre os ${l.totalDeVideos} vídeos calculados`
+    return [`Lugares com dados ${quando}: ${vazio}; pergunte pelo slug em \`consultar\`.`, ...aviso].join('\n')
+  }
+  const linhas = l.lugares.slice(0, LUGARES_EM_DEFINICOES).map((x) => `- ${x.slug}: ${x.n} vídeos`)
+  const resto = l.lugares.length - LUGARES_EM_DEFINICOES
+  if (resto > 0) linhas.push(`mais ${resto} lugares com dados; pergunte pelo slug em \`consultar\``)
+  return [`Lugares com dados (no mínimo 3 vídeos de canais de terceiros cada) ${quando}:`, ...aviso, ...linhas].join('\n')
 }
 
 /* ------------------------------------------------------------------ a resposta */
@@ -596,7 +618,9 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (m) modelos.push(m.modelo)
       }
       if (modelos.length === 0) return NAO_ENCONTRADO(params)
-      const f = textoDoModelo(unirDefinicoes(modelos), null, agora, tetoFinal - (topo === '' ? 0 : topo.length + 1))
+      const lugares = blocoDeLugares(await lugaresParaDefinicoes(agora, abrir).catch((): LugaresParaDefinicoes => ({ estado: 'falhou' })))
+      const f = textoDoModelo(unirDefinicoes(modelos), null, agora, tetoFinal - (topo === '' ? 0 : topo.length + 1) - lugares.length - 2)
+      f.texto = f.texto + '\n\n' + lugares
       const cob: Cobertura = { apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: f.rotulos, numeros: f.numeros, vazio: false, proximas: [] }
       return comCobertura(cabeEm(comTopo(f.texto, topo, null), tetoFinal), cob, { ...params, privado: false, comentarios: false, cortes: 0 }, t0)
     }

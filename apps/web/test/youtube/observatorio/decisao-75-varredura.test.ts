@@ -21,10 +21,11 @@ function linhas(): Array<{ arq: string; n: number; texto: string }> {
   return TODOS.flatMap((p) => readFileSync(p, 'utf8').split('\n').map((texto, i) => ({ arq: relative(RAIZ, p), n: i + 1, texto })).filter((x) => !ehComentario(x.texto)))
 }
 
-/** Só estas três: falha de OUTRA coisa que a medida. Qualquer outra minúscula "não carregou"/"não carregaram" falha. */
+/** Só estas quatro: falha de OUTRA coisa que a medida. Qualquer outra minúscula "não carregou"/"não carregaram" falha. */
 const PERMITIDAS: Array<{ arq: string; razao: string }> = [
   { arq: 'app/cms/(authed)/youtube/competitors/_chrome/thumb-viewer/thumb-viewer.tsx', razao: 'falha de imagem, não de medida' },
   { arq: 'lib/youtube/observatorio/medidas-telas/carregar-do-site.ts', razao: 'mensagem do Sentry; buscas e alertas dependem do texto' },
+  { arq: 'app/cms/(authed)/youtube/competitors/_acesso-ia/responder.ts', razao: 'lista de lugares de definicoes, não de medida (frase do plano A4 T11)' },
   { arq: 'lib/conferencias.ts', razao: 'checklist interno (trocar quando a Task 9/10 tocar o arquivo)' },
 ]
 
@@ -36,9 +37,9 @@ describe('decisão 75, varredura da Task 8a', () => {
     const achados = linhas().filter((x) => /obs-md-nc|vb-falhou|(?<![a-z])NaoCarregou\b/.test(x.texto))
     expect(achados.map((x) => `${x.arq}:${x.n}`)).toEqual([])
   })
-  it('minúsculas "não carregou"/"não carregaram" só nas 3 PERMITIDAS', () => {
+  it('minúsculas "não carregou"/"não carregaram" só nas 4 PERMITIDAS', () => {
     const permitidas = new Set(PERMITIDAS.map((p) => p.arq))
-    expect(PERMITIDAS).toHaveLength(3)
+    expect(PERMITIDAS).toHaveLength(4)
     const achados = linhas().filter((x) => /não carregou|não carregaram/.test(x.texto) && !permitidas.has(x.arq.replace(/\\/g, '/')))
     expect(achados.map((x) => `${x.arq}:${x.n}`)).toEqual([])
   })

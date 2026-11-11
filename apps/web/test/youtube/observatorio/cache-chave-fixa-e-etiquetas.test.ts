@@ -33,7 +33,7 @@ describe('comChaveFixa e ENTRADAS', () => {
     const { ENTRADAS } = await import('@/lib/youtube/observatorio/cache-tag')
     const v = Object.values(ENTRADAS)
     expect(new Set(v).size).toBe(v.length)
-    expect(v).toHaveLength(8)
+    expect(v).toHaveLength(9)
   })
   it('dois callbacks de texto diferente (dois pacotes minificados) com o mesmo nome acertam a mesma entrada; sem o helper, erram (controle)', async () => {
     const cache = createFakeNextCache()
@@ -107,11 +107,12 @@ describe('estrutural: todo unstable_cache do Observatório tem chave fixa e etiq
   const SEM_CANAL: Record<string, string> = {
     'lib/youtube/observatorio/arquivo-mensal/aviso-leve.ts': 'aviso do arquivo: por site, etiqueta arquivo:<site>',
     'app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome.ts': 'sinal do tamanho do banco: por site, etiqueta arquivo-banco:<site>',
+    'lib/youtube/observatorio/lugar/leitura.ts': 'mapa de lugares: por site e por cálculo, etiqueta observatorio-lugares:<site>',
   }
   it('a varredura enxerga os usos (o padrão não está morto)', () => {
     expect(ALVOS.map(f => f.file).sort()).toEqual([
       'app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome.ts', 'lib/youtube/observatorio/arquivo-mensal/aviso-leve.ts', 'lib/youtube/observatorio/load-page.ts',
-      'lib/youtube/observatorio/medidas-telas/carregar-do-canal.ts', 'lib/youtube/observatorio/medidas-telas/carregar-do-site.ts', 'lib/youtube/observatorio/medidas-telas/carregar-do-video.ts',
+      'lib/youtube/observatorio/lugar/leitura.ts', 'lib/youtube/observatorio/medidas-telas/carregar-do-canal.ts', 'lib/youtube/observatorio/medidas-telas/carregar-do-site.ts', 'lib/youtube/observatorio/medidas-telas/carregar-do-video.ts',
     ])
   })
   it('toda ocorrência de unstable_cache( recebe comChaveFixa(ENTRADAS. como 1º argumento (ou o `o.nome` tipado do viaCache)', () => {
