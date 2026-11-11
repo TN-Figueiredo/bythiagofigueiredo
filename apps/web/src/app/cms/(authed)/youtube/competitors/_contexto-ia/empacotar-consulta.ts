@@ -132,7 +132,7 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   const pedido = [`formato ${p.formato}`, `janela_idade ${janela}`, ...(p.canalIds?.length ? [`canais ${p.canalIds.length}`] : []), ...(p.nicho ? [`nicho ${p.nicho}`] : []), ...(p.lugar ? [`lugar ${p.lugar}`] : []),
     ...(p.publicadoDe ? [`publicado de ${p.publicadoDe}`] : []), ...(p.publicadoAte ? [`publicado até ${p.publicadoAte}`] : []), `métricas ${p.metricas.join(', ')}`, `limite ${p.limite}`, `incluir_base_fraca ${p.incluirBaseFraca ? 'sim' : 'não'}`]
   L.push(['Pedido', pedido.join('; ')])
-  L.push(['Ordenado por', `${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo}${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo === p.ordenarPor ? '' : ` (${p.ordenarPor})`}, ${p.direcao === 'desc' ? 'do maior para o menor' : 'do menor para o maior'}`])
+  L.push(['Ordenado por', `${p.ordenarPor === 'vpd7' ? 'crescimento de views: views por dia nos últimos 7 dias (vpd7)' : `${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo}${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo === p.ordenarPor ? '' : ` (${p.ordenarPor})`}`}, ${p.direcao === 'desc' ? 'do maior para o menor' : 'do menor para o maior'}`])
   L.push(['Janela usada', `${janela}; idade = dias de 24 h desde a publicação`])
   const eleg = r.blocos.reduce((s, b) => s + b.agregado.elegiveis, 0), sel = r.blocos.reduce((s, b) => s + b.linhas.length, 0), cort = r.blocos.reduce((s, b) => s + b.cortadasPorLimite, 0)
   const tam = r.blocos.reduce((s, b) => s + (b.cortadasPorTamanho ?? 0), 0)

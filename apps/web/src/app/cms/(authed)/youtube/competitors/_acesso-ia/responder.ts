@@ -22,6 +22,8 @@ import { EMPACOTAR, resolverProprio, type FaltouNoPar, type OpcoesDoPacote } fro
 import { TODOS_OS_CAMPOS, fraseDeRecusa } from '@/lib/youtube/observatorio/acesso-ia/exemplos'
 import { classeDa, degrausDoLimite, escolherCorte, janela, type ClasseNaIa } from './corte-da-ia'
 import { respostaEmTabela } from './resposta-tabela'
+import { montarConsulta, type RecusaDaConsulta } from '../_consultar/montar'
+import { respostaDaConsulta } from './consultar'
 import { lugaresParaDefinicoes, type LugaresParaDefinicoes } from '../_consultar/dados'
 import type { CanalDaSerieMulti } from './serie-tabela'
 import { diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
@@ -42,7 +44,7 @@ const avisar = (passo: string, extra?: Record<string, number | string>): void =>
 const CAMPOS = TODOS_OS_CAMPOS
 const ehCampo = (s: unknown): s is string => typeof s === 'string' && CAMPOS.includes(s)
 
-/** A ação que a pessoa mandou, só se for uma das dez; qualquer outra coisa vira `null` (nunca se ecoa). */
+/** A ação que a pessoa mandou, só se for uma das onze; qualquer outra coisa vira `null` (nunca se ecoa). */
 const acaoConhecida = (e: unknown): Acao | null => {
   const a = typeof e === 'object' && e !== null ? (e as { acao?: unknown }).acao : undefined
   return typeof a === 'string' && (ACOES as readonly string[]).includes(a) ? (a as Acao) : null
@@ -541,6 +543,29 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         proximas: cortado ? [{ chamada: { acao: 'comparar', canal_ids: [cortado.a === 'próprio' ? 'proprio' : cortado.a, cortado.b] }, para: 'comparar só este par, com o texto inteiro para ele' }] : [],
       }
       return comCobertura(texto, cob, { ...params, privado, comentarios, cortes: cortes.n, pares }, t0, privado || comentarios)
+    }
+
+    /* ---- consultar (A4 R5): o montador devolve o resultado ou a recusa; o prazo é o da `executar` (sem corrida própria) */
+    if (entrada.acao === 'consultar') {
+      if (!pedido.consulta) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, params)
+      const feito = await montarConsulta(abrir, pedido.consulta, agora)
+      if ('recusa' in feito) {
+        const { entidade: _e, ...base } = entrada
+        void _e
+        const sem: Record<RecusaDaConsulta, { campo: 'lugar' | 'nicho' | 'canal_ids' | null; desfecho: 'nao_encontrado' | 'falhou' }> = {
+          lugar_desconhecido: { campo: null, desfecho: 'nao_encontrado' }, lugar_sem_calculo: { campo: 'lugar', desfecho: 'nao_encontrado' },
+          lugar_falhou: { campo: 'lugar', desfecho: 'falhou' }, nicho_desconhecido: { campo: 'nicho', desfecho: 'nao_encontrado' },
+          canais_nao_encontrados: { campo: 'canal_ids', desfecho: 'nao_encontrado' },
+        }
+        const { campo, desfecho } = sem[feito.recusa]
+        let chamada: Record<string, unknown> = { acao: 'definicoes' }
+        if (campo !== null) { const resto: Record<string, unknown> = { ...base }; delete resto[campo]; chamada = resto }
+        const proxima = validas([{ chamada, para: campo === null ? 'ver os lugares com dados' : `repetir a consulta sem ${campo}` }])
+        const linhaDaProxima = proxima.length > 0 ? `\nPróxima chamada: ${JSON.stringify(proxima[0]!.chamada)}` : ''
+        return resp(desfecho, `${feito.frase}${linhaDaProxima}`, params)
+      }
+      const r = respostaDaConsulta(feito, entrada, tetoFinal, agora)
+      return comCobertura(r.texto, r.cobertura, { ...params, ...r.params, cortes: r.params.cortes as number }, t0)
     }
 
     /* ---- serie de vários canais (A5 F2b): um canal por vez, na ordem do pedido, com o prazo dentro do responder */

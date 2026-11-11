@@ -2,7 +2,7 @@
 import type { PacoteSerializado } from '../contexto-ia/segmentar'
 
 export interface Cobertura {
-  lista?: { titulo: string; de: number; ate: number; total: number; concorrentes?: boolean }
+  lista?: { titulo: string; de: number; ate: number; total: number; concorrentes?: boolean; ordem?: 'da tela' | 'do pedido'; semJanela?: { limite: number } }
   serie?: { pontos: number; medidos?: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; semData?: number; semDado?: { de: string; ate: string } }
   apoio: { inteiras: number; total: number; cortadas: Array<{ titulo: string; saiu: number; de: number }> }
   foraDoPacote?: { mostrados: number; total: number }
@@ -81,7 +81,7 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.lista) {
     const l = c.lista
     const trecho = l.total === 0 ? '0 de 0 linhas' : `linhas ${l.de}–${l.ate} de ${l.total}`
-    L.push(`- Lista principal ("${encurta(l.titulo, n.tituloDaLista)}"): ${trecho}${l.concorrentes ? '; seu canal está na parte do dado privado' : ''}, na ordem da tela.${c.lidaAs ? ` Lida às ${c.lidaAs}.` : ''}`)
+    L.push(`- Lista principal ("${encurta(l.titulo, n.tituloDaLista)}"): ${trecho}${l.concorrentes ? '; seu canal está na parte do dado privado' : ''}, na ordem ${l.ordem === 'do pedido' ? 'do pedido' : 'da tela'}.${l.semJanela && l.ate < l.total ? ` Esta lista não tem janela: estreite o filtro (lugar, canal_ids, janela_idade)${l.semJanela.limite < 50 ? ' ou peça limite 50' : ''}.` : ''}${c.lidaAs ? ` Lida às ${c.lidaAs}.` : ''}`)
   }
   if (c.serie) {
     const s = c.serie

@@ -27,7 +27,7 @@ export const FRASES_DA_CONSULTA = {
   lugar_nunca: 'lugares nunca calculados neste site',
   lugar_desligado: 'lugares não calculados: tarefa desligada',
   lugar_falhou: 'não medido: leitura de lugares falhou; tente de novo',
-  lugares_nao_carregaram: 'lugares não carregaram agora; a coluna lugares sai "não lido"',
+  lugares_nao_carregaram: 'lugares não vieram agora; a coluna lugares sai "não lido"',
   nicho_desconhecido: 'nicho desconhecido',
 } as const
 
