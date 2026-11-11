@@ -170,6 +170,7 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
     }
     return Object.keys(o).length > 0 ? o : undefined
   },
+  canais_sem_medida: (v) => (contador(v) ? v : undefined),
   n_metricas: (v) => (contador(v) ? v : undefined),
   n_faixas: (v) => (contador(v) ? v : undefined),
   // `ambiente` não é do chamador: a função repõe o dela

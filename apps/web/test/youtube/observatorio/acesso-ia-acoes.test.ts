@@ -38,12 +38,12 @@ const recusa = (e: Entrada): string => {
   return r.frase
 }
 
-describe('as dez ações', () => {
+describe('as onze ações', () => {
   it('são as do spec (lista escrita aqui de propósito)', () => {
-    expect([...ACOES]).toEqual(['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes'])
+    expect([...ACOES]).toEqual(['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes', 'consultar'])
   })
 
-  it('o mapa cobre as dez: cada ação tem uma entrada mínima que é aceita', () => {
+  it('o mapa cobre as onze: cada ação tem uma entrada mínima que é aceita', () => {
     const minimas = {
       definicoes: { acao: 'definicoes' },
       listar_canais: { acao: 'listar_canais' },
@@ -55,6 +55,7 @@ describe('as dez ações', () => {
       mudancas: { acao: 'mudancas' },
       pacote_da_tela: { acao: 'pacote_da_tela', tela: 'canais' },
       sugestoes: { acao: 'sugestoes' },
+      consultar: { acao: 'consultar', entidade: 'video' },
     } satisfies Record<Acao, Entrada>
     for (const a of ACOES) expect(pedir(minimas[a]).ok, a).toBe(true)
   })

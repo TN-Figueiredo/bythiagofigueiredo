@@ -14,7 +14,7 @@ export const NOME_DA_FERRAMENTA = 'observatorio_leitura'
 
 export const DESCRICAO =
   'Lê o Observatório do YouTube (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
-  'Só leitura. Escolha uma das dez ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela ou sugestoes (as sugestões do nicho: só leitura). ' +
+  'Só leitura. Escolha uma das onze ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela, sugestoes (as sugestões do nicho: só leitura) ou consultar (lista de vídeos filtrada por lugar, canal, idade e data, ordenada pela medida que você escolher). ' +
   'Cada ação aceita só os campos que a ela cabem; o resto é recusado. ' +
   'Para gráfico ou planilha, peça saida "tabela" (CSV com número de máquina; célula vazia não é zero; cada tabela traz o gráfico sugerido: linha, barra, pizza ou nenhum). ' +
   // para o cliente que ignora as `instructions` (não se sabe se o conector web do Claude.ai as entrega)
@@ -24,17 +24,18 @@ export const DESCRICAO =
   `\n- vários canais na mesma série (até 6; só em tabela): ${EXEMPLO_DA_SERIE_DE_CANAIS}`
 
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
-export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5'
+export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu (ex.: "vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X dito em palavras (o texto depois de " : " em "Próximas chamadas").' },
+  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu ("vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (o texto depois de " : " em "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
-  { fatia: 'T6', texto: 'Pedido recusado traz o formato e um exemplo válido: corrija e tente de novo uma vez.' },
-  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
-  { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: ele foi calculado sobre todas as linhas, não só as que vieram.' },
-  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco (nunca zero); pizza só onde sugerido. Publicações por mês não é medida por nenhuma tela: use a coluna Ritmo de listar_canais em tabela (e a nota de cada canal) e diga que mês não é medido.' },
+  { fatia: 'T6', texto: 'Pedido recusado traz formato e exemplo válido: corrija e tente de novo uma vez.' },
+  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
+  { fatia: 'T10', texto: 'Para o conjunto, use o "Resumo do todo" do topo: vale para todas as linhas.' },
+  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
+  { fatia: 'A4', texto: 'Na consultar, diga por qual medida ordenou e ofereça outra; a lista não tem janela: estreite o filtro.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
-const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5'])
+const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5', 'A4'])
 
 export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
   const itens = ITENS_DE_INSTRUCAO.filter((i) => ligadas.has(i.fatia))
@@ -48,7 +49,7 @@ const FORMA = {
   acao: z.union([z.enum(ACOES), z.string()]).describe('A ação.'),
   canal_id: z.string().optional().describe('uuid do canal ou id do YouTube (canal, serie, mudancas).'),
   video_id: z.string().optional().describe('uuid ou id do YouTube do vídeo (video, serie).'),
-  canal_ids: z.array(z.string()).optional().describe('comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. serie: de 1 a 6 canais na mesma tabela (sempre CSV). Para incluir o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
+  canal_ids: z.array(z.string()).optional().describe('consultar: até 6 canais do filtro (sem proprio). comparar: de 2 a 6 canais; o primeiro é comparado com cada um dos outros. serie: de 1 a 6 canais na mesma tabela (sempre CSV). Para incluir o seu canal, use `proprio` como primeiro id. Os ids (uuid) saem na coluna Id de listar_canais.'),
   janela: z.union([z.string(), z.number()]).optional().describe('7, 30, 90 ou todas.'),
   formato: z.string().optional().describe('todos, longos ou shorts.'),
   nicho: z.string().optional(),
@@ -62,6 +63,16 @@ const FORMA = {
   tela: z.string().optional().describe('pacote_da_tela: a tela.'),
   id: z.string().optional().describe('pacote_da_tela: o id, se a tela pedir.'),
   parametros: z.record(z.string(), z.string()).optional().describe('pacote_da_tela: parâmetros da tela.'),
+  entidade: z.string().optional().describe('consultar: video (padrão).'),
+  lugar: z.string().optional().describe('consultar: local:<slug> ou pais:<XX>, os de definicoes.'),
+  janela_idade: z.union([z.string(), z.array(z.string())]).optional().describe('consultar: todas, uma faixa ou lista (0-30, 31-90, 91-180, 181-365, 365+).'),
+  publicado_de: z.string().optional().describe('consultar: AAAA-MM-DD.'),
+  publicado_ate: z.string().optional().describe('consultar: AAAA-MM-DD.'),
+  metricas: z.array(z.string()).optional().describe('consultar: views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos.'),
+  ordenar_por: z.string().optional().describe('consultar: uma das métricas (padrão multiplicador).'),
+  direcao: z.string().optional().describe('consultar: desc (padrão) ou asc.'),
+  limite: z.union([z.number(), z.string()]).optional().describe('consultar: de 1 a 50 linhas (padrão 20).'),
+  incluir_base_fraca: z.union([z.boolean(), z.string()]).optional().describe('consultar: true inclui vídeos de base fraca no agregado do multiplicador.'),
 }
 
 export function registrarServidorDoObservatorio(server: McpServer, responder: Responder): void {

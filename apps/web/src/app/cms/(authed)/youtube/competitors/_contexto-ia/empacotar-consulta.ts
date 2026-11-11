@@ -19,12 +19,22 @@ const COLUNAS = ['Título', 'Canal', 'Código do vídeo', 'Publicado em', 'Idade
 
 export interface ResultadoDaConsulta {
   pedido: PedidoDaConsulta
-  blocos: Array<{ formato: 'longos' | 'shorts'; linhas: LinhaDaConsulta[]; agregado: AgregadoDoBloco; cortadasPorLimite: number }>
-  lugar?: { estado: 'marcado' | 'sem_lugar' | 'sem_calculo'; calculadoEm: string | null; atrasado: boolean; emRecalculo: boolean; semLugarCalculado: number; maisDeUmLugar: number; maisDeUmLugarSobre: 'marcados' | 'linhas' }
+  /** `cortadasPorTamanho`: linhas que o limite de caracteres da resposta tirou do fim do bloco (depois do corte por `limite`). */
+  blocos: Array<{ formato: 'longos' | 'shorts'; linhas: LinhaDaConsulta[]; agregado: AgregadoDoBloco; cortadasPorLimite: number; cortadasPorTamanho?: number }>
+  /** `desligado`: a tarefa de lugares está desligada, mas há cálculo: o mapa serve e a frase diz isso (decisão Phil M-3, A4 R5). */
+  lugar?: { estado: 'marcado' | 'sem_lugar' | 'sem_calculo'; calculadoEm: string | null; atrasado: boolean; emRecalculo: boolean; semLugarCalculado: number; maisDeUmLugar: number; maisDeUmLugarSobre: 'marcados' | 'linhas'; desligado?: boolean }
   /** ISO de cada fonte; nulo = "não lido" (nunca a hora do pedido). */
   dadosDe: { motor: string | null; medidas: string | null; lugares: string | null }
   canaisSemMedida: Array<{ nome: string; causa: string }>
   canaisNaoEncontrados: string[]
+  /** `canal_ids` com id que não existe: quantos entre os pedidos (só quando há algum). */
+  naoEncontrados?: { quantos: number; de: number }
+  /** Canais do conjunto sem `sync.last` (nenhuma sincronização boa): a hora do motor não os inclui e nunca vira a do pedido. */
+  canaisSemSync?: string[]
+  /** Sem filtro de lugar: a frase do estado dos lugares quando a coluna `lugares` não pôde ser lida (nunca calculados, tarefa desligada, não carregaram). */
+  lugaresNota?: string
+  /** ISO da mais velha das leituras (motor, medidas, `lidoEm` do mapa de lugares); é o que o registro guarda em `dados_de`. Não aparece no texto. */
+  leituraMaisAntiga?: string | null
 }
 
 // ───────────────────────── células
@@ -122,10 +132,12 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   const pedido = [`formato ${p.formato}`, `janela_idade ${janela}`, ...(p.canalIds?.length ? [`canais ${p.canalIds.length}`] : []), ...(p.nicho ? [`nicho ${p.nicho}`] : []), ...(p.lugar ? [`lugar ${p.lugar}`] : []),
     ...(p.publicadoDe ? [`publicado de ${p.publicadoDe}`] : []), ...(p.publicadoAte ? [`publicado até ${p.publicadoAte}`] : []), `métricas ${p.metricas.join(', ')}`, `limite ${p.limite}`, `incluir_base_fraca ${p.incluirBaseFraca ? 'sim' : 'não'}`]
   L.push(['Pedido', pedido.join('; ')])
-  L.push(['Ordenado por', `${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo}${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo === p.ordenarPor ? '' : ` (${p.ordenarPor})`}, ${p.direcao === 'desc' ? 'do maior para o menor' : 'do menor para o maior'}`])
+  L.push(['Ordenado por', `${p.ordenarPor === 'vpd7' ? 'crescimento de views: views por dia nos últimos 7 dias (vpd7)' : `${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo}${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo === p.ordenarPor ? '' : ` (${p.ordenarPor})`}`}, ${p.direcao === 'desc' ? 'do maior para o menor' : 'do menor para o maior'}`])
   L.push(['Janela usada', `${janela}; idade = dias de 24 h desde a publicação`])
   const eleg = r.blocos.reduce((s, b) => s + b.agregado.elegiveis, 0), sel = r.blocos.reduce((s, b) => s + b.linhas.length, 0), cort = r.blocos.reduce((s, b) => s + b.cortadasPorLimite, 0)
-  L.push(['Elegíveis', `${eleg}; selecionados pelo limite: ${sel}; cortados por limite: ${cort}`])
+  const tam = r.blocos.reduce((s, b) => s + (b.cortadasPorTamanho ?? 0), 0)
+  L.push(['Elegíveis', `${eleg}; selecionados pelo limite: ${sel + tam}; cortados por limite: ${cort}${tam > 0 ? `; cortados por tamanho: ${tam}` : ''}`])
+  L.push(['Linhas por bloco', r.blocos.map((b) => `${b.formato === 'shorts' ? 'Shorts' : 'longos'}: ${b.linhas.length} de ${b.agregado.elegiveis}`).join('; ')])
 
   const todas = r.blocos.flatMap((b) => b.linhas)
   const naoMedidos = p.metricas.map((m) => [m, todas.filter((l) => l.celulas[m]?.estado === 'nao_medido').length] as const).filter(([, n]) => n > 0)
@@ -140,7 +152,7 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
     if (g.estado === 'sem_calculo') f.push('lugares nunca calculados para este site')
     else {
       f.push(g.estado === 'marcado' ? `marcado com ${p.lugar ?? ''} (título, tags, início da descrição ou local de gravação)` : 'calculado, sem lugar')
-      f.push(`lugares calculados em ${dh(g.calculadoEm)}`)
+      f.push(g.desligado ? `tarefa de lugares desligada; lugares calculados em ${dh(g.calculadoEm)}` : `lugares calculados em ${dh(g.calculadoEm)}`)
       if (g.atrasado) f.push('atrasado (mais de 36 h desde o último cálculo)')
       if (g.emRecalculo) f.push('lugares em recálculo agora')
       if (g.semLugarCalculado > 0) f.push(`${g.semLugarCalculado} ${g.semLugarCalculado === 1 ? 'vídeo do conjunto chegou' : 'vídeos do conjunto chegaram'} depois do cálculo de lugares e não entram neste filtro`)
@@ -157,9 +169,12 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   const atr = r.blocos.map((b) => b.agregado.sincAtrasado)
   if (r.blocos.length === 1) L.push(['Canais com sync atrasado', String(atr[0]!)])
   else if (r.blocos.length > 1) L.push(['Canais com sync atrasado', r.blocos.map((b) => `${b.agregado.sincAtrasado} entre os ${b.formato === 'shorts' ? 'Shorts' : 'longos'}`).join(', ')])
-  L.push(['Dados de', `motor ${dh(r.dadosDe.motor)}, medidas ${dh(r.dadosDe.medidas)}, lugares ${dh(r.dadosDe.lugares)}`])
+  const semNenhum = r.blocos.every((b) => b.agregado.elegiveis === 0)
+  L.push(['Dados de', semNenhum ? `nenhum vídeo no recorte (a lista está vazia; vazio não é zero), lugares ${dh(r.dadosDe.lugares)}` : `motor ${dh(r.dadosDe.motor)}, medidas ${dh(r.dadosDe.medidas)}, lugares ${dh(r.dadosDe.lugares)}`])
   if (r.canaisSemMedida.length) L.push(['Sem os canais', r.canaisSemMedida.map((c) => `${c.nome} (${c.causa})`).join(', '), 'terceiros'])
+  if (r.canaisSemSync?.length) L.push(['Sem sincronização boa', r.canaisSemSync.join(', '), 'terceiros'])
   if (r.canaisNaoEncontrados.length) L.push(['Canais não encontrados', r.canaisNaoEncontrados.join(', ')])
+  if (r.lugaresNota) L.push(['Lugares', r.lugaresNota])
   if (r.lugar) L.push(['Nota técnica', NOTA_TECNICA.replace('Nota técnica: ', '')])
   return {
     id: 'consulta-cabecalho', titulo: 'Como esta consulta foi lida', tipo: 'fixa', nomeNoCorte: 'tabela do cabeçalho da consulta', privada: false,

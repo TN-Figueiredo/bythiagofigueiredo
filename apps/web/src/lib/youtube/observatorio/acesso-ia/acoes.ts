@@ -12,8 +12,11 @@ import { FRASES_DA_FERRAMENTA } from './frases'
 import { DEFAULT_AGES } from '../rules'
 import { TELAS_IA, telaExiste } from '../contexto-ia/telas'
 import type { TelaId } from '../contexto-ia/tipos'
+import { METRICAS_DA_CONSULTA } from '../consulta/catalogo'
+import type { MetricaDaConsulta, PedidoDaConsulta } from '../consulta/tipos'
+import { OUT_WINDOWS } from '../rules'
 
-export const ACOES = ['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes'] as const
+export const ACOES = ['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes', 'consultar'] as const
 export type Acao = (typeof ACOES)[number]
 
 export interface Pedido {
@@ -34,6 +37,8 @@ export interface Pedido {
   marca?: string
   /** A5 F1b: `tabela` devolve CSV por tabela (listar_canais, destaques, mudancas); padrão `texto`. */
   saida: 'texto' | 'tabela'
+  /** A4 R5: só a `consultar`. */
+  consulta?: PedidoDaConsulta
 }
 
 /* ------------------------------------------------------------------ esquema */
@@ -66,6 +71,17 @@ const parametros = z
   .record(z.string().max(32).regex(/^[a-z_]+$/), z.string().max(64).regex(/^[A-Za-z0-9_.,:-]+$/))
   .refine((r) => Object.keys(r).length <= 12, 'parâmetros demais')
 
+// A4 R5: a `consultar`. Tudo lista fechada, forma fixa ou número limitado; a IA manda número e booleano como texto com frequência (como em `janela`).
+const CHAVES_DE_METRICA = Object.keys(METRICAS_DA_CONSULTA) as [MetricaDaConsulta, ...MetricaDaConsulta[]]
+const metrica = z.enum(CHAVES_DE_METRICA)
+const FAIXAS = OUT_WINDOWS.map((w) => w.id) as [string, ...string[]]
+const faixa = z.enum(FAIXAS)
+const lugarDaConsulta = z.string().max(64).regex(/^(local:[a-z]{2}-[a-z0-9-]{1,40}|pais:[A-Z]{2})$/, 'lugar fora de forma: local:<slug> ou pais:<XX>')
+const limiteDaConsulta = z.preprocess((v) => (typeof v === 'string' && /^\d{1,3}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(50)).optional()
+const booleano = z.preprocess((v) => (v === 'true' ? true : v === 'false' ? false : v), z.boolean()).optional()
+const janelaDaConsulta = z.union([z.literal('todas'), faixa, z.array(faixa).min(1).max(FAIXAS.length)]).optional()
+const canaisDaConsulta = z.array(z.union([z.literal('proprio'), id])).min(1).max(6).optional()
+
 export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('definicoes') }).strict(),
   z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
@@ -76,13 +92,18 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), canal_ids: z.array(z.union([z.literal('proprio'), id])).min(1).max(ACESSO_IA_RULES.tetoDeCanaisDaSerie.canais).optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
+  z.object({
+    acao: z.literal('consultar'), entidade: z.enum(['video', 'canal']).default('video'), lugar: lugarDaConsulta.optional(), formato: formato.optional(), janela_idade: janelaDaConsulta,
+    canal_ids: canaisDaConsulta, nicho: nicho.optional(), publicado_de: data.optional(), publicado_ate: data.optional(), metricas: z.array(metrica).min(1).max(CHAVES_DE_METRICA.length).optional(),
+    ordenar_por: metrica.optional(), direcao: z.enum(['desc', 'asc']).optional(), limite: limiteDaConsulta, incluir_base_fraca: booleano,
+  }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
 ])
 export type Entrada = z.infer<typeof ENTRADA>
 
 /* ------------------------------------------------------------------ o mapa */
 
-export type CampoDeEntrada = 'a_partir_da_linha' | 'marca' | 'saida' | 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'id' | 'parametros'
+export type CampoDeEntrada = 'a_partir_da_linha' | 'marca' | 'saida' | 'canal_id' | 'video_id' | 'canal_ids' | 'janela' | 'formato' | 'nicho' | 'de' | 'ate' | 'grao' | 'desde' | 'tela' | 'entidade' | 'lugar' | 'janela_idade' | 'publicado_de' | 'publicado_ate' | 'metricas' | 'ordenar_por' | 'direcao' | 'limite' | 'incluir_base_fraca' | 'id' | 'parametros'
 type PedidoBase = Omit<Pedido, 'inicio' | 'marca' | 'saida'>
 type Resultado = { ok: true; pedido: PedidoBase } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
 type ResultadoFinal = { ok: true; pedido: Pedido } | { ok: false; frase: string; campos: readonly CampoDeEntrada[] }
@@ -228,7 +249,30 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
   // F2 T8: a primeira ação com leitor próprio (lê a tabela dos sinais, não uma tela). Só leitura; sem parâmetro: o site vem da guarda.
   sugestoes: () => ({ ok: true, pedido: { telas: [{ tela: 'sugestoes', sp: {} }], teto: TETO, limite: NENHUM, semEquivalente: [] } }),
 
+  consultar: (e) => {
+    if (e.entidade !== 'video') return recusar('consultar: entidade "canal" ainda não existe; use "video"', 'entidade')
+    if (e.canal_ids !== undefined) {
+      if (e.canal_ids.includes('proprio')) return recusar('consultar não aceita proprio em canal_ids: o canal próprio fica fora desta lista', 'canal_ids')
+      if (new Set(e.canal_ids.map((c) => c.toLowerCase())).size !== e.canal_ids.length) return recusar('consultar não aceita o mesmo canal duas vezes', 'canal_ids')
+    }
+    if (e.metricas !== undefined && new Set(e.metricas).size !== e.metricas.length) return recusar('consultar: metricas não aceita a mesma métrica duas vezes', 'metricas')
+    if (Array.isArray(e.janela_idade) && new Set(e.janela_idade).size !== e.janela_idade.length) return recusar('consultar: janela_idade não aceita a mesma faixa duas vezes', 'janela_idade')
+    if (e.publicado_de !== undefined && e.publicado_ate !== undefined && e.publicado_de > e.publicado_ate) return recusar('consultar: publicado_de não pode ser depois de publicado_ate', 'publicado_de', 'publicado_ate')
+    const ordenarPor = e.ordenar_por ?? 'multiplicador'
+    const base: MetricaDaConsulta[] = e.metricas ?? ['views', 'likes', 'comentarios', 'multiplicador']
+    const metricas = base.includes(ordenarPor) ? base : [...base, ordenarPor]
+    const janelaIdade: string[] | 'todas' = e.janela_idade === undefined ? [...DEFAULT_AGES] : e.janela_idade === 'todas' ? 'todas' : Array.isArray(e.janela_idade) ? e.janela_idade : [e.janela_idade]
+    const limite = e.limite ?? 20
+    const consulta: PedidoDaConsulta = {
+      formato: e.formato ?? 'todos', janelaIdade, metricas, ordenarPor, direcao: e.direcao ?? 'desc', limite, incluirBaseFraca: e.incluir_base_fraca ?? false,
+      ...(e.canal_ids !== undefined ? { canalIds: e.canal_ids } : {}), ...(e.nicho !== undefined ? { nicho: e.nicho } : {}), ...(e.lugar !== undefined ? { lugar: e.lugar } : {}),
+      ...(e.publicado_de !== undefined ? { publicadoDe: e.publicado_de } : {}), ...(e.publicado_ate !== undefined ? { publicadoAte: e.publicado_ate } : {}),
+    }
+    return { ok: true, pedido: { telas: [{ tela: 'consultar', sp: {} }], teto: TETO, limite: { tipo: 'linhas', n: limite }, semEquivalente: [], consulta } }
+  },
+
   pacote_da_tela: (e) => {
+    if (e.tela === 'consultar') return recusar('a consulta não tem pacote de tela: use a ação consultar', 'tela')
     if (!telaExiste(e.tela)) {
       const existem = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
       return recusar(`tela desconhecida: use uma de ${existem.join(', ')}`, 'tela')
