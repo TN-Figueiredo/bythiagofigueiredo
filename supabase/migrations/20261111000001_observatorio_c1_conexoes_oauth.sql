@@ -540,3 +540,177 @@ begin
 end $$;
 revoke all on function public.obs_ai_revogar_lgpd(uuid) from public, anon, authenticated;
 grant execute on function public.obs_ai_revogar_lgpd(uuid) to service_role;
+
+-- ===== Seção 5: aprovar e negar o pedido =====
+-- Lock da pessoa ANTES de consumir o pedido (aprovar × negar sem 40P01). Recusa de regra = desfaz o consumo por update,
+-- grava o log `recusado` (1 por hora por user/cliente/desfecho) e RETORNA com motivo; erro de infraestrutura = raise.
+
+-- Auxiliar: linha `recusado` com o limite de 1/h por (user_id, cliente, desfecho), sob o lock da pessoa (já pego pelo chamador).
+create or replace function public.obs_ai_log_recusa_consentimento(p_user uuid, p_site uuid, p_cliente text, p_desfecho text, p_motivo text, p_agora timestamptz)
+returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.obs_ai_access_log (at, site_id, user_id, key_id, origin, action, params, included_private, output_chars, result)
+  select p_agora, p_site, p_user, null, 'oauth', 'consentimento',
+         jsonb_strip_nulls(jsonb_build_object('desfecho', p_desfecho, 'cliente', p_cliente, 'motivo', p_motivo)),
+         false, null, 'recusado'
+   where not exists (
+     select 1 from public.obs_ai_access_log l
+      where l.origin = 'oauth' and l.action = 'consentimento' and l.result = 'recusado'
+        and l.user_id is not distinct from p_user
+        and (l.params->>'cliente') is not distinct from p_cliente
+        and (l.params->>'desfecho') = p_desfecho
+        and l.at > p_agora - interval '1 hour');
+end $$;
+revoke all on function public.obs_ai_log_recusa_consentimento(uuid, uuid, text, text, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_log_recusa_consentimento(uuid, uuid, text, text, text, timestamptz) to service_role;
+
+create or replace function public.obs_ai_aprovar_conexao(p_pedido_hash text, p_user uuid, p_site uuid, p_codigo_hash text, p_agora timestamptz)
+returns table (motivo text, conexao_id uuid, redirect_uri text, state text, cliente text)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_p public.obs_ai_oauth_pedidos%rowtype;
+  v_cliente text;
+  v_lib public.obs_ai_liberacoes%rowtype;
+  v_motivo text;
+  v_desfecho text;
+  v_con public.obs_ai_conexoes%rowtype;
+  v_key_exp timestamptz;
+  v_key_rev timestamptz;
+  v_con_id uuid;
+  v_key_id uuid;
+  v_nome text;
+begin
+  if p_user is null then
+    return query select 'sem_login'::text, null::uuid, null::text, null::text, null::text; return;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  update public.obs_ai_oauth_pedidos p set consumido_em = p_agora
+   where p.hash = p_pedido_hash and p.consumido_em is null and p.expires_at > p_agora
+   returning * into v_p;
+  if not found then
+    perform public.obs_ai_log_recusa_consentimento(p_user, p_site, null, 'invalido', null, p_agora);
+    return query select 'pedido_invalido'::text, null::uuid, null::text, null::text, null::text; return;
+  end if;
+  select c.cliente into v_cliente from public.obs_ai_oauth_clientes c where c.client_id = v_p.client_id;
+  if v_p.site_id <> p_site or v_cliente is null then
+    update public.obs_ai_oauth_pedidos p set consumido_em = null where p.hash = p_pedido_hash;
+    perform public.obs_ai_log_recusa_consentimento(p_user, p_site, v_cliente, 'invalido', null, p_agora);
+    return query select (case when v_p.site_id <> p_site then 'site' else 'pedido_invalido' end)::text,
+                        null::uuid, null::text, null::text, null::text;
+    return;
+  end if;
+
+  -- liberação ativa (lida com for update: liberação → conexão → tokens)
+  select * into v_lib from public.obs_ai_liberacoes l
+   where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
+  if not found or v_lib.expires_at <= p_agora then
+    -- cortada pelo dono (a mais recente revogada por 'dono', sem aberta) = cortado; o resto = nao_liberada
+    if not found and (select l.revogada_por from public.obs_ai_liberacoes l
+                       where l.site_id = p_site and l.user_id = p_user
+                       order by l.created_at desc, l.id limit 1) = 'dono' then
+      v_motivo := 'cortado'; v_desfecho := 'cortado';
+    else
+      v_motivo := 'nao_liberada'; v_desfecho := 'sem_direito';
+    end if;
+  else
+    v_motivo := public.obs_ai_motivo_inelegivel(p_user, p_site, p_agora);
+    if v_motivo is not null then
+      v_desfecho := 'sem_direito';
+    elsif v_cliente = any(v_lib.bloqueios) then
+      v_motivo := 'cortado'; v_desfecho := 'cortado';
+    end if;
+  end if;
+
+  -- conexão: reaproveita a ativa de verdade; encerra a morta; cria (com a chave, PL1). O teto da chave volta como motivo.
+  if v_motivo is null then
+    begin
+      select * into v_con from public.obs_ai_conexoes c
+       where c.site_id = p_site and c.user_id = p_user and c.cliente = v_cliente and c.revoked_at is null for update;
+      if found then
+        select k.expires_at, k.revoked_at into v_key_exp, v_key_rev from public.pipeline_api_keys k where k.id = v_con.key_id;
+        if v_key_rev is null and v_key_exp > p_agora then
+          v_con_id := v_con.id;
+        else
+          update public.obs_ai_conexoes c
+             set revoked_at = p_agora,
+                 revogada_por = case when v_key_rev is null and v_key_exp <= p_agora then 'vencida' else 'dono_pessoa' end
+           where c.id = v_con.id;
+        end if;
+      end if;
+      if v_con_id is null then
+        v_nome := 'observatorio-oauth-' || v_cliente || '-'
+          || to_char(now() at time zone 'America/Sao_Paulo', 'YYYYMMDD') || '-' || encode(extensions.gen_random_bytes(2), 'hex');
+        insert into public.pipeline_api_keys (site_id, name, key_hash, permissions, user_id, expires_at, created_by)
+          values (p_site, v_nome, encode(sha256(extensions.gen_random_bytes(32)), 'hex'),
+                  array['observatorio_leitura']::text[], p_user, v_lib.expires_at, null)
+          returning id into v_key_id;
+        insert into public.obs_ai_conexoes (site_id, user_id, liberacao_id, cliente, key_id)
+          values (p_site, p_user, v_lib.id, v_cliente, v_key_id) returning id into v_con_id;
+      end if;
+    exception when raise_exception then
+      if sqlerrm = 'obs_ai_teto' then
+        v_motivo := 'teto'; v_desfecho := 'sem_direito'; v_con_id := null;
+      else
+        raise;
+      end if;
+    end;
+  end if;
+
+  if v_motivo is not null then
+    update public.obs_ai_oauth_pedidos p set consumido_em = null where p.hash = p_pedido_hash;
+    perform public.obs_ai_log_recusa_consentimento(p_user, p_site, v_cliente, v_desfecho,
+      case when v_desfecho = 'cortado' then null else v_motivo end, p_agora);
+    return query select v_motivo, null::uuid, v_p.redirect_uri, v_p.state, v_cliente;
+    return;
+  end if;
+
+  -- um cliente vivo por par: tokens de OUTRO client_id saem
+  update public.obs_ai_oauth_tokens t set revoked_at = p_agora
+   where t.conexao_id = v_con_id and t.revoked_at is null and t.client_id <> v_p.client_id;
+  insert into public.obs_ai_oauth_tokens (hash, tipo, conexao_id, client_id, code_challenge, redirect_uri, familia, expires_at)
+    values (p_codigo_hash, 'codigo', v_con_id, v_p.client_id, v_p.code_challenge, v_p.redirect_uri,
+            gen_random_uuid(), p_agora + interval '10 minutes');
+  update public.obs_ai_oauth_clientes c set aprovado_em = coalesce(c.aprovado_em, p_agora) where c.client_id = v_p.client_id;
+  insert into public.obs_ai_access_log (at, site_id, user_id, key_id, origin, action, params, included_private, output_chars, result)
+    values (p_agora, p_site, p_user, (select c.key_id from public.obs_ai_conexoes c where c.id = v_con_id), 'oauth', 'consentimento',
+            jsonb_build_object('desfecho', 'aprovado', 'cliente', v_cliente), false, null, 'ok');
+  return query select null::text, v_con_id, v_p.redirect_uri, v_p.state, v_cliente;
+end $$;
+revoke all on function public.obs_ai_aprovar_conexao(text, uuid, uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_aprovar_conexao(text, uuid, uuid, text, timestamptz) to service_role;
+
+create or replace function public.obs_ai_negar_pedido(p_pedido_hash text, p_user uuid, p_site uuid)
+returns table (motivo text, redirect_uri text, state text)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_p public.obs_ai_oauth_pedidos%rowtype;
+  v_cliente text;
+  v_agora timestamptz := now();
+begin
+  if p_user is null then
+    return query select 'sem_login'::text, null::text, null::text; return;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
+  update public.obs_ai_oauth_pedidos p set consumido_em = v_agora
+   where p.hash = p_pedido_hash and p.consumido_em is null and p.expires_at > v_agora
+   returning * into v_p;
+  if not found then
+    perform public.obs_ai_log_recusa_consentimento(p_user, p_site, null, 'invalido', null, v_agora);
+    return query select 'pedido_invalido'::text, null::text, null::text; return;
+  end if;
+  select c.cliente into v_cliente from public.obs_ai_oauth_clientes c where c.client_id = v_p.client_id;
+  if v_p.site_id <> p_site then
+    update public.obs_ai_oauth_pedidos p set consumido_em = null where p.hash = p_pedido_hash;
+    perform public.obs_ai_log_recusa_consentimento(p_user, p_site, v_cliente, 'invalido', null, v_agora);
+    return query select 'site'::text, null::text, null::text; return;
+  end if;
+  insert into public.obs_ai_access_log (at, site_id, user_id, key_id, origin, action, params, included_private, output_chars, result)
+    values (v_agora, p_site, p_user, null, 'oauth', 'consentimento',
+            jsonb_strip_nulls(jsonb_build_object('desfecho', 'negado', 'cliente', v_cliente)), false, null, 'recusado');
+  return query select null::text, v_p.redirect_uri, v_p.state;
+end $$;
+revoke all on function public.obs_ai_negar_pedido(text, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.obs_ai_negar_pedido(text, uuid, uuid) to service_role;
