@@ -188,15 +188,17 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
   const inicio = lidos[0]
   const fimDaLeitura = lidos[lidos.length - 1]
   const resumoDaTela = (data: string): PontoCsv => ponto(data, null, 'nao_medido', F.SERIE_A_TELA_COBRE(dmy(tmin), dmy(tmax)), semDia, true)
-  if (ate < tmin || de > tmax) return [resumoDaTela(de)]
+  // acessoir-14: no grão dia o fim da janela é o que vier por último entre o fim da tabela e hoje (o dado do próprio chega com 2 a 3 dias de atraso: esses dias saem `nao_medido`, um por dia)
+  const limiteDeFrente = p.grao === 'dia' ? maior(tmax, hoje) : tmax
+  if (ate < tmin || de > limiteDeFrente) return [resumoDaTela(de)]
 
   // o que está ANTES da tabela vira UMA linha-resumo (não uma linha por dia: de 0001-01-01 saíam 105 mil); a conversão para a semana também conta só o que a tabela tem
   const bordaDeTras = p.grao === 'semana' ? segundaDe(tmin) : tmin
   // o que está DEPOIS da tabela também (N-1): `ate` não tem teto; sem recorte, 9999-12-31 gerava milhares de linhas vazias e travava
-  const bordaDeFrente = p.grao === 'semana' ? domingoDe(tmax) : tmax
+  const bordaDeFrente = p.grao === 'semana' ? domingoDe(tmax) : limiteDeFrente
   const fora: PontoCsv[] = de < bordaDeTras
     ? [resumoDaTela(de)]
-    : ate > bordaDeFrente ? [resumoDaTela(p.grao === 'semana' ? somaDias(segundaDe(tmax), 7) : somaDias(tmax, 1))] : []
+    : ate > bordaDeFrente ? [resumoDaTela(p.grao === 'semana' ? somaDias(segundaDe(tmax), 7) : somaDias(bordaDeFrente, 1))] : []
   const deDentro = maior(de, bordaDeTras)
   const ateDentro = menor(ate, bordaDeFrente)
 
@@ -357,7 +359,7 @@ export function respostaDaSerieEmTabela(
   const diasPedidos = entre(pedido.de, pedido.ate) + 1
   const maiores = series.flatMap((s) => s.dias.filter((d): d is string => d !== null))
   const tmaxGeral = maiores.reduce((a, b) => (a > b ? a : b), '')
-  const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), menor(pedido.ate, tmaxGeral)) + 1
+  const diasDentro = menores.length === 0 ? diasPedidos : entre(maior(pedido.de, menores.reduce((a, b) => (a < b ? a : b))), menor(pedido.ate, grao === 'dia' ? maior(tmaxGeral, hojeSp(agora)) : tmaxGeral)) + 1
   if (grao === 'dia' && diasDentro > n) { grao = 'semana'; convertida = true; cortes += 1; extras.push(F.SERIE_PASSOU_A_SEMANA(diasDentro, n)) }
   const tudo = pontosDaSerie(m, pedido.canalId, pedido.apelido, { de: pedido.de, ate: pedido.ate, grao }, agora)
   const info = infoDaSerie(m, pedido.canalId, pedido.apelido, agora)
@@ -376,6 +378,10 @@ export function respostaDaSerieEmTabela(
     const semData = s.dias.filter((d) => d === null).length
     if (semData > 0) extras.push(`tabela "${s.t.nomeNoCorte}": ${F.SERIE_DESCARTADAS(semData)}`)
   }
+  // acessoir-14: o pedido passa do último dia com dado (até hoje): o aviso diz até onde vai o dado; as linhas dos dias que faltam já estão em `tudo`
+  const ultimoComDado = tmaxGeral
+  const pedidoAte = menor(pedido.ate, hojeSp(agora))
+  if (grao === 'dia' && ultimoComDado !== '' && ultimoComDado < pedidoAte) extras.push(F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimoComDado), ehDoProprio(m) ? 'do seu canal' : 'desta série'))
   const datas = [...new Set(tudo.filter((p) => p.resumo !== true).map((p) => p.data))]
   const soNoTexto = m.tabelas.filter((t) => t.tipo === 'dia_a_dia' && MEDIDAS_DA_TABELA[t.id] === undefined).map((t) => t.nomeNoCorte)
   for (const nome of soNoTexto) extras.push(`tabela "${nome}": ${F.SERIE_SEM_DATA}`)

@@ -3,7 +3,7 @@ import type { PacoteSerializado } from '../contexto-ia/segmentar'
 
 export interface Cobertura {
   lista?: { titulo: string; de: number; ate: number; total: number; concorrentes?: boolean }
-  serie?: { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; semData?: number }
+  serie?: { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; semData?: number; semDado?: { de: string; ate: string } }
   apoio: { inteiras: number; total: number; cortadas: Array<{ titulo: string; saiu: number; de: number }> }
   foraDoPacote?: { mostrados: number; total: number }
   cortesDeTamanho: string[]
@@ -83,7 +83,10 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.serie) {
     const s = c.serie
     const sem = s.semData && s.semData > 0 ? ` ${s.semData} linha${s.semData === 1 ? '' : 's'} sem data ficaram fora.` : ''
-    L.push((n.serieCurta ? `- Série: ${s.pontos} de ${s.total} pontos, grão ${s.grao}.` : `- Série: ${s.pontos} de ${s.total} pontos entre ${dmy(s.de)} e ${dmy(s.ate)}, grão ${s.grao}.`) + sem)
+    // acessoir-14: pediu dias que o dado ainda não alcança: a Cobertura conta os dias PEDIDOS e diz quais ainda não chegaram
+    const unidade = s.semDado ? 'dias medidos' : 'pontos'
+    const falta = s.semDado ? `; ${dmy(s.semDado.de)} a ${dmy(s.semDado.ate)} ainda não chegaram` : ''
+    L.push((n.serieCurta ? `- Série: ${s.pontos} de ${s.total} ${unidade}, grão ${s.grao}${falta}.` : `- Série: ${s.pontos} de ${s.total} ${unidade} entre ${dmy(s.de)} e ${dmy(s.ate)}, grão ${s.grao}${falta}.`) + sem)
   }
   if (c.apoio.total > 0 || c.apoio.cortadas.length > 0) {
     const cort = c.apoio.cortadas

@@ -9,6 +9,7 @@ import type { z } from 'zod'
 import { ACOES, ENTRADA, traduzir, type Acao, type Pedido } from '@/lib/youtube/observatorio/acesso-ia/acoes'
 import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 import { FRASES_DA_FERRAMENTA, SEM_CSV_LISTA_VAZIA, SEM_CSV_SEM_CHAVES } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { coberturaCompleta, RODAPE_MAX, secaoDeCobertura, type Cobertura } from '@/lib/youtube/observatorio/acesso-ia/cobertura'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -136,7 +137,7 @@ const TEXTO_FORA = {
 const SUBSTANTIVO: Partial<Record<TelaId, string>> = { canais: 'canais', outliers: 'vídeos', mudancas: 'mudanças' }
 
 /** `serie`: o que o recorte da série fez, para a Cobertura (números do próprio recorte). `convertida`: passou ao grão semana por tamanho. */
-interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number }
+interface InfoSerie { pontos: number; total: number; de: string; ate: string; grao: 'dia' | 'semana'; convertida: boolean; semData: number; semDado?: { de: string; ate: string } }
 interface Cortes { n: number; serie?: InfoSerie }
 
 export { degrausDoLimite }
@@ -200,6 +201,10 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
         : `série "${t.titulo}": nenhum ponto entre ${dmy(de)} e ${dmy(ate)}; a tela não traz datas que a ferramenta consiga ler`)
       continue
     }
+    // acessoir-14: o último dia com dado fica antes do dia pedido (até hoje): o dado do próprio chega com 2 a 3 dias de atraso
+    const ultimoComDado = dentro.reduce((a, x) => (x.dia > a ? x.dia : a), '')
+    const pedidoAte = ate < hojeSp(agora) ? ate : hojeSp(agora)
+    const faltaDado = ultimoComDado < pedidoAte ? { de: somaDias(ultimoComDado, 1), ate: pedidoAte } : null
     let grao = p.grao ?? 'dia'
     let totalDaSerie = dentro.length
     let convertida = false
@@ -237,13 +242,16 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
       avisos.push(`série "${t.titulo}": ainda são ${dentro.length} pontos no grão semana; ficam os ${n} mais recentes`)
       dentro = dentro.filter((x) => mantidos.has(x.i))
     }
+    const semDado = grao === 'dia' ? faltaDado : null
+    if (semDado) avisos.push(`série "${t.titulo}": ${F.SERIE_PEDIDO_ATE_ONDE_HA_DADO(dmy(pedidoAte), dmy(ultimoComDado), m.tela === 'canal-proprio' || m.tela === 'video-proprio' ? 'do seu canal' : 'desta série')}; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram`)
+    const faltam = semDado ? Math.round((Date.parse(`${semDado.ate}T00:00:00Z`) - Date.parse(`${semDado.de}T00:00:00Z`)) / 86_400_000) + 1 : 0
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
-    if (!cortes.serie || totalDaSerie + semData > cortes.serie.total) {
+    if (!cortes.serie || totalDaSerie + semData + faltam > cortes.serie.total) {
       const dts = dentro.map((x) => x.dia).sort()
       // grão semana: o `dia` de cada ponto é o último dia medido da semana; a Cobertura começa na segunda da 1ª semana mostrada, como a tabela
       const deMostrado = dts[0] === undefined ? de : grao === 'semana' ? segundaDe(dts[0]) : dts[0]
-      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData }
+      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData + faltam, ...(semDado ? { semDado, ate: pedidoAte } : {}) }
     }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou
@@ -654,7 +662,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     const fora = montado.modelo.paginado
     const cob: Cobertura = {
       ...(lista ? { lista } : {}),
-      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
+      ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao, ...(cortes.serie.semDado ? { semDado: cortes.serie.semDado } : {}), ...(cortes.serie.semData > 0 ? { semData: cortes.serie.semData } : {}) } } : {}),
       apoio, ...(fora ? { foraDoPacote: fora } : {}), cortesDeTamanho: rotulos, numeros, vazio,
       ...(textoFora ? { textoFora } : {}), ...(soNoTexto.length > 0 ? { soNoTexto } : {}), ...(semDona > 0 ? { semDona } : {}), ...(marcaMudou ? { marcaMudou: true } : {}), ...(janelasAnterioresPerderam ? { janelasAnterioresPerderam: true } : {}),
       ...(rotulos.some((r) => r.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),

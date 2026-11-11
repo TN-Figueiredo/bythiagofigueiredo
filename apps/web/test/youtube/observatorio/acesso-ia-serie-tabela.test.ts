@@ -566,7 +566,7 @@ describe('conserto N-1: `ate` depois do fim da tabela', () => {
         const csv = csvDe(r.texto)
         expect(csv[0].startsWith(grao === 'dia' ? 'dia,' : 'semana_inicio,')).toBe(true)
         const dados = csv.slice(1)
-        expect(dados.length).toBe(grao === 'dia' ? 10 : 4) // dia: 9 dias + 1 resumo; semana: segundas 26/10, 02/11, 09/11 + 1 resumo
+        expect(dados.length).toBe(grao === 'dia' ? 11 : 4) // dia: 9 dias + hoje 10/11 (depois do fim da tabela, acessoir-14) + 1 resumo; semana: segundas 26/10, 02/11, 09/11 + 1 resumo
         expect(dados.filter((l) => l.includes(',medido,')).length).toBeGreaterThan(0)
         expect(r.texto).toContain('a tela cobre de')
         const m2 = /linhas: (\d+) de (\d+)/.exec(r.texto)!
@@ -616,3 +616,49 @@ describe('I2 (dono 10/11): o dia ainda aberto sai vazio, como a semana aberta', 
   })
 })
 const contarMedidos = (ps: PontoCsv[]): number => ps.filter((p) => p.estado === 'medido' || p.estado === 'zero_medido').length
+
+/* ------------------------------------------------------------------ acessoir-14: o dado do próprio chega com atraso */
+
+describe('acessoir-14: pedido até hoje, dado só até 07/11 (o YouTube entrega com 2 a 3 dias de atraso)', () => {
+  const priv = (): Tabela => tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-07', inicio: '2026-08-01' })
+  const incluido = { privado: { estado: 'incluido', itens: 'views por dia' } } as const
+  const PEDIDO = { acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-10', grao: 'dia' } as const
+
+  it('texto: o aviso diz até onde há dado e a Cobertura conta os dias pedidos', async () => {
+    dobra('canal-proprio', modelo([priv()], incluido, 'canal-proprio'))
+    const r = await responder(PEDIDO, abrir, AGORA)
+    expect(r.texto).toContain('Pedido até 10/11/2026; o dado do seu canal vai só até 07/11/2026 (o YouTube entrega com 2 a 3 dias de atraso)')
+    expect(r.texto).toContain('Série: 7 de 10 dias medidos entre 01/11/2026 e 10/11/2026')
+    expect(r.texto).toContain('08/11/2026 a 10/11/2026 ainda não chegaram')
+    expect(r.texto).not.toContain('Você viu tudo')
+    expect(r.params.completa).toBe(false)
+  })
+  it('tabela: uma linha nao_medido por dia pedido depois do último dado; o dia aberto segue DIA_ABERTO', async () => {
+    dobra('canal-proprio', modelo([priv()], incluido, 'canal-proprio'))
+    const r = await responder({ ...PEDIDO, saida: 'tabela' }, abrir, AGORA)
+    const linhas = csvDe(r.texto)
+    for (const d of ['2026-11-08', '2026-11-09', '2026-11-10']) expect(linhas.some((l) => l.startsWith(`${d},`) && l.includes(',nao_medido,'))).toBe(true)
+    const legenda = r.texto
+    expect(legenda).toContain('sem leitura depois de 07/11/2026')
+    expect(legenda).toContain('dia ainda aberto (termina às 23:59 do Pacífico)')
+    expect(r.texto).toContain('Pedido até 10/11/2026; o dado do seu canal vai só até 07/11/2026')
+    expect(r.texto).toContain('linhas: 10 de 10')
+  })
+  it('pontosDaSerie: sem linhas além de hoje (ate 9999 dá os dias até hoje + 1 resumo)', () => {
+    const ps = pontosDaSerie(modelo([priv()], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-11-01', ate: '9999-12-31', grao: 'dia' }, AGORA)
+    expect(ps.filter((p) => p.resumo !== true).map((p) => p.data)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'])
+    expect(ps.filter((p) => p.resumo === true).length).toBe(1)
+  })
+  it('concorrente com o mesmo atraso também avisa (a frase não diz "seu canal")', async () => {
+    dobra('canal', modelo(tabela({ ultimo: '2026-11-07' })))
+    const r = await responder(PEDIDO, abrir, AGORA)
+    expect(r.texto).toContain('Pedido até 10/11/2026; o dado desta série vai só até 07/11/2026')
+    expect(r.texto).toContain('08/11/2026 a 10/11/2026 ainda não chegaram')
+  })
+  it('sem atraso (dado até o dia pedido): nenhum aviso novo e a Cobertura segue completa', async () => {
+    dobra('canal', modelo(tabela({ ultimo: '2026-11-10' })))
+    const r = await responder(PEDIDO, abrir, AGORA)
+    expect(r.texto).not.toContain('ainda não chegaram')
+    expect(r.texto).not.toContain('Pedido até')
+  })
+})

@@ -194,6 +194,8 @@ export const SERIE_ANTES_DA_COLETA = (primeiro: string) => `antes do início da 
 export const SERIE_FORA_DOS_90 = 'fora dos 90 dias que a tela guarda' // novo
 export const SERIE_DEPOIS_DO_FIM = (fim: string) => `sem leitura depois de ${fim}` // novo
 export const SERIE_SEM_LEITURA = 'sem leitura' // novo
+/** acessoir-14: pediu até um dia que o dado ainda não alcança (o YouTube entrega o dia do canal próprio com 2 a 3 dias de atraso). `deQuem`: "do seu canal" ou "desta série". */
+export const SERIE_PEDIDO_ATE_ONDE_HA_DADO = (pedido: string, ultimo: string, deQuem: string) => `Pedido até ${pedido}; o dado ${deQuem} vai só até ${ultimo} (o YouTube entrega com 2 a 3 dias de atraso)`
 export const SERIE_SEM_LEITURA_NENHUMA = 'ainda não há leitura de views deste canal' // a frase da tela (linha-do-tempo-model)
 export const SERIE_A_TELA_COBRE = (de: string, ate: string) => `a tela cobre de ${de} a ${ate}` // novo
 export const SERIE_TOPO_DAS_SEMANAS = (de: string, ate: string) => `Semanas de ${de} a ${ate}, segunda a domingo` // novo
