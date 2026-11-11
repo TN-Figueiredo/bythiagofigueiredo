@@ -207,7 +207,7 @@ describe('BythiagoLgpdDomainAdapter', () => {
       const adapter = new BythiagoLgpdDomainAdapter(supabase);
       await adapter.phase1Cleanup('u1');
 
-      const args = rpc.mock.calls[0];
+      const args = rpc.mock.calls.find((c) => c[0] === 'lgpd_phase1_cleanup');
       expect(args?.[0]).toBe('lgpd_phase1_cleanup');
       const payload = args?.[1] as {
         p_user_id: string;
@@ -235,7 +235,7 @@ describe('BythiagoLgpdDomainAdapter', () => {
       const adapter = new BythiagoLgpdDomainAdapter(supabase);
       await adapter.phase1Cleanup('u1');
 
-      const payload = rpc.mock.calls[0]?.[1] as {
+      const payload = rpc.mock.calls.find((c) => c[0] === 'lgpd_phase1_cleanup')?.[1] as {
         p_pre_capture: { newsletter_emails: string[] };
       };
       expect(payload.p_pre_capture.newsletter_emails).toEqual(['solo@x.com']);
@@ -251,6 +251,24 @@ describe('BythiagoLgpdDomainAdapter', () => {
 
       const adapter = new BythiagoLgpdDomainAdapter(supabase);
       await expect(adapter.phase1Cleanup('u1')).rejects.toThrow(/constraint violation/);
+    });
+
+    // C1 (PL4): a liberação e as conexões OAuth da pessoa são revogadas antes da limpeza de fase 1.
+    it('chama obs_ai_revogar_lgpd antes de lgpd_phase1_cleanup', async () => {
+      const { supabase, rpc, getUserById } = makeSupabase();
+      getUserById.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@x.com' } }, error: null });
+      rpc.mockResolvedValue({ data: null, error: null });
+      await new BythiagoLgpdDomainAdapter(supabase).phase1Cleanup('u1');
+      expect(rpc.mock.calls.map((c) => c[0])).toEqual(['obs_ai_revogar_lgpd', 'lgpd_phase1_cleanup']);
+      expect(rpc.mock.calls[0]?.[1]).toEqual({ p_user: 'u1' });
+    });
+
+    it('se obs_ai_revogar_lgpd falha, lança e não chama lgpd_phase1_cleanup', async () => {
+      const { supabase, rpc, getUserById } = makeSupabase();
+      getUserById.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@x.com' } }, error: null });
+      rpc.mockImplementation(async (nome: string) => (nome === 'obs_ai_revogar_lgpd' ? { data: null, error: { message: 'lock timeout' } } : { data: null, error: null }));
+      await expect(new BythiagoLgpdDomainAdapter(supabase).phase1Cleanup('u1')).rejects.toThrow(/obs_ai_revogar_lgpd.*lock timeout/);
+      expect(rpc.mock.calls.map((c) => c[0])).toEqual(['obs_ai_revogar_lgpd'])
     });
   });
 

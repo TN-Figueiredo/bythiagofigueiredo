@@ -25,7 +25,7 @@ const CAI = '9a1b2c3d-0000-4000-8000-00000000cccc'
 const EMAIL = 'ana@example.test'
 const PERFIL = 'observatorio_leitura'
 
-interface Chave { name?: string; site_id: string; user_id: string | null; expires_at: string | null; permissions: string[]; revoked_at: string | null }
+interface Chave { id?: string; name?: string; site_id: string; user_id: string | null; expires_at: string | null; permissions: string[]; revoked_at: string | null }
 const chave = (o: Partial<Chave> = {}): Chave => ({ name: `observatorio-${MUITO_ANTES.replace(/-/g, '')}-abcd`, site_id: SITE_A, user_id: ANA, expires_at: new Date(AGORA + 100 * DIA).toISOString(), permissions: [PERFIL], revoked_at: null, ...o })
 
 interface Cenario {
@@ -38,9 +38,13 @@ interface Cenario {
   rpcErro: boolean
   insertErro: boolean
   tamanhoDaPagina: number
+  /** C1: `obs_ai_conexoes` (só `key_id`) e `obs_ai_liberacoes` do site. */
+  conexoes: Array<{ key_id: string }>
+  liberacoes: Array<{ user_id: string; expires_at: string; revoked_at: string | null }>
+  conexoesErro: boolean
 }
 function fazer(c: Partial<Cenario> = {}) {
-  const cen: Cenario = { usuarios: [{ id: ANA, email: EMAIL }], ve: { [ANA]: [SITE_A] }, sites: [SITE_A], chaves: [], paginaComErro: null, rpcErro: false, insertErro: false, tamanhoDaPagina: 1000, ...c }
+  const cen: Cenario = { usuarios: [{ id: ANA, email: EMAIL }], ve: { [ANA]: [SITE_A] }, sites: [SITE_A], chaves: [], paginaComErro: null, rpcErro: false, insertErro: false, tamanhoDaPagina: 1000, conexoes: [], liberacoes: [], conexoesErro: false, ...c }
   const inserts: Array<Record<string, unknown>> = []
   const paginas: number[] = []
   const selects: string[] = []
@@ -60,6 +64,12 @@ function fazer(c: Partial<Cenario> = {}) {
     from: (tabela: string) => ({
       select: (colunas?: string) => {
         selects.push(`${tabela}:${String(colunas)}`)
+        if (tabela === 'obs_ai_conexoes' || tabela === 'obs_ai_liberacoes') {
+          const dados = tabela === 'obs_ai_conexoes' ? cen.conexoes : cen.liberacoes
+          const resp = cen.conexoesErro ? { data: null, error: { code: '42P01' } } : { data: dados, error: null }
+          const q = { eq: () => q, is: () => q, then: (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(resp).then(ok, ko) }
+          return q
+        }
         if (tabela !== 'sites') return Promise.resolve({ data: cen.chaves, error: null })
         // como o PostgREST: sem range, corta em 1000 (max_rows); com range, devolve a fatia pedida (também cortada em 1000)
         const fatia = (de: number, ate: number) => { faixas.push([de, ate]); return Promise.resolve({ data: cen.sites.slice(de, Math.min(ate + 1, de + 1000)).map((id) => ({ id })), error: null }) }
@@ -107,7 +117,7 @@ describe('criarChaveDoPerfil: o caminho feliz', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     // lista explícita de colunas: nunca o hash das chaves alheias (Yannis M-6 / Phil M1)
-    expect(selects).toContain('pipeline_api_keys:name, site_id, user_id, expires_at, permissions, revoked_at')
+    expect(selects).toContain('pipeline_api_keys:id, name, site_id, user_id, expires_at, permissions, revoked_at')
     expect(selects.join('|')).not.toContain('key_hash')
     expect(selects.join('|')).not.toContain('*')
     expect(inserts).toHaveLength(1)
@@ -299,6 +309,49 @@ describe('criarChaveDoPerfil: as recusas (cada uma com zero inserts)', () => {
     const c = fazer()
     c.cen.chaves.push(chave({ user_id: BIA, name: `observatorio-${ANT}-0001` }), chave({ user_id: CAI, name: `observatorio-${ANT}-0002` }), chave({ user_id: null, name: `observatorio-${ANT}-0003` }))
     expect(await recusa(c)).toBe('teto_de_chaves')
+  })
+  // C1 (4.4 / C1-13, parte TS): linha de conexão OAuth não é chave da pessoa
+  const K1 = '7c000000-0000-4000-8000-000000000001'
+  const K2 = '7c000000-0000-4000-8000-000000000002'
+  it('pessoa com conexão do ChatGPT e do Claude (uma achada pelo prefixo, outra só pelo key_id) ainda ganha a chave obs_', async () => {
+    const c = fazer({ conexoes: [{ key_id: K2 }] })
+    c.cen.chaves.push(
+      chave({ id: K1, name: `observatorio-oauth-chatgpt-${ANT}-0001` }),
+      chave({ id: K2, name: `outro-nome-qualquer` }),
+    )
+    const r = await criarChaveDoPerfil(c.deps, pedido())
+    expect(r.ok).toBe(true)
+    expect(c.inserts).toHaveLength(1)
+  })
+  it('linha de conexão não entra no teto: duas conexões de pessoas diferentes e a terceira cria (sem liberação ativa)', async () => {
+    const c = fazer({ conexoes: [{ key_id: K1 }] })
+    c.cen.chaves.push(chave({ id: K1, user_id: BIA, name: `x-${ANT}` }), chave({ user_id: CAI, name: `observatorio-oauth-claude-${ANT}-0002` }))
+    expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
+  })
+  it('liberação ativa de outra pessoa conta no teto: duas liberações ativas e a terceira pessoa: teto_de_chaves', async () => {
+    const c = fazer({ liberacoes: [
+      { user_id: BIA, expires_at: new Date(AGORA + 30 * DIA).toISOString(), revoked_at: null },
+      { user_id: CAI, expires_at: new Date(AGORA + 30 * DIA).toISOString(), revoked_at: null },
+    ] })
+    expect(await recusa(c)).toBe('teto_de_chaves')
+  })
+  it('liberação vencida (exatamente agora) ou revogada não conta no teto', async () => {
+    const c = fazer({ liberacoes: [
+      { user_id: BIA, expires_at: new Date(AGORA).toISOString(), revoked_at: null },
+      { user_id: CAI, expires_at: new Date(AGORA + 30 * DIA).toISOString(), revoked_at: new Date(AGORA - DIA).toISOString() },
+    ] })
+    expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
+  })
+  it('liberação ativa da própria pessoa + uma de outra: a pessoa não conta duas vezes e cria', async () => {
+    const c = fazer({ liberacoes: [
+      { user_id: ANA, expires_at: new Date(AGORA + 30 * DIA).toISOString(), revoked_at: null },
+      { user_id: BIA, expires_at: new Date(AGORA + 30 * DIA).toISOString(), revoked_at: null },
+    ] })
+    expect((await criarChaveDoPerfil(c.deps, pedido())).ok).toBe(true)
+  })
+  it('não consegue ler as conexões/liberações: nao_conferido (nunca cria às cegas)', async () => {
+    const c = fazer({ conexoesErro: true })
+    expect(await recusa(c)).toBe('nao_conferido')
   })
   it('o insert falha: ok false e NENHUMA chave no retorno', async () => {
     const c = fazer({ insertErro: true })

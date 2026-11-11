@@ -4,13 +4,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PERFIL, instanteValido } from '@/lib/pipeline/chave'
 import { ACESSO_IA_RULES } from './regras'
+import { PREFIXO_DE_CONEXAO } from './criar-chave'
 import { NOME_DA_CHAVE } from './vencimento'
 
 export interface PedidoDeEstender { chave: string; dias?: number }
 export type RecusaDeEstender =
   | 'subcomando' | 'opcao_desconhecida' | 'travas' | 'excecao_ausente' | 'chave_ausente' | 'nome_invalido' | 'validade_invalida'
   | 'chave_inexistente' | 'chave_revogada' | 'perfil_diferente' | 'vencida_ha_mais_de_30_dias' | 'ja_vale_ate' | 'sem_vinculo' | 'pessoa_banida'
-  | 'nada_mudou' | 'nao_conferido'
+  | 'nada_mudou' | 'nao_conferido' | 'e_conexao'
 export type ResultadoDeEstender =
   | { ok: true; nome: string; venceAntes: string; venceAgora: string }
   | { ok: false; recusa: RecusaDeEstender; code?: string; venceEm?: string }
@@ -63,17 +64,27 @@ export async function estenderChaveDoPerfil(deps: DepsDeEstender, p: PedidoDeEst
   if (!Number.isFinite(t)) return falha('nao_conferido', { code: 'relogio' })
   const nome = typeof p.chave === 'string' ? p.chave.trim() : ''
   if (nome === '') return falha('chave_ausente')
+  // C1 (4.4): chave de conexão OAuth não se estende por aqui (a validade dela é a da liberação); o prefixo recusa antes mesmo do formato
+  if (nome.startsWith(PREFIXO_DE_CONEXAO)) return falha('e_conexao')
   if (!NOME_DA_CHAVE.test(nome)) return falha('nome_invalido')
   // a linha
-  let linha: { site_id?: unknown; user_id?: unknown; expires_at?: unknown; permissions?: unknown; revoked_at?: unknown } | undefined
+  let linha: { id?: unknown; site_id?: unknown; user_id?: unknown; expires_at?: unknown; permissions?: unknown; revoked_at?: unknown } | undefined
   try {
-    const r = await sb.from('pipeline_api_keys').select('name, site_id, user_id, expires_at, permissions, revoked_at').eq('name', nome)
+    const r = await sb.from('pipeline_api_keys').select('id, name, site_id, user_id, expires_at, permissions, revoked_at').eq('name', nome)
     if (r.error) return falha('nao_conferido', { code: codigoDe(r.error) })
     const linhas = (r.data ?? []) as Array<NonNullable<typeof linha>>
     if (linhas.length === 0) return falha('chave_inexistente')
     if (linhas.length > 1) return falha('nao_conferido', { code: 'nome_repetido' })
     linha = linhas[0]
   } catch { return falha('nao_conferido', { code: 'excecao' }) }
+  // ... e o `id` no conjunto de `key_id` de obs_ai_conexoes (a linha de conexão cujo nome não leva o prefixo)
+  if (typeof linha!.id === 'string') {
+    try {
+      const c = await sb.from('obs_ai_conexoes').select('key_id').eq('key_id', linha!.id)
+      if (c.error) return falha('nao_conferido', { code: codigoDe(c.error) })
+      if ((c.data ?? []).length > 0) return falha('e_conexao')
+    } catch { return falha('nao_conferido', { code: 'excecao' }) }
+  }
   if (linha!.revoked_at !== null && linha!.revoked_at !== undefined) return falha('chave_revogada')
   const perms = linha!.permissions
   if (!Array.isArray(perms) || perms.length !== 1 || perms[0] !== PERFIL) return falha('perfil_diferente')
@@ -129,5 +140,6 @@ export function descreverResultadoDeEstender(r: ResultadoDeEstender, nome?: stri
   }
   if (r.recusa === 'nada_mudou') return { texto: 'nada mudou: a chave foi alterada entre a leitura e a escrita; rode de novo' }
   if (r.recusa === 'nao_conferido') return { texto: `resultado desconhecido${r.code ? ` (${r.code})` : ''}: confira expires_at da chave ${nome ?? '<nome>'} no banco; rodar de novo é seguro` }
+  if (r.recusa === 'e_conexao') return { texto: 'recusado: e_conexao (esta linha é de uma conexão OAuth: use estender --liberacao)' }
   return { texto: `recusado: ${r.recusa}${r.venceEm ? ` (já vale até ${r.venceEm})` : ''}${r.code ? ` (${r.code})` : ''}` }
 }

@@ -43,6 +43,12 @@ export const ACESSO_IA_RULES = {
   recusadoNoMaximoACadaMs: 3_600_000,
   fatiaDaPodaDoRegistroDias: 30,
   fatiaDaPodaDoContadorDias: 30,
+  /** C1 (spec 6): tokens por `expires_at` (o refresh usado precisa existir até vencer, para o reuso ser detectado); pedidos do /authorize; fatia como a das outras. */
+  guardaDosTokensDias: 30,
+  guardaDosPedidosDias: 1,
+  fatiaDaPodaOAuthDias: 30,
+  /** Teto de clientes (DCR) apagados por execução pela função `obs_ai_podar_clientes`: uma ida de 2,5 s não pode apagar sem limite. */
+  clientesPodadosPorExecucao: 500,
   /** AAAA-MM-DD; o controlador preenche no dia de abrir (Tarefa 20), depois da conferência da E19 estar no ledger dela. */
   e19RecusaConferidaEm: '2026-10-25' as string | null,   // e19-t0-48h ok (ACOMPANHAMENTO, 25/10); recusa em main desde 23/10
   /** AAAA-MM-DD do "sim" do dono à pergunta 47; idem. */
