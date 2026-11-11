@@ -303,6 +303,21 @@ describe('montarConsulta: lugar (Focos 1 e 6, §7 testes 6, 7, 14, 18, 20)', () 
     const linhaLugar = empacotarConsulta(r).tabelas[0]!.linhas.find((l) => l[0]!.texto === 'Lugar')![1]!.texto
     expect(linhaLugar).toMatch(/tarefa de lugares desligada; lugares calculados em \d{2}\/\d{2}/)
   })
+  it('I-2 (sem lugar): tarefa desligada com cálculo existente usa o mapa e diz a data; atrasado > 36 h entra na mesma frase', async () => {
+    delete process.env.OBS_SINAIS_NICHO
+    const w0 = mundo()
+    const topo = ordenar(montarConjunto(w0.p, w0.entrada).longos, w0.p, { canalAtrasado: () => false })[0]!
+    const linhas = [{ video_id: topo.id, chaves: ['local:vn-hanoi'], semente_versao: 2 }]
+    const velho = await preparar({ linhas, estado: { calculado: true, velho: true, computado_em: '2026-10-20T10:00:00Z' } })
+    const r1 = await resultado(velho.rodar({ formato: 'longos', limite: 3 }))
+    expect(r1.lugaresNota).toMatch(/tarefa de lugares desligada; lugares calculados em \d{2}\/\d{2}.*36 h/)
+    expect(todas(r1).find((l) => l.id === topo.id)!.lugares).toEqual(['local:vn-hanoi'])
+    const novo = await preparar({ linhas })
+    const r2 = await resultado(novo.rodar({ formato: 'longos', limite: 3 }))
+    expect(r2.lugaresNota).toMatch(/tarefa de lugares desligada; lugares calculados em \d{2}\/\d{2}/)
+    expect(r2.lugaresNota).not.toContain('36 h')
+    expect(todas(r2).find((l) => l.id === topo.id)!.lugares).toEqual(['local:vn-hanoi'])
+  })
   it('(7) cálculo velho: atrasado true; recálculo em andamento (duas semente_versao): emRecalculo true', async () => {
     const w0 = mundo()
     const v = primeiros(w0)

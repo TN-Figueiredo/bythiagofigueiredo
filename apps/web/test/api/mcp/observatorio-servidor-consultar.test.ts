@@ -79,6 +79,9 @@ describe('consultar no servidor MCP', () => {
     expect(DESCRICAO).not.toContain('dez ações')
     expect(DESCRICAO).toContain('"acao":"consultar"')
   })
+  it.each(['recomendar, comparar ou concluir', 'pizza só onde sugerido', 'não são zero', 'a_partir_da_linha', 'Resumo do todo', 'não tem janela'])('as instruções guardam a frase obrigatória "%s"', (frase) => {
+    expect(INSTRUCOES).toContain(frase)
+  })
   it('as instruções dizem que a consultar não tem janela; toda menção a a_partir_da_linha nomeia as ações com janela', () => {
     const item = ITENS_DE_INSTRUCAO.find((i) => i.fatia === 'A4')
     expect(item?.texto).toMatch(/consultar/)

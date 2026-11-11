@@ -103,6 +103,30 @@ describe('consultar: a resposta e a Cobertura', () => {
     expect(r.texto).not.toContain('desconhecido')
     expect(r.params).toMatchObject({ completa: false, elegiveis: 0, linhas: 0 })
   })
+  it('m-2: conjunto vazio com motor e medidas nulos não diz "motor não lido"', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 0, 0), bloco('shorts', 0, 0)], {}, { dadosDe: { motor: null, medidas: null, lugares: null }, leituraMaisAntiga: null }))
+    const r = await pedir()
+    expect(r.texto).not.toContain('motor não lido')
+    expect(r.texto).not.toContain('medidas não lido')
+    expect(r.texto).toContain('A lista está vazia neste recorte; vazio não é zero.')
+  })
+  it('m-1: canais sem medidas entram em params.canais_sem_medida (e só então)', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)], {}, { canaisSemMedida: [{ nome: 'A', causa: 'erro_do_banco' }, { nome: 'B', causa: 'erro_do_banco' }] }))
+    expect((await pedir()).params).toMatchObject({ canais_sem_medida: 2 })
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)]))
+    expect((await pedir()).params).not.toHaveProperty('canais_sem_medida')
+  })
+  it('m-limite: bloco cortado por tamanho não oferece limite 50; cortado só pelo limite oferece', async () => {
+    const o = { titulo: 'T'.repeat(100), canal: 'C'.repeat(60), nao: true, lugares: ['local:vn-hanoi', 'local:vn-saigon', 'pais:VN'] }
+    const metricas: MetricaDaConsulta[] = ['views', 'likes', 'comentarios', 'vpd7', 'multiplicador', 'engajamento', 'inscritos']
+    m.montar.mockResolvedValue(resultado([bloco('longos', 49, 90, o), bloco('shorts', 49, 70, o)], { limite: 49, metricas }))
+    const cortado = await pedir({ limite: 49, metricas })
+    expect(cortado.texto).toMatch(/Cortado por tamanho: /)
+    expect(cortado.texto.slice(cortado.texto.indexOf('Próximas chamadas'))).not.toContain('"limite":50')
+    m.montar.mockResolvedValue(resultado([bloco('longos', 20, 30)], { formato: 'longos' }))
+    const so = await pedir({ formato: 'longos' })
+    expect(so.texto.slice(so.texto.indexOf('Próximas chamadas'))).toContain('"limite":50')
+  })
   it('(g) "Ordenado por: multiplicador" no padrão; com vpd7, "crescimento de views: views por dia nos últimos 7 dias"', async () => {
     m.montar.mockResolvedValue(resultado([bloco('longos', 2, 2)], { formato: 'longos' }))
     expect((await pedir()).texto).toMatch(/Ordenado por \| multiplicador/)

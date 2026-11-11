@@ -26,12 +26,12 @@ export const DESCRICAO =
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
 export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de concluir sobre um conjunto, diga em uma frase quanto viu (ex.: "vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (o texto depois de " : " em "Próximas chamadas").' },
+  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu ("vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (o texto depois de " : " em "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
   { fatia: 'T6', texto: 'Pedido recusado traz formato e exemplo válido: corrija e tente de novo uma vez.' },
   { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
-  { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: calculado sobre todas as linhas, não só as que vieram.' },
-  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco, nunca zero. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
+  { fatia: 'T10', texto: 'Para o conjunto, use o "Resumo do todo" do topo: vale para todas as linhas.' },
+  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
   { fatia: 'A4', texto: 'Na consultar, diga por qual medida ordenou e ofereça outra; a lista não tem janela: estreite o filtro.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */

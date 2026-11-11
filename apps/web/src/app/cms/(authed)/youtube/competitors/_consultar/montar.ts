@@ -134,7 +134,7 @@ export async function montarConsulta(abrir: Abridor, p: PedidoDaConsulta, agoraM
   const lasts = canaisUsados.map((id) => obs.channel(id)?.sync.last ?? null)
   const boas = lasts.filter((x): x is number => x != null)
   const motor = boas.length > 0 ? iso(Math.min(...boas)) : null
-  const canaisSemSync = canaisUsados.filter((id) => obs.channel(id)?.sync.last == null).map((id) => obs.channel(id)!.name)
+  const canaisSemSync = canaisUsados.filter((id) => obs.channel(id)?.sync.last == null).map((id) => obs.channel(id)?.name ?? id)
   const canaisSemMedida = canaisUsados.flatMap((id) => {
     const c = medidas.porCanal.get(id)
     const nome = obs.channel(id)?.name ?? id
@@ -150,7 +150,7 @@ export async function montarConsulta(abrir: Abridor, p: PedidoDaConsulta, agoraM
     if (estado === 'falhou' || mapaFalhou) lugaresNota = FRASES_DA_CONSULTA.lugares_nao_carregaram
     else if (estado === 'nunca') lugaresNota = FRASES_DA_CONSULTA.lugar_nunca
     else if (estado === 'desligado') lugaresNota = FRASES_DA_CONSULTA.lugar_desligado
-    else if (aba?.computado_em && !ligado) lugaresNota = `tarefa de lugares desligada; lugares calculados em ${dh(aba.computado_em)}`
+    else if (aba?.computado_em && !ligado) lugaresNota = `tarefa de lugares desligada; lugares calculados em ${dh(aba.computado_em)}${estado === 'atrasado' ? ' (mais de 36 h sem novo cálculo)' : ''}`
     else if (estado === 'atrasado' && aba?.computado_em) lugaresNota = `lugares desatualizados desde ${dh(aba.computado_em)} (mais de 36 h sem novo cálculo)`
   }
 

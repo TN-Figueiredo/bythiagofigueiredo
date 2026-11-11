@@ -80,6 +80,7 @@ describe('consultar: tradutor', () => {
   it.each([
     ['canal_ids repetido (maiúscula e minúscula)', { canal_ids: [C1, C1.toUpperCase()] }, 'canal_ids'],
     ['canal_ids com proprio', { canal_ids: ['proprio', C1] }, 'canal_ids'],
+    ['janela_idade com faixa repetida', { janela_idade: ['0-30', '0-30'] }, 'janela_idade'],
     ['metricas repetidas', { metricas: ['views', 'views'] }, 'metricas'],
     ['publicado_de depois de publicado_ate', { publicado_de: '2026-11-02', publicado_ate: '2026-11-01' }, 'publicado_de'],
     ['entidade canal (2ª entrega)', { entidade: 'canal' }, 'entidade'],

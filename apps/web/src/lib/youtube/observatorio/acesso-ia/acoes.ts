@@ -256,6 +256,7 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
       if (new Set(e.canal_ids.map((c) => c.toLowerCase())).size !== e.canal_ids.length) return recusar('consultar não aceita o mesmo canal duas vezes', 'canal_ids')
     }
     if (e.metricas !== undefined && new Set(e.metricas).size !== e.metricas.length) return recusar('consultar: metricas não aceita a mesma métrica duas vezes', 'metricas')
+    if (Array.isArray(e.janela_idade) && new Set(e.janela_idade).size !== e.janela_idade.length) return recusar('consultar: janela_idade não aceita a mesma faixa duas vezes', 'janela_idade')
     if (e.publicado_de !== undefined && e.publicado_ate !== undefined && e.publicado_de > e.publicado_ate) return recusar('consultar: publicado_de não pode ser depois de publicado_ate', 'publicado_de', 'publicado_ate')
     const ordenarPor = e.ordenar_por ?? 'multiplicador'
     const base: MetricaDaConsulta[] = e.metricas ?? ['views', 'likes', 'comentarios', 'multiplicador']

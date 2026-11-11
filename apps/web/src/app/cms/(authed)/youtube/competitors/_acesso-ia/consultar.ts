@@ -116,7 +116,7 @@ export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entr
     },
     cortesDeTamanho: rotulos, numeros, vazio,
     ...(antesDoCorte ? { numerosAntesDoCorte: true } : {}),
-    proximas: proximasDa(r, entrada),
+    proximas: proximasDa(r, final, entrada),
   }
 
   const naoMedidos: Record<string, number> = {}
@@ -128,6 +128,7 @@ export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entr
     elegiveis: somaEleg, linhas: somaLinhas, total: somaEleg, cortadas: Math.max(0, somaEleg - somaLinhas),
     ...(Object.keys(naoMedidos).length > 0 ? { nao_medidos: naoMedidos } : {}),
     ...(r.lugar?.estado === 'marcado' ? { sem_lugar_calculado: r.lugar.semLugarCalculado } : {}),
+    ...(r.canaisSemMedida.length > 0 ? { canais_sem_medida: r.canaisSemMedida.length } : {}),
     ...(r.leituraMaisAntiga ? { dados_de: r.leituraMaisAntiga.slice(0, 13) } : {}),
     n_metricas: p.metricas.length, n_faixas: p.janelaIdade === 'todas' ? 0 : p.janelaIdade.length,
     privado: false, comentarios: false, cortes: rotulos.length,
@@ -136,14 +137,15 @@ export function respostaDaConsulta(r: ResultadoDaConsulta, entrada: Extract<Entr
 }
 
 /** Até 3 (o rodapé corta o resto): mais linhas, outra ordem, o canal e o vídeo do topo. Quem chama passa por `validas`. */
-function proximasDa(r: ResultadoDaConsulta, entrada: Extract<Entrada, { acao: 'consultar' }>): Proxima[] {
+function proximasDa(r: ResultadoDaConsulta, final: ResultadoDaConsulta, entrada: Extract<Entrada, { acao: 'consultar' }>): Proxima[] {
   const p = r.pedido
   const { entidade: _entidade, ...base } = entrada
   void _entidade
   const out: Proxima[] = []
   if (p.limite < 50) {
     for (const b of r.blocos) {
-      if (b.cortadasPorLimite > 0) out.push({ chamada: { ...base, formato: b.formato, limite: 50 }, para: `ver até 50 linhas de ${nomeDoBloco(b.formato)}` })
+      const cortadoPorTamanho = (final.blocos.find((x) => x.formato === b.formato)?.cortadasPorTamanho ?? 0) > 0
+      if (b.cortadasPorLimite > 0 && !cortadoPorTamanho) out.push({ chamada: { ...base, formato: b.formato, limite: 50 }, para: `ver até 50 linhas de ${nomeDoBloco(b.formato)}` })
     }
   }
   const linhas = r.blocos.flatMap((b) => b.linhas)
