@@ -148,3 +148,155 @@ begin
     add constraint obs_ai_access_log_origin_check check (origin in ('botao', 'mcp', 'oauth'));
 end $$;
 -- <<< origin
+
+-- ===== Seção 2: elegibilidade, teto e taxas =====
+
+-- Elegibilidade (K13): null = elegível. Pessoa ausente é pessoa apagada. Apagamento = pedido confirmado (fase 1) e não cancelado.
+create or replace function public.obs_ai_motivo_inelegivel(p_user uuid, p_site uuid, p_agora timestamptz)
+returns text
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_existe boolean;
+  v_ban timestamptz;
+begin
+  select true, u.banned_until into v_existe, v_ban from auth.users u where u.id = p_user;
+  if v_existe is not true then return 'apagamento'; end if;
+  if exists (select 1 from public.lgpd_requests l
+             where l.user_id = p_user and l.type = 'account_deletion'
+               and l.phase_1_completed_at is not null and l.cancelled_at is null) then
+    return 'apagamento';
+  end if;
+  if v_ban is not null and v_ban > p_agora then return 'banida'; end if;
+  if public.can_view_site_as(p_user, p_site) is not true then return 'sem_vinculo'; end if;
+  return null;
+end $$;
+revoke all on function public.obs_ai_motivo_inelegivel(uuid, uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_motivo_inelegivel(uuid, uuid, timestamptz) to service_role;
+
+-- Teto de 2 pessoas por site: liberações ativas ∪ chaves do perfil ativas (com pessoa) ∪ {p_user}.
+create or replace function public.obs_ai_conferir_teto(p_site uuid, p_user uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_n integer;
+begin
+  perform pg_advisory_xact_lock(hashtext('obs_ai_teto:' || p_site::text));
+  select count(distinct x.u) into v_n from (
+    select l.user_id as u from public.obs_ai_liberacoes l
+      where l.site_id = p_site and l.revoked_at is null and l.expires_at > now()
+    union
+    select k.user_id from public.pipeline_api_keys k
+      where k.site_id = p_site and k.revoked_at is null and k.expires_at > now()
+        and 'observatorio_leitura' = any(k.permissions) and k.user_id is not null
+    union
+    select p_user
+  ) x where x.u is not null;
+  if v_n > 2 then
+    raise exception 'obs_ai_teto' using errcode = 'P0001';
+  end if;
+end $$;
+revoke all on function public.obs_ai_conferir_teto(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.obs_ai_conferir_teto(uuid, uuid) to service_role;
+
+-- Gatilho: encurtar nunca soma pessoa; só conta se a linha resultante é ativa.
+create or replace function public.obs_ai_tg_teto()
+returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.user_id is null then return new; end if;
+  if not (new.revoked_at is null and new.expires_at is not null and new.expires_at > now()) then return new; end if;
+  if tg_op = 'UPDATE'
+     and old.revoked_at is null and old.expires_at is not null and old.expires_at > now()
+     and old.user_id is not distinct from new.user_id
+     and new.expires_at <= old.expires_at then
+    return new;
+  end if;
+  perform public.obs_ai_conferir_teto(new.site_id, new.user_id);
+  return new;
+end $$;
+revoke all on function public.obs_ai_tg_teto() from public, anon, authenticated;
+grant execute on function public.obs_ai_tg_teto() to service_role;
+
+drop trigger if exists obs_ai_teto_liberacoes on public.obs_ai_liberacoes;
+create trigger obs_ai_teto_liberacoes
+  before insert or update of revoked_at, expires_at on public.obs_ai_liberacoes
+  for each row when (new.revoked_at is null)
+  execute function public.obs_ai_tg_teto();
+
+drop trigger if exists obs_ai_teto_chaves on public.pipeline_api_keys;
+create trigger obs_ai_teto_chaves
+  before insert or update of revoked_at, expires_at on public.pipeline_api_keys
+  for each row when (new.revoked_at is null and 'observatorio_leitura' = any(new.permissions))
+  execute function public.obs_ai_tg_teto();
+
+-- Taxa v2: minuto e dia por chave, dia por PESSOA. O dia vira à meia-noite UTC (21:00 BRT), como a v1. A v1 não é tocada (D-4).
+create or replace function public.obs_ai_rate_hit_v2(p_key uuid, p_user uuid, p_now timestamptz)
+returns table (no_minuto integer, no_dia integer, no_dia_pessoa integer)
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user is null then raise exception 'obs_ai_rate_hit_v2: p_user nulo'; end if;
+  return query
+  with m as (
+    insert into public.obs_ai_rate as r (key_id, grain, bucket, n)
+    values (p_key, 'minuto', date_trunc('minute', p_now, 'UTC'), 1)
+    on conflict (key_id, grain, bucket) do update set n = r.n + 1 returning r.n),
+  d as (
+    insert into public.obs_ai_rate as r (key_id, grain, bucket, n)
+    values (p_key, 'dia', date_trunc('day', p_now, 'UTC'), 1)
+    on conflict (key_id, grain, bucket) do update set n = r.n + 1 returning r.n),
+  p as (
+    insert into public.obs_ai_rate_pessoa as r (user_id, bucket, n)
+    values (p_user, date_trunc('day', p_now, 'UTC'), 1)
+    on conflict (user_id, bucket) do update set n = r.n + 1 returning r.n)
+  select (select m.n from m), (select d.n from d), (select p.n from p);
+end $$;
+revoke all on function public.obs_ai_rate_hit_v2(uuid, uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_rate_hit_v2(uuid, uuid, timestamptz) to service_role;
+
+-- Baldes por IP (DCR 'register' e '/authorize'): balde da hora por hash; globais do dia só somam o pedido ACEITO (Phil I1);
+-- 5.000 baldes novos por dia: acima disso não insere e devolve estourou (n = p_limite + 1, para o app recusar também por n).
+create or replace function public.obs_ai_rate_ip_hit(p_grain text, p_hash text, p_now timestamptz, p_limite integer, p_teto_dia integer)
+returns table (n integer, n_dia integer, estourou boolean)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_hora timestamptz := date_trunc('hour', p_now, 'UTC');
+  v_dia timestamptz := date_trunc('day', p_now, 'UTC');
+  v_n integer;
+  v_novo boolean := false;
+  v_dia_n integer;
+  v_baldes integer;
+  v_estourou boolean := false;
+begin
+  if p_grain is null or p_grain not in ('register', 'authorize') then
+    raise exception 'obs_ai_rate_ip_hit: grain invalido';
+  end if;
+  select coalesce((select b.n from public.obs_ai_rate_ip b where b.grain = 'baldes_dia' and b.ip_hash = 'global' and b.bucket = v_dia), 0)
+    into v_baldes;
+  if v_baldes >= 5000 and not exists (
+       select 1 from public.obs_ai_rate_ip b where b.grain = p_grain || '_hora' and b.ip_hash = p_hash and b.bucket = v_hora) then
+    v_estourou := true;
+    v_n := p_limite + 1;
+  else
+    insert into public.obs_ai_rate_ip as r (grain, ip_hash, bucket, n)
+    values (p_grain || '_hora', p_hash, v_hora, 1)
+    on conflict (grain, ip_hash, bucket) do update set n = least(r.n + 1, p_limite + 1)
+    returning r.n, (r.xmax::text = '0') into v_n, v_novo;
+  end if;
+  if not v_estourou and v_n <= p_limite then
+    insert into public.obs_ai_rate_ip as r (grain, ip_hash, bucket, n)
+    values (p_grain || '_dia', 'global', v_dia, 1)
+    on conflict (grain, ip_hash, bucket) do update set n = least(r.n + 1, p_teto_dia + 1)
+    returning r.n into v_dia_n;
+    if v_novo then
+      insert into public.obs_ai_rate_ip as r (grain, ip_hash, bucket, n)
+      values ('baldes_dia', 'global', v_dia, 1)
+      on conflict (grain, ip_hash, bucket) do update set n = least(r.n + 1, 5001);
+    end if;
+  else
+    select coalesce((select g.n from public.obs_ai_rate_ip g where g.grain = p_grain || '_dia' and g.ip_hash = 'global' and g.bucket = v_dia), 0)
+      into v_dia_n;
+  end if;
+  return query select v_n, v_dia_n, v_estourou;
+end $$;
+revoke all on function public.obs_ai_rate_ip_hit(text, text, timestamptz, integer, integer) from public, anon, authenticated;
+grant execute on function public.obs_ai_rate_ip_hit(text, text, timestamptz, integer, integer) to service_role;
