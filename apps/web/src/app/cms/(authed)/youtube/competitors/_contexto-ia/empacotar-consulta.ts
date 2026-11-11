@@ -61,7 +61,7 @@ function linhaDaTabela(l: LinhaDaConsulta, p: string): Celula[] {
     terceiros(l.titulo, `${p}.titulo`), terceiros(l.canal, `${p}.canal`), base(l.ytId, `${p}.ytId`), base(l.publicadoEm, `${p}.publicadoEm`),
     numero(l.idadeDias, `${p}.idadeDias`), rotulo(l.formato === 'shorts' ? 'Short' : 'longo', `${p}.formato`),
     rotulo(l.estado === 'ativo' ? 'ativo' : l.estado === 'leitura_mensal' ? 'leitura mensal' : 'só no arquivo', `${p}.estado`),
-    base(dh(l.medidoEm), `${p}.medidoEm`), base(l.lugares === null ? 'não lido' : l.lugares.length ? l.lugares.join(', ') : 'nenhum', `${p}.lugares`),
+    { ...base(dh(l.medidoEm), `${p}.medidoEm`), ...(l.medidoEm !== null && !Number.isNaN(Date.parse(l.medidoEm)) ? { maquina: l.medidoEm } : {}) }, base(l.lugares === null ? 'não lido' : l.lugares.length ? l.lugares.join(', ') : 'nenhum', `${p}.lugares`),
     celulaNumerica(c.views, `${p}.celulas.views`), celulaNumerica(c.likes, `${p}.celulas.likes`), celulaNumerica(c.comentarios, `${p}.celulas.comentarios`),
     celulaNumerica(c.vpd7, `${p}.celulas.vpd7`), rotulo(c.vpd7?.vpdBase ? BASE_VPD[c.vpd7.vpdBase]! : 'não medido', `${p}.celulas.vpd7.vpdBase`),
     celulaNumerica(mult, `${p}.celulas.multiplicador`, '×'),

@@ -28,7 +28,7 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   mudancas: 'canal_id, janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais; a_partir_da_linha e marca (da Cobertura) opcionais; saida (texto ou tabela: tabela devolve CSV) opcional; desde (AAAA-MM-DD) é aceito, mas não filtra: use janela',
   sugestoes: 'sem campos além de acao',
   pacote_da_tela: 'tela obrigatória; id e parametros (pares chave:valor) opcionais',
-  consultar: 'todos opcionais: lugar (local:<slug> ou pais:<XX>, os de definicoes), formato (todos, longos ou shorts), janela_idade (todas, uma faixa ou lista: 0-30, 31-90, 91-180, 181-365, 365+), canal_ids (até 6 uuids), nicho, publicado_de e publicado_ate (AAAA-MM-DD), metricas (views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos), ordenar_por (uma delas; padrão multiplicador), direcao (desc ou asc), limite (1 a 50; padrão 20), incluir_base_fraca (true ou false); entidade só "video"; a lista não tem janela',
+  consultar: 'todos opcionais: lugar (local:<slug> ou pais:<XX>, os de definicoes), formato (todos, longos ou shorts), janela_idade (todas, uma faixa ou lista: 0-30, 31-90, 91-180, 181-365, 365+), canal_ids (até 6 uuids), nicho, publicado_de e publicado_ate (AAAA-MM-DD), metricas (views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos), ordenar_por (uma delas; padrão multiplicador), direcao (desc ou asc), limite (1 a 50; padrão 20), incluir_base_fraca (true ou false) e saida (texto ou tabela: tabela devolve CSV, uma tabela por formato; limite vale no total) opcionais; entidade só "video"; a lista não tem janela',
 }
 
 export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
@@ -42,7 +42,7 @@ export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
   mudancas: '{"acao":"mudancas","janela":"30","formato":"todos"}',
   sugestoes: '{"acao":"sugestoes"}',
   pacote_da_tela: '{"acao":"pacote_da_tela","tela":"insights","parametros":{"fmt":"long"}}',
-  consultar: '{"acao":"consultar","lugar":"local:vn-hanoi","formato":"longos","ordenar_por":"views","limite":20}',
+  consultar: '{"acao":"consultar","lugar":"local:vn-hanoi","formato":"longos","ordenar_por":"views","limite":20,"saida":"tabela"}',
 }
 
 /** A5 F2b: o 2º exemplo da `serie` (vários canais, na mesma linha do gráfico); a `DESCRICAO` da ferramenta o lista logo depois do da ação. */

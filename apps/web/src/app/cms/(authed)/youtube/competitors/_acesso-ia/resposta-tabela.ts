@@ -55,9 +55,15 @@ export function respostaEmTabela(
   totais?: ReadonlyMap<string, number>,
 ): RespostaEmTabela {
   const tela = modelo.tela
-  const principal = modelo.tabelas.find((t) => classeDa(tela, t) === 'principal')
+  // A5 F1c: a consultar tem duas principais (longos, Shorts): a janela anda pelas duas como uma lista só, na ordem do modelo; as demais telas têm uma
+  const principais = modelo.tabelas.filter((t) => classeDa(tela, t) === 'principal')
+  const principal = principais[0]
   if (!principal) throw new Error('resposta-tabela: modelo sem lista principal')
-  const total = principal.linhas.length
+  const deslocamentos = new Map<string, number>()
+  let total = 0
+  for (const t of principais) { deslocamentos.set(t.id, total); total += t.linhas.length }
+  /** As linhas de `t` (principal) que a janela [s, s + k) leva. */
+  const fatiaDaPrincipal = (t: Tabela, k: number): Tabela['linhas'] => { const o = deslocamentos.get(t.id)!; return t.linhas.slice(Math.max(0, s - o), Math.max(0, Math.min(t.linhas.length, s + k - o))) }
   const { inicio } = janela
   const s = inicio - 1
   const donos = donosDasLinhas(modelo)
@@ -84,7 +90,11 @@ export function respostaEmTabela(
       const classe = classeDa(tela, t)
       const classeBase = classeDa(tela, { id: baseDe(t.id), tipo: t.tipo })
       if (classeBase === 'texto') continue // texto não entra no modo tabela (D7); a Cobertura diz
-      if (classe === 'principal') { tabelas.push({ ...t, linhas: t.linhas.slice(s, e) }); meta.set(t.id, { classe, origem: [], de: total }); continue }
+      if (classe === 'principal') {
+        const linhas = fatiaDaPrincipal(t, k)
+        if (principais.length > 1 && linhas.length === 0) continue // a principal que a janela não alcança não vira bloco vazio
+        tabelas.push({ ...t, linhas }); meta.set(t.id, { classe, origem: [], de: total }); continue
+      }
       if (classe === 'geral') {
         if (inicio !== 1) continue
         tabelas.push(t)
@@ -166,7 +176,8 @@ export function respostaEmTabela(
       const csv = csvDaTabela(so, legenda, extrasDe(so, { ...meta, origem: [linhaDaTabela] }))
       if (csv) c += (csv.linhas[0]?.length ?? 0) + 1
     }
-    linhaCsv(principal, pos, { classe: 'principal', origem: [], de: total })
+    const dona = principais.find((t) => pos >= deslocamentos.get(t.id)! && pos < deslocamentos.get(t.id)! + t.linhas.length)!
+    linhaCsv(dona, pos - deslocamentos.get(dona.id)!, { classe: 'principal', origem: [], de: total })
     for (const t of modelo.tabelas) {
       if (t.tipo !== 'lista') continue
       const classe = classeDa(tela, t)

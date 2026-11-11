@@ -56,7 +56,7 @@ const formato = z.enum(['todos', 'longos', 'shorts'])
 const aPartirDaLinha = z.preprocess((v) => (typeof v === 'string' && /^\d{1,6}$/.test(v) ? Number(v) : v), z.number().int().min(1).max(100_000)).optional()
 /** 8 hex da lista; o 9º caractere `p` diz que uma janela anterior perdeu parte do conteúdo (a IA o repete como veio). */
 const marca = z.string().regex(/^[0-9a-f]{8}p?$/).optional()
-/** A5 F1b/F2a: as três listas e a `serie` (um canal) aceitam `saida`; `comparar` não (D10). */
+/** A5 F1b/F1c/F2a: as três listas, a `consultar` e a `serie` aceitam `saida`; `comparar` não (D10). */
 const saida = z.enum(['texto', 'tabela']).optional()
 
 const dataReal = (s: string): boolean => {
@@ -95,7 +95,7 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({
     acao: z.literal('consultar'), entidade: z.enum(['video', 'canal']).default('video'), lugar: lugarDaConsulta.optional(), formato: formato.optional(), janela_idade: janelaDaConsulta,
     canal_ids: canaisDaConsulta, nicho: nicho.optional(), publicado_de: data.optional(), publicado_ate: data.optional(), metricas: z.array(metrica).min(1).max(CHAVES_DE_METRICA.length).optional(),
-    ordenar_por: metrica.optional(), direcao: z.enum(['desc', 'asc']).optional(), limite: limiteDaConsulta, incluir_base_fraca: booleano,
+    ordenar_por: metrica.optional(), direcao: z.enum(['desc', 'asc']).optional(), limite: limiteDaConsulta, incluir_base_fraca: booleano, saida,
   }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
 ])

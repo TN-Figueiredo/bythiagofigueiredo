@@ -121,7 +121,7 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
     for (let i = 0; i < colunasDeDados; i++) {
       const c = linha[i]!
       const chave = chaves[i]!
-      if (c.papel !== 'numero') { campos.push(campoCsv(c.texto)); continue }
+      if (c.papel !== 'numero') { campos.push(campoCsv(('maquina' in c && c.maquina !== undefined ? c.maquina : c.texto))); continue }
       if (c.estado !== 'nao_medido' && c.estado !== 'falhou' && c.estado !== 'restrito') {
         if (c.semXMotivo !== undefined) { refs.push(`${chave}:${legenda.idDe('nao_medido', c.semXMotivo)}`); campos.push(''); continue }
         if (c.x !== undefined && c.x !== null && Number.isFinite(c.x)) {
