@@ -297,3 +297,36 @@ describe('consultar: prazo e registro', () => {
     expect(r.texto).toContain('use a ação consultar')
   })
 })
+
+describe('consultar: consertos vistos em produção (R5)', () => {
+  const lugar = (semLugarCalculado: number): NonNullable<ResultadoDaConsulta['lugar']> => ({ estado: 'marcado', calculadoEm: '2026-11-10T10:00:00Z', atrasado: false, emRecalculo: false, semLugarCalculado, maisDeUmLugar: 0, maisDeUmLugarSobre: 'marcados' })
+  it('1: nenhuma resposta traz nota interna de código', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)], { lugar: 'local:vn-hanoi' }, { lugar: lugar(1) }))
+    const t = (await pedir({ lugar: 'local:vn-hanoi' })).texto
+    for (const x of ['niche_signals', 'gravarLugares', 'Nota técnica']) expect(t).not.toContain(x)
+  })
+  it('2: com dadosDe preenchido, o cabeçalho não diz "nenhuma sincronização" e usa o mais recente entre motor e medidas', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)]))
+    const t = (await pedir()).texto
+    expect(t).not.toContain('nenhuma sincronização')
+    expect(t).toContain('Dado mais recente: 11/11 08:00')
+  })
+  it('3: "Medido em" sai em hora de São Paulo (dd/mm HH:MM), não em ISO UTC', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)]))
+    const t = (await pedir()).texto
+    expect(t).not.toContain('2026-11-11T11:00:00.000Z')
+    expect(t).toContain('11/11 08:00')
+  })
+  it('4: o teto mostrado é o teto real da resposta, não 10.000.000', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)]))
+    const t = (await pedir()).texto
+    expect(t).not.toContain('10.000.000')
+    expect(t).toMatch(/O pacote tem [\d.]+ de [\d.]+ caracteres/)
+  })
+  it('5: concordância: 1 vídeo ... não entra; 3 vídeos ... não entram', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)], { lugar: 'local:vn-hanoi' }, { lugar: lugar(1) }))
+    expect((await pedir({ lugar: 'local:vn-hanoi' })).texto).toMatch(/1 vídeo do conjunto chegou depois do cálculo de lugares e não entra neste filtro/)
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)], { lugar: 'local:vn-hanoi' }, { lugar: lugar(3) }))
+    expect((await pedir({ lugar: 'local:vn-hanoi' })).texto).toMatch(/3 vídeos do conjunto chegaram depois do cálculo de lugares e não entram neste filtro/)
+  })
+})

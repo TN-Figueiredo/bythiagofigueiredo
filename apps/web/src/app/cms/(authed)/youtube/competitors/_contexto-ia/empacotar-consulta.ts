@@ -61,7 +61,7 @@ function linhaDaTabela(l: LinhaDaConsulta, p: string): Celula[] {
     terceiros(l.titulo, `${p}.titulo`), terceiros(l.canal, `${p}.canal`), base(l.ytId, `${p}.ytId`), base(l.publicadoEm, `${p}.publicadoEm`),
     numero(l.idadeDias, `${p}.idadeDias`), rotulo(l.formato === 'shorts' ? 'Short' : 'longo', `${p}.formato`),
     rotulo(l.estado === 'ativo' ? 'ativo' : l.estado === 'leitura_mensal' ? 'leitura mensal' : 'só no arquivo', `${p}.estado`),
-    base(l.medidoEm ?? 'não lido', `${p}.medidoEm`), base(l.lugares === null ? 'não lido' : l.lugares.length ? l.lugares.join(', ') : 'nenhum', `${p}.lugares`),
+    base(dh(l.medidoEm), `${p}.medidoEm`), base(l.lugares === null ? 'não lido' : l.lugares.length ? l.lugares.join(', ') : 'nenhum', `${p}.lugares`),
     celulaNumerica(c.views, `${p}.celulas.views`), celulaNumerica(c.likes, `${p}.celulas.likes`), celulaNumerica(c.comentarios, `${p}.celulas.comentarios`),
     celulaNumerica(c.vpd7, `${p}.celulas.vpd7`), rotulo(c.vpd7?.vpdBase ? BASE_VPD[c.vpd7.vpdBase]! : 'não medido', `${p}.celulas.vpd7.vpdBase`),
     celulaNumerica(mult, `${p}.celulas.multiplicador`, '×'),
@@ -117,13 +117,18 @@ function tabelaDoAgregado(b: ResultadoDaConsulta['blocos'][number], i: number, p
 }
 
 // ───────────────────────── cabeçalho
+/** O mais recente entre motor e medidas (a mesma fonte do `Dados de`), na hora de São Paulo; nulo se nenhum foi lido. */
+export const maisRecenteDosDados = (d: ResultadoDaConsulta['dadosDe']): string | null => {
+  const ms = [d.motor, d.medidas].flatMap((x) => (x === null ? [] : [Date.parse(x)])).filter((n) => !Number.isNaN(n))
+  return ms.length ? spDmHm(Math.max(...ms)) : null
+}
 const dh = (iso: string | null): string => {
   if (iso === null) return 'não lido'
   const ms = Date.parse(iso)
   if (Number.isNaN(ms)) return 'não lido'
   return spDmHm(ms)
 }
-const NOTA_TECNICA = 'Nota técnica: se niche_signals_gravar falhar depois de gravarLugares, o aviso de lugares desatualizados sai mesmo com os lugares em dia (é conservador).'
+// Nota de código (não vai para a resposta): se niche_signals_gravar falhar depois de gravarLugares, o aviso de lugares desatualizados sai mesmo com os lugares em dia (é conservador).
 
 function cabecalho(r: ResultadoDaConsulta): Tabela {
   const p = r.pedido
@@ -155,7 +160,7 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
       f.push(g.desligado ? `tarefa de lugares desligada; lugares calculados em ${dh(g.calculadoEm)}` : `lugares calculados em ${dh(g.calculadoEm)}`)
       if (g.atrasado) f.push('atrasado (mais de 36 h desde o último cálculo)')
       if (g.emRecalculo) f.push('lugares em recálculo agora')
-      if (g.semLugarCalculado > 0) f.push(`${g.semLugarCalculado} ${g.semLugarCalculado === 1 ? 'vídeo do conjunto chegou' : 'vídeos do conjunto chegaram'} depois do cálculo de lugares e não entram neste filtro`)
+      if (g.semLugarCalculado > 0) f.push(`${g.semLugarCalculado} ${g.semLugarCalculado === 1 ? 'vídeo do conjunto chegou' : 'vídeos do conjunto chegaram'} depois do cálculo de lugares e ${g.semLugarCalculado === 1 ? 'não entra' : 'não entram'} neste filtro`)
     }
     L.push(['Lugar', f.join('; ')])
     L.push(['Vídeos com mais de um lugar', `${g.maisDeUmLugar} (sobre ${g.maisDeUmLugarSobre === 'marcados' ? 'os marcados' : 'as linhas devolvidas'})`])
@@ -175,7 +180,6 @@ function cabecalho(r: ResultadoDaConsulta): Tabela {
   if (r.canaisSemSync?.length) L.push(['Sem sincronização boa', r.canaisSemSync.join(', '), 'terceiros'])
   if (r.canaisNaoEncontrados.length) L.push(['Canais não encontrados', r.canaisNaoEncontrados.join(', ')])
   if (r.lugaresNota) L.push(['Lugares', r.lugaresNota])
-  if (r.lugar) L.push(['Nota técnica', NOTA_TECNICA.replace('Nota técnica: ', '')])
   return {
     id: 'consulta-cabecalho', titulo: 'Como esta consulta foi lida', tipo: 'fixa', nomeNoCorte: 'tabela do cabeçalho da consulta', privada: false,
     colunas: ['Item', 'Valor'], chaves: ['item', 'valor'], linhas: L.map(([k, v, papel], i) => [rotulo(k, `consulta.cabecalho[${i}].item`), (papel === 'terceiros' ? terceiros : base)(v, `consulta.cabecalho[${i}].valor`)]),
