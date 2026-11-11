@@ -79,15 +79,16 @@ jobs:
       - run: npm run test:api
 
   test-web:
-    name: Test — Web (${{ matrix.shard }}/2)
+    name: Test — Web (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: ecosystem-pinning
     # Runner de repositório privado: 2 núcleos. A suíte inteira num runner só leva ~40 min e os testes pesados
-    # estouram o tempo limite; em duas partes, com 2 processos cada (vitest.config.ts), cada teste tem um núcleo.
+    # estouram o tempo limite; em três partes, com 2 processos cada (vitest.config.ts), cada teste tem um núcleo.
+    # 11/11: em duas partes a 2/2 chegou a 1.090 s e o worker do vitest estourou o RPC ("Timeout calling onTaskUpdate") com todos os testes verdes.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -99,7 +100,7 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Build workspace packages
         run: npm run build:packages
-      - run: npm run test -w apps/web -- --shard=${{ matrix.shard }}/2
+      - run: npm run test -w apps/web -- --shard=${{ matrix.shard }}/3
 
   test-packages:
     name: Test — Packages
