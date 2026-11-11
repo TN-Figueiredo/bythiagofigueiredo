@@ -33,12 +33,19 @@ export interface McpServiceContext {
  *  1. Authorization: Bearer <token>  (MCP transport standard)
  *  2. X-Pipeline-Key: <token>        (existing pipeline compat)
  */
-function extractApiKey(req: Request): string | null {
+export function extractApiKey(req: Request): string | null {
+  return extractApiKeyComOrigem(req)?.valor ?? null
+}
+
+/** O único parser de `Authorization`/`X-Pipeline-Key`; devolve também de qual cabeçalho veio. */
+export function extractApiKeyComOrigem(req: Request): { valor: string; origem: 'bearer' | 'pipeline_key' } | null {
   const authHeader = req.headers.get('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.slice(7).trim() || null
+    const v = authHeader.slice(7).trim()
+    return v ? { valor: v, origem: 'bearer' } : null
   }
-  return req.headers.get('X-Pipeline-Key')
+  const v = req.headers.get('X-Pipeline-Key')
+  return v ? { valor: v, origem: 'pipeline_key' } : null
 }
 
 /**
