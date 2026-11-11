@@ -183,6 +183,9 @@ export const FRASE_DO_GRAFICO = {
 
 // ───────────────────────── A5 F2a: série em CSV longo (um canal)
 export const SEMANA_ABERTA = (fim: string) => `semana ainda aberta (termina em ${fim})` // novo
+/** I2 (dono 10/11): o dia em curso sai vazio, como a semana aberta; o canal próprio fecha à meia-noite do Pacífico. */
+export const DIA_ABERTO = 'dia ainda aberto (termina às 23:59 de São Paulo)'
+export const DIA_ABERTO_PACIFICO = 'dia ainda aberto (termina às 23:59 do Pacífico)'
 export const SEMANA_DIAS_SEM_LEITURA = (faltam: number) => `${faltam} de 7 dias sem leitura` // novo
 export const SEMANA_TOTAL_CORRIGIDO = 'o YouTube corrigiu o total para baixo num dia desta semana; não há ganho a somar' // novo
 export const SEMANA_TABELA_SEM_SOMA = 'esta tabela não soma por semana; peça o grão dia' // novo

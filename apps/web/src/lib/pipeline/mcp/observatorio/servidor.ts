@@ -16,7 +16,7 @@ export const DESCRICAO =
   'Lê o Observatório do YouTube (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
   'Só leitura. Escolha uma das dez ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela ou sugestoes (as sugestões do nicho: só leitura). ' +
   'Cada ação aceita só os campos que a ela cabem; o resto é recusado. ' +
-  'Para gráfico ou planilha, peça saida "tabela" (CSV com número de máquina; célula vazia não é zero; cada tabela traz o gráfico sugerido: linha, barra ou pizza). ' +
+  'Para gráfico ou planilha, peça saida "tabela" (CSV com número de máquina; célula vazia não é zero; cada tabela traz o gráfico sugerido: linha, barra, pizza ou nenhum). ' +
   // para o cliente que ignora as `instructions` (não se sabe se o conector web do Claude.ai as entrega)
   'Toda resposta termina com "Cobertura" (quanto você viu e as próximas chamadas): diga a cobertura antes de recomendar e ofereça aprofundar. ' +
   'Um pedido válido por ação (troque <uuid> pelo id da coluna Id de listar_canais):\n' +
@@ -30,7 +30,7 @@ export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeIn
   { fatia: 'T6', texto: 'Pedido recusado traz o formato e um exemplo válido: corrija e tente de novo uma vez.' },
   { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
   { fatia: 'T10', texto: 'Para falar do conjunto, use o "Resumo do todo" do topo: ele foi calculado sobre todas as linhas, não só as que vieram.' },
-  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco (nunca zero); pizza só onde sugerido. Publicações por mês não é medida por nenhuma tela: use o ritmo de 13 semanas (listar_canais em tabela) e diga que mês não é medido.' },
+  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco (nunca zero); pizza só onde sugerido. Publicações por mês não é medida por nenhuma tela: use a coluna Ritmo de listar_canais em tabela (e a nota de cada canal) e diga que mês não é medido.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
 const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5'])

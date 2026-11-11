@@ -327,6 +327,8 @@ describe('responder: serie em tabela (um canal)', () => {
     expect(csvDe(sem.texto).slice(1).every((l) => l.includes(',restrito,'))).toBe(true)
     expect(sem.texto).not.toContain(String(SENT))
     expect(sem.incluiuPrivado).toBe(false)
+    expect(sem.texto).not.toContain('privado: sim') // I1: linhas restrito não são dado privado
+    expect(sem.texto).not.toContain('revogar a chave')
     expect(sem.params).toMatchObject({ linhas: 3, total: 3 }) // m-2: as linhas restrito contam
     dobra('canal-proprio', modelo([{ ...privada, foraDoTeto: 3 }], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio'))
     const com = await responder({ acao: 'serie', canal_id: C1, de: '2026-11-01', ate: '2026-11-03', grao: 'dia', saida: 'tabela' }, abrir, AGORA)
@@ -587,3 +589,30 @@ describe('conserto N-1: `ate` depois do fim da tabela', () => {
     expect(r.texto).toMatch(/linhas: 0 de \d+/)
   })
 })
+
+describe('I2 (dono 10/11): o dia ainda aberto sai vazio, como a semana aberta', () => {
+  const DIA = { de: '2026-11-08', ate: '2026-11-10', grao: 'dia' as const }
+  it('concorrente (dia de São Paulo): hoje é nao_medido/x null com o motivo; ontem segue medido', () => {
+    const mm = modelo([tabela({ ultimo: '2026-11-10' })], {})
+    const ps = pontosDaSerie(mm, C1, 'c1', DIA, AGORA)
+    const hoje = ps.find((p) => p.data === '2026-11-10')!
+    expect(hoje).toMatchObject({ estado: 'nao_medido', x: null, motivo: 'dia ainda aberto (termina às 23:59 de São Paulo)' })
+    expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'medido' })
+    expect(contarMedidos(ps)).toBe(2)
+  })
+  it('canal próprio (dia do Pacífico): às 02:00 de SP o dia aberto ainda é o 09/11 (21h no Pacífico); o 10/11 não existe ainda', () => {
+    const cedo = Date.UTC(2026, 10, 10, 5, 0, 0)
+    const priv = tabela({ id: 'privado-views-por-dia', privada: true, fuso: 'pacifico', ultimo: '2026-11-09', inicio: '2026-08-01' })
+    const mm = modelo([priv], { privado: { estado: 'incluido', itens: 'views por dia' } }, 'canal-proprio')
+    const ps = pontosDaSerie(mm, C1, 'c1', DIA, cedo)
+    expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'nao_medido', x: null, motivo: 'dia ainda aberto (termina às 23:59 do Pacífico)' })
+    expect(ps.find((p) => p.data === '2026-11-08')).toMatchObject({ estado: 'medido' })
+  })
+  it('concorrente no mesmo relógio (02:00 de SP): o dia aberto é o 10/11, não o 09/11', () => {
+    const cedo = Date.UTC(2026, 10, 10, 5, 0, 0)
+    const ps = pontosDaSerie(modelo([tabela({ ultimo: '2026-11-10' })], {}), C1, 'c1', DIA, cedo)
+    expect(ps.find((p) => p.data === '2026-11-10')).toMatchObject({ estado: 'nao_medido' })
+    expect(ps.find((p) => p.data === '2026-11-09')).toMatchObject({ estado: 'medido' })
+  })
+})
+const contarMedidos = (ps: PontoCsv[]): number => ps.filter((p) => p.estado === 'medido' || p.estado === 'zero_medido').length

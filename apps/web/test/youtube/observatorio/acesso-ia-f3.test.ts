@@ -17,9 +17,10 @@ describe('F3: DESCRICAO e exemplos', () => {
   it('pede saida "tabela" e cita o gráfico sugerido; cabe em 2.000', () => {
     expect(DESCRICAO).toContain('saida "tabela"')
     expect(DESCRICAO).toContain('gráfico sugerido')
+    expect(DESCRICAO).toContain('linha, barra, pizza ou nenhum')
     expect(DESCRICAO.length).toBeLessThanOrEqual(2_000)
   })
-  it('exemplos de listar_canais e serie levam saida tabela; o de comparar não leva canal_ids novo de série', () => {
+  it('exemplos de listar_canais e serie levam saida tabela; o exemplo da serie não leva canal_ids', () => {
     expect(EXEMPLO_DA_ACAO.listar_canais).toContain('"saida":"tabela"')
     expect(EXEMPLO_DA_ACAO.serie).toContain('"saida":"tabela"')
     expect(DESCRICAO).toContain(`- ${EXEMPLO_DA_ACAO.serie}`)
@@ -48,11 +49,11 @@ describe('F3: INSTRUCOES', () => {
     const sem = new Set(todas); sem.delete('A5')
     const t = instrucoesDe(sem)
     expect(t).not.toContain('saida "tabela"')
-    expect(t.split('\n').filter((l) => /^\d+\. /.test(l))).toHaveLength(ITENS_DE_INSTRUCAO.length - 1)
+    expect(t.split('\n').filter((l) => /^\d+\. /.test(l)).map((l) => Number(l.split('.')[0]))).toEqual(ITENS_DE_INSTRUCAO.slice(0, -1).map((_, i) => i + 1))
   })
-  it('todo nome de campo citado (snake_case) existe no esquema ou é a ferramenta', () => {
+  it('o campo saida (uma palavra só, fora da varredura de snake_case do A7d T5) existe no esquema', () => {
     const campos = new Set<string>(ENTRADA.options.flatMap((o) => Object.keys(o.shape)))
-    for (const n of INSTRUCOES.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []) expect(n === NOME_DA_FERRAMENTA || (ACOES as readonly string[]).includes(n) || campos.has(n), n).toBe(true)
+    expect(campos.has('saida')).toBe(true)
   })
 })
 
