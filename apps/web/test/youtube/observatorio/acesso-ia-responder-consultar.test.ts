@@ -330,3 +330,21 @@ describe('consultar: consertos vistos em produção (R5)', () => {
     expect((await pedir({ lugar: 'local:vn-hanoi' })).texto).toMatch(/3 vídeos do conjunto chegaram depois do cálculo de lugares e não entram neste filtro/)
   })
 })
+
+describe('consultar: miúdos da prova em prod de 11/11', () => {
+  it('lista vazia não sugere reordenar (reordenar não traz linha)', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 0, 0), bloco('shorts', 0, 0)]))
+    const t = (await pedir()).texto
+    expect(t).not.toContain('ordenar por')
+  })
+  it('com linhas, a sugestão de reordenar continua', async () => {
+    m.montar.mockResolvedValue(resultado([bloco('longos', 3, 3)]))
+    expect((await pedir()).texto).toContain('ordenar por')
+  })
+  it('"Dado mais recente" nunca fica antes do "Medido em" de uma linha', async () => {
+    const b = bloco('longos', 3, 3)
+    b.linhas[1] = { ...b.linhas[1]!, medidoEm: '2026-11-11T12:30:00.000Z' }
+    m.montar.mockResolvedValue(resultado([b]))
+    expect((await pedir()).texto).toContain('Dado mais recente: 11/11 09:30')
+  })
+})

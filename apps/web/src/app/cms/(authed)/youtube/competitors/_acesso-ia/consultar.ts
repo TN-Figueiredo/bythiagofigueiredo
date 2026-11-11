@@ -59,7 +59,7 @@ const milhar = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g,
 
 /** Mede o texto inteiro (sem teto interno: quem corta é `melhorCorte`), mas a frase "O pacote tem X de Y caracteres" mostra o teto real `teto`. */
 function renderizar(r: ResultadoDaConsulta, agora: number, teto: number): { texto: string; numeros: Numeros } {
-  const pacote = segmentar(empacotarConsulta(r), { geradoEm: agora, recente: maisRecenteDosDados(r.dadosDe) })
+  const pacote = segmentar(empacotarConsulta(r), { geradoEm: agora, recente: maisRecenteDosDados(r) })
   const t = montarTexto(pacote, '', SEM_TETO, 'todos', undefined, { ia: true })
   return { texto: t.texto.replace(`de ${milhar(SEM_TETO)} caracteres`, `de ${milhar(teto)} caracteres`), numeros: t.numerosNoTexto }
 }
@@ -108,7 +108,7 @@ export function respostaDaConsulta(r0: ResultadoDaConsulta, entrada: Extract<Ent
   if (emTabela) {
     // A5 F1c: as duas listas em CSV pela mesma função das listas da A5 (janela única: inicio 1, n = limite no total)
     const modelo = empacotarConsulta(r)
-    const t = respostaEmTabela(modelo, { geradoEm: agora, recente: maisRecenteDosDados(r.dadosDe) }, { inicio: 1, n: p.limite }, Math.min(tetoFinal, ACESSO_IA_RULES.tetoDaJanela))
+    const t = respostaEmTabela(modelo, { geradoEm: agora, recente: maisRecenteDosDados(r) }, { inicio: 1, n: p.limite }, Math.min(tetoFinal, ACESSO_IA_RULES.tetoDaJanela))
     avisos.push(...t.avisos)
     texto = t.texto
     numeros = t.numeros
@@ -191,6 +191,7 @@ function proximasDa(r: ResultadoDaConsulta, final: ResultadoDaConsulta, entrada:
     }
   }
   const linhas = r.blocos.flatMap((b) => b.linhas)
+  if (linhas.length === 0) return out // lista vazia: reordenar não traz linha nenhuma
   if (p.ordenarPor !== 'engajamento' && temReacao(linhas)) out.push({ chamada: { ...base, ordenar_por: 'engajamento' }, para: 'ordenar por engajamento (curtidas e comentários por mil visualizações)' })
   else if (p.ordenarPor !== 'views') out.push({ chamada: { ...base, ordenar_por: 'views' }, para: 'ordenar por views' })
   const primeira = r.blocos.find((b) => b.linhas.length > 0)?.linhas[0]
