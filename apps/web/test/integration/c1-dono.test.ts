@@ -144,6 +144,38 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T4: funções do dono (banco local)', 
     expect((await pg.query(`select count(*)::int as n from public.obs_ai_liberacoes where user_id = $1`, [u3])).rows[0].n).toBe(0)
   })
 
+  it('recusa de liberar não encerra a vencida: teto e banida preservam bloqueios, e liberar depois herda', async () => {
+    const s = await site(); const u1 = await pessoa(s), u2 = await pessoa(s), u3 = await pessoa(s)
+    const l1 = (await liberar(pg, u1, s, 30)).liberacao_id!
+    await cortar(pg, u1, s, 'chatgpt')
+    await pg.query(`update public.obs_ai_liberacoes set expires_at = now() - interval '1 hour' where id = $1`, [l1])
+    // 3 pessoas forçadas: u2 e u3 ativas + a vencida de u1 (não conta)
+    const l2 = (await liberar(pg, u2, s, 30)).liberacao_id!
+    await pg.query('begin')
+    try {
+      await pg.query(`set local session_replication_role = replica`)
+      await pg.query(`insert into public.obs_ai_liberacoes (site_id, user_id, expires_at) values ($1, $2, now() + interval '30 days')`, [s, u3])
+      await pg.query('commit')
+    } catch (e) { await pg.query('rollback'); throw e }
+    expect((await liberar(pg, u1, s, 30)).motivo).toBe('teto')
+    expect(await lib(l1)).toMatchObject({ revoked_at: null, revogada_por: null, bloqueios: ['chatgpt'] })
+    await pg.query(`update public.obs_ai_liberacoes set revoked_at = now(), revogada_por = 'dono' where id = $1`, [l2])
+    const ok = await liberar(pg, u1, s, 30)
+    expect(ok.motivo).toBeNull()
+    expect((await lib(ok.liberacao_id!)).bloqueios).toEqual(['chatgpt'])
+    expect(await lib(l1)).toMatchObject({ revogada_por: 'vencida' })
+  })
+
+  it('recusa por banida não encerra a vencida', async () => {
+    const { s, u } = await cena()
+    const l1 = (await liberar(pg, u, s, 30)).liberacao_id!
+    await cortar(pg, u, s, 'chatgpt')
+    await pg.query(`update public.obs_ai_liberacoes set expires_at = now() - interval '1 hour' where id = $1`, [l1])
+    await pg.query(`update auth.users set banned_until = now() + interval '1 day' where id = $1`, [u])
+    expect((await liberar(pg, u, s, 30)).motivo).toBe('banida')
+    expect(await lib(l1)).toMatchObject({ revoked_at: null, revogada_por: null, bloqueios: ['chatgpt'] })
+  })
+
   it('(b) C1-15: cortar com cliente, bloqueio herdado ao vencer, liberar_cliente, cortar sem cliente, nova começa limpa', async () => {
     const { s, u } = await cena()
     const l1 = (await liberar(pg, u, s, 30)).liberacao_id!

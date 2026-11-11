@@ -397,16 +397,20 @@ begin
     if v_aberta.expires_at > p_agora then
       return query select 'ja_liberada'::text, v_aberta.id, v_aberta.expires_at; return;
     end if;
-    -- vencida e não revogada: encerra (o gatilho propaga às conexões, chaves e tokens) e herda os bloqueios
-    update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'vencida' where l.id = v_aberta.id;
     v_bloq := v_aberta.bloqueios;
   end if;
+  -- recusa de regra não deixa efeito na vencida: confere a elegibilidade ANTES de encerrar
   v_motivo := public.obs_ai_motivo_inelegivel(p_user, p_site, p_agora);
   if v_motivo is not null then
     return query select v_motivo, null::uuid, null::timestamptz; return;
   end if;
   v_exp := p_agora + make_interval(days => p_dias);
   begin
+    -- subtransação: o teto desfaz o encerramento da vencida e o insert juntos
+    if v_aberta.id is not null then
+      -- vencida e não revogada: encerra (o gatilho propaga às conexões, chaves e tokens); os bloqueios foram herdados acima
+      update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'vencida' where l.id = v_aberta.id;
+    end if;
     insert into public.obs_ai_liberacoes (site_id, user_id, expires_at, bloqueios)
       values (p_site, p_user, v_exp, v_bloq) returning id into v_id;
   exception when raise_exception then
