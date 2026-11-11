@@ -175,6 +175,19 @@ describe('empacotarConsulta', () => {
     })
   })
 
+  it('F1c: agregado do multiplicador com n = 0 diz "sem medida", não "sem vídeo de base fraca"; com base fraca > 0 mantém a contagem', () => {
+    const notaDoMult = (mut: (r: ResultadoDaConsulta) => void): string => {
+      const r = resultado({ metricas: ['multiplicador'], formato: 'longos' }); mut(r)
+      const ag = tab(empacotarConsulta(r), 'consulta-agregados-longos')
+      const lin = ag.linhas.find((l) => l[0]!.papel === 'rotulo' && /multiplicador/i.test((l[0] as { texto: string }).texto))!
+      return (lin.at(-1) as { texto: string }).texto
+    }
+    const zera = (r: ResultadoDaConsulta): void => { const v = r.blocos[0]!.agregado.porMetrica.multiplicador!; v.n = 0; v.mediana = null; v.q1 = null; v.q3 = null; r.blocos[0]!.agregado.baseFraca = 0 }
+    expect(notaDoMult(zera)).toBe('sem medida')
+    expect(notaDoMult((r) => { zera(r); r.blocos[0]!.agregado.baseFraca = 2 })).toMatch(/2 de base fraca fora deste agregado/)
+    expect(notaDoMult((r) => { r.blocos[0]!.agregado.baseFraca = 0 })).toMatch(/sem vídeo de base fraca/)
+  })
+
   it('(h) cabeçalho e agregados são fixa; as linhas são lista', () => {
     const m = empacotarConsulta(resultado())
     expect(tab(m, 'consulta-cabecalho').tipo).toBe('fixa')

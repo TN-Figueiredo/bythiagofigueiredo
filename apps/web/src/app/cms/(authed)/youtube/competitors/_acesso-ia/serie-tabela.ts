@@ -236,7 +236,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
     if (segunda > fimDaLeitura) return nenhuma(F.SERIE_DEPOIS_DO_FIM(dmy(fimDaLeitura)))
     if (domingo < inicio) return nenhuma(F.SERIE_ANTES_DA_COLETA(dmy(inicio)))
     const dias = todos.filter((d) => d >= segunda && d <= domingo).map((d) => ({ dia: d, celula: celulas.get(d)! }))
-    const r = somaDaSemana(segunda, dias, hoje, regraDe(t))
+    const r = somaDaSemana(segunda, dias, t.fuso === 'pacifico' ? hojePacifico(agora) : hoje, regraDe(t))
     let motivo = r.motivo === null ? undefined : frasesDoMotivo(r.motivo, segunda, r.diasMedidos)
     if (r.motivo === 'dias_sem_leitura') {
       // a semana de borda diz a causa dos dias que faltam, com as mesmas frases do grão dia

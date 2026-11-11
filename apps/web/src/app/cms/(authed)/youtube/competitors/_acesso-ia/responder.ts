@@ -296,6 +296,14 @@ function unirDefinicoes(modelos: PacoteModelo[]): PacoteModelo {
   }
 }
 
+/** O mais recente dos "dd/mm/aaaa hh:mm" das telas (a mesma fonte das outras ações); nenhum -> null. */
+function maisRecenteDe(recentes: readonly string[]): string | null {
+  const chave = (r: string): string => { const x = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/.exec(r); return x ? `${x[3]}${x[2]}${x[1]}${x[4]}` : '' }
+  let melhor: string | null = null
+  for (const r of recentes) if (chave(r) !== '' && (melhor === null || chave(r) > chave(melhor))) melhor = r
+  return melhor
+}
+
 /** Teto de linhas de lugares em `definicoes`; o resto vira uma linha de "mais N lugares". */
 const LUGARES_EM_DEFINICOES = 60
 const dataBR = (iso: string): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(new Date(iso))
@@ -639,13 +647,14 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     /* ---- definicoes: a união das cinco telas */
     if (entrada.acao === 'definicoes') {
       const modelos: PacoteModelo[] = []
+      const recentes: string[] = []
       for (const tela of pedido.telas) {
         const m = await empacotar(tela, abrir)
-        if (m) modelos.push(m.modelo)
+        if (m) { modelos.push(m.modelo); if (m.recente) recentes.push(m.recente) }
       }
       if (modelos.length === 0) return NAO_ENCONTRADO(params)
       const lugares = blocoDeLugares(await lugaresParaDefinicoes(agora, abrir).catch((): LugaresParaDefinicoes => ({ estado: 'falhou' })))
-      const f = textoDoModelo(unirDefinicoes(modelos), null, agora, tetoFinal - (topo === '' ? 0 : topo.length + 1) - lugares.length - 2)
+      const f = textoDoModelo(unirDefinicoes(modelos), maisRecenteDe(recentes), agora, tetoFinal - (topo === '' ? 0 : topo.length + 1) - lugares.length - 2)
       f.texto = f.texto + '\n\n' + lugares
       const cob: Cobertura = { apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: f.rotulos, numeros: f.numeros, vazio: false, proximas: [] }
       return comCobertura(cabeEm(comTopo(f.texto, topo, null), tetoFinal), cob, { ...params, privado: false, comentarios: false, cortes: 0 }, t0)
