@@ -430,8 +430,9 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
   }
   const ks = (rs: Resp[]): number[] => rs.map((r) => Number(r.params.linhas))
 
+  // A7c2: a tabela de mediana e quartis (~2.000 caracteres a mais na janela 1) leva k a 65 (75: 65,10; 200: 65,67,65,3; medido).
   // A7c1: o resumo do todo (~2.200 caracteres) fica no topo de toda janela; k cai 1 a 3 linhas (75: 69 -> 68; 200: 69,68,63 -> 68,66,64,2). A7c1 rodada 2: o resumo completo só na janela 1, nas outras uma linha que aponta para ele (200: 68,67,65; 75: 68,7).
-  it.each([[34, [34]], [60, [60]], [75, [68, 7]], [200, [68, 67, 65]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
+  it.each([[34, [34]], [60, [60]], [75, [65, 10]], [200, [65, 67, 65, 3]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
     dobra('canais', modeloDe(n))
     const rs = await lerTudo({ acao: 'listar_canais' })
     expect(ks(rs)).toEqual(esperado)
@@ -629,8 +630,8 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     const a = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     dobra('canais', com)
     const b = await responder({ acao: 'listar_canais' }, abrir, AGORA)
-    expect(a.params.linhas).toBe(68)
-    expect(b.params.linhas).toBe(68)
+    expect(a.params.linhas).toBe(65)
+    expect(b.params.linhas).toBe(65)
     expect(a.texto).not.toContain('### A dica de cada medida')
     expect(b.texto).not.toContain('### A dica de cada medida')
     expect(secaoDe(a.texto)).not.toContain('Notas e dicas')
