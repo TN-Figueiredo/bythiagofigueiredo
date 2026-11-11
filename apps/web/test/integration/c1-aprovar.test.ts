@@ -166,13 +166,12 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T5: aprovar e negar o pedido (banco lo
   it('(b) C1-13: falha forçada no insert do código = nenhuma linha órfã e pedido reutilizável', async () => {
     const { s, u } = await cena(); const cid = await cadastro(); await liberar(u, s)
     const h = await pedido(s, cid)
-    await pg.query(`create or replace function public.c1t5_falha() returns trigger language plpgsql as $$ begin raise exception 'c1t5_falha'; end $$`)
-    await pg.query(`create trigger c1t5_falha_token before insert on public.obs_ai_oauth_tokens for each row when (new.client_id = '${cid}') execute function public.c1t5_falha()`)
-    try {
-      await expect(aprovar(pg, h, u, s)).rejects.toThrow(/c1t5_falha/)
-    } finally {
-      await pg.query(`drop trigger if exists c1t5_falha_token on public.obs_ai_oauth_tokens`)
-    }
+    // falha de infraestrutura sem DDL (c1-tokens corre em paralelo na mesma tabela): hash de código já existente = unique_violation
+    const outra = await cena(); const cid2 = await cadastro(); await liberar(outra.u, outra.s)
+    const h2 = await pedido(outra.s, cid2)
+    const usado = randomBytes(16).toString('hex')
+    expect((await pg.query(`select * from public.obs_ai_aprovar_conexao($1, $2, $3, $4, now())`, [h2, outra.u, outra.s, usado])).rows[0].motivo).toBeNull()
+    await expect(pg.query(`select * from public.obs_ai_aprovar_conexao($1, $2, $3, $4, now())`, [h, u, s, usado])).rejects.toThrow(/obs_ai_oauth_tokens_hash_unico/)
     expect(await conexoesDe(u)).toHaveLength(0); expect(await chavesDe(u)).toHaveLength(0)
     expect((await ped(h)).consumido_em).toBeNull()
     expect((await aprovar(pg, h, u, s)).motivo).toBeNull()

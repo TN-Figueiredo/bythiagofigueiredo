@@ -714,3 +714,158 @@ begin
 end $$;
 revoke all on function public.obs_ai_negar_pedido(text, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.obs_ai_negar_pedido(text, uuid, uuid) to service_role;
+
+-- ===== Seção 6: código, refresh, revogação e poda de clientes =====
+-- Ordem de locks: liberação (for update) → conexão → tokens. Negativa de regra = return com motivo (a revogação fica gravada);
+-- erro de infraestrutura = raise (desfaz tudo; o código/refresh segue válido).
+-- Achar a liberação do token sem travar nada, para então travá-la ANTES de ler o token (a linha do token só é tocada depois).
+
+create or replace function public.obs_ai_podar_clientes(p_agora timestamptz, p_max integer)
+returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_n integer;
+begin
+  with alvo as (
+    select c.ctid as id from public.obs_ai_oauth_clientes c
+     where (
+       -- nunca aprovado, com mais de 7 dias, sem token
+       (c.aprovado_em is null and c.created_at < p_agora - interval '7 days'
+         and not exists (select 1 from public.obs_ai_oauth_tokens t where t.client_id = c.client_id))
+       or
+       -- aprovado, sem conexão ativa nem token; o último vencimento (ou a aprovação, se os tokens já saíram) passou de 30 dias
+       (c.aprovado_em is not null
+         and not exists (select 1 from public.obs_ai_oauth_tokens t join public.obs_ai_conexoes x on x.id = t.conexao_id
+                          where t.client_id = c.client_id and x.revoked_at is null)
+         and coalesce((select max(t.expires_at) from public.obs_ai_oauth_tokens t where t.client_id = c.client_id), c.aprovado_em)
+               < p_agora - interval '30 days')
+     )
+     limit greatest(coalesce(p_max, 0), 0))
+  delete from public.obs_ai_oauth_clientes c using alvo where c.ctid = alvo.id;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+revoke all on function public.obs_ai_podar_clientes(timestamptz, integer) from public, anon, authenticated;
+grant execute on function public.obs_ai_podar_clientes(timestamptz, integer) to service_role;
+
+create or replace function public.obs_ai_trocar_codigo(p_hash text, p_client text, p_redirect text, p_verifier_s256 text,
+                                                       p_acesso_hash text, p_refresh_hash text, p_agora timestamptz)
+returns table (motivo text, acesso_expira timestamptz, refresh_expira timestamptz)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_lib uuid;
+  r record;
+  v_challenge text;
+  v_redirect text;
+  v_acesso timestamptz := p_agora + interval '1 hour';
+  v_refresh timestamptz;
+  v_id uuid;
+begin
+  select b.id into v_lib
+    from public.obs_ai_oauth_tokens t
+    join public.obs_ai_conexoes c on c.id = t.conexao_id
+    join public.obs_ai_liberacoes b on b.id = c.liberacao_id
+   where t.hash = p_hash and t.tipo = 'codigo';
+  if v_lib is null then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  perform 1 from public.obs_ai_liberacoes b where b.id = v_lib for update;
+  select * into r from public.obs_ai_resolver_token(p_hash, 'codigo', p_agora);
+  if r.token_id is null or public.obs_ai_motivo_inelegivel(r.user_id, r.site_id, p_agora) is not null then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  select t.code_challenge, t.redirect_uri into v_challenge, v_redirect from public.obs_ai_oauth_tokens t where t.id = r.token_id;
+  -- confere client, redirect e verifier ANTES de qualquer efeito: diferença = nada muda, o código segue usável
+  if r.client_id is distinct from p_client or v_redirect is distinct from p_redirect
+     or v_challenge is null or p_verifier_s256 is distinct from v_challenge then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  if r.used_at is not null then
+    update public.obs_ai_oauth_tokens t set revoked_at = p_agora where t.familia = r.familia and t.revoked_at is null;
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  update public.obs_ai_oauth_tokens t set used_at = p_agora
+   where t.id = r.token_id and t.used_at is null and t.revoked_at is null and t.expires_at > p_agora
+   returning t.id into v_id;
+  if v_id is null then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  v_refresh := least(p_agora + interval '30 days', r.liberacao_expira);
+  insert into public.obs_ai_oauth_tokens (hash, tipo, conexao_id, client_id, familia, expires_at)
+    values (p_acesso_hash, 'acesso', r.conexao_id, r.client_id, r.familia, v_acesso),
+           (p_refresh_hash, 'renovacao', r.conexao_id, r.client_id, r.familia, v_refresh);
+  return query select null::text, v_acesso, v_refresh;
+end $$;
+revoke all on function public.obs_ai_trocar_codigo(text, text, text, text, text, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_trocar_codigo(text, text, text, text, text, text, timestamptz) to service_role;
+
+create or replace function public.obs_ai_girar_refresh(p_hash text, p_client text, p_novo_acesso text, p_novo_refresh text, p_agora timestamptz)
+returns table (motivo text, acesso_expira timestamptz, refresh_expira timestamptz)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  v_lib uuid;
+  r record;
+  v_acesso timestamptz := p_agora + interval '1 hour';
+  v_refresh timestamptz;
+  v_id uuid;
+begin
+  select b.id into v_lib
+    from public.obs_ai_oauth_tokens t
+    join public.obs_ai_conexoes c on c.id = t.conexao_id
+    join public.obs_ai_liberacoes b on b.id = c.liberacao_id
+   where t.hash = p_hash and t.tipo = 'renovacao';
+  if v_lib is null then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  perform 1 from public.obs_ai_liberacoes b where b.id = v_lib for update;
+  select * into r from public.obs_ai_resolver_token(p_hash, 'renovacao', p_agora);
+  if r.token_id is null
+     or r.client_id is distinct from p_client
+     or public.obs_ai_motivo_inelegivel(r.user_id, r.site_id, p_agora) is not null then
+    -- client diferente, token morto, liberação morta ou pessoa inelegível: nada é consumido nem revogado
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  if r.used_at is not null then
+    if p_agora - r.used_at <= interval '30 seconds' then
+      return query select 'reuso_carencia'::text, null::timestamptz, null::timestamptz; return;
+    end if;
+    update public.obs_ai_oauth_tokens t set revoked_at = p_agora where t.familia = r.familia and t.revoked_at is null;
+    return query select 'reuso_familia'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  update public.obs_ai_oauth_tokens t set used_at = p_agora
+   where t.id = r.token_id and t.used_at is null and t.revoked_at is null and t.expires_at > p_agora
+   returning t.id into v_id;
+  if v_id is null then
+    return query select 'invalid_grant'::text, null::timestamptz, null::timestamptz; return;
+  end if;
+  v_refresh := least(p_agora + interval '30 days', r.liberacao_expira);
+  insert into public.obs_ai_oauth_tokens (hash, tipo, conexao_id, client_id, familia, expires_at)
+    values (p_novo_acesso, 'acesso', r.conexao_id, r.client_id, r.familia, v_acesso),
+           (p_novo_refresh, 'renovacao', r.conexao_id, r.client_id, r.familia, v_refresh);
+  return query select null::text, v_acesso, v_refresh;
+end $$;
+revoke all on function public.obs_ai_girar_refresh(text, text, text, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_girar_refresh(text, text, text, text, timestamptz) to service_role;
+
+-- Revogação pelo cliente (RFC 7009): acesso ou refresh; mata os tokens abertos da mesma família. Não toca na conexão.
+-- Hash desconhecido: nada acontece (o app responde 200 sempre).
+create or replace function public.obs_ai_revogar_token(p_hash text, p_agora timestamptz)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_lib uuid;
+  v_fam uuid;
+begin
+  select b.id, t.familia into v_lib, v_fam
+    from public.obs_ai_oauth_tokens t
+    join public.obs_ai_conexoes c on c.id = t.conexao_id
+    join public.obs_ai_liberacoes b on b.id = c.liberacao_id
+   where t.hash = p_hash and t.tipo in ('acesso', 'renovacao');
+  if v_lib is null then return; end if;
+  perform 1 from public.obs_ai_liberacoes b where b.id = v_lib for update;
+  update public.obs_ai_oauth_tokens t set revoked_at = p_agora where t.familia = v_fam and t.revoked_at is null;
+end $$;
+revoke all on function public.obs_ai_revogar_token(text, timestamptz) from public, anon, authenticated;
+grant execute on function public.obs_ai_revogar_token(text, timestamptz) to service_role;

@@ -184,12 +184,13 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T3: fonte única do pode-ler (banco lo
     await pg.query(`update public.pipeline_api_keys set revoked_at = now() where id = $1`, [c.keyId])
     expect((await conferencia(c)).length).toBeGreaterThanOrEqual(1)
     const d = await cena()
-    await pg.query(`alter table public.obs_ai_conexoes disable trigger obs_ai_conexao_propaga`)
+    // sem DDL global (outros arquivos de teste correm em paralelo): gatilhos desligados só nesta transação
+    await pg.query('begin')
     try {
+      await pg.query(`set local session_replication_role = replica`)
       await pg.query(`update public.obs_ai_conexoes set revoked_at = now(), revogada_por = 'dono_cliente' where id = $1`, [d.conId])
-    } finally {
-      await pg.query(`alter table public.obs_ai_conexoes enable trigger obs_ai_conexao_propaga`)
-    }
+      await pg.query('commit')
+    } catch (e) { await pg.query('rollback'); throw e }
     expect((await conferencia(d)).length).toBeGreaterThanOrEqual(1)
   })
 
