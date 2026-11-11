@@ -17,6 +17,9 @@ import { chaveDeVpd } from '@/lib/youtube/observatorio/outliers'
 import { DEFAULT_AGES, RULES } from '@/lib/youtube/observatorio/rules'
 import { FORMA_DOS_PARAMS, filtrarParams } from '@/lib/youtube/observatorio/acesso-ia/registrar'
 import { ENTRADA, traduzir } from '@/lib/youtube/observatorio/acesso-ia/acoes'
+import { reacoesDoCanal } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/reacoes-do-canal'
+import { reacaoComEstado } from '@/lib/youtube/observatorio/medidas/engajamento'
+import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { buildCanalVideos, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
 import { respostaDaConsulta } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/consultar'
 import { paramsDaEntrada } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
@@ -92,10 +95,47 @@ describe('paridade com a tela Canal (§7 teste 2)', () => {
       for (const [m, texto] of [['likes', v.likesText], ['comentarios', v.commentsText]] as const) {
         const c = l.celulas[m]!
         if (c.estado === 'medido' || c.estado === 'zero_medido') { expect(numNb(w.obs.fmt, c.x!), `${l.id} ${m}`).toBe(texto); medidos++ }
-        else expect(texto === null || texto === numNb(w.obs.fmt, 0), `${l.id} ${m}`).toBe(true)
+        else expect(texto, `${l.id} ${m}`).toBeNull()
       }
     }
     expect(medidos).toBeGreaterThan(5)
+  })
+  it('com curtidas ocultas (12), 0 com sinalizador "não oculto" e 0 com sinalizador nulo: a célula da consultar é a decisão da célula da tela (reacaoComEstado + reacoesDoCanal), sem divergência', () => {
+    const CASOS = [
+      { likes: 12, comments: 12, likesHidden: true, commentsDisabled: true },     // oculto com número cru: não medido nos dois lados
+      { likes: 0, comments: 0, likesHidden: false, commentsDisabled: false },     // 0 confirmado: zero medido
+      { likes: 0, comments: 0, likesHidden: null, commentsDisabled: null },       // 0 sem sinalizador: não medido
+      { likes: 7, comments: 7, likesHidden: false, commentsDisabled: false },     // controle
+    ]
+    const w = mundo((ds) => {
+      const meus = ds.videos.filter((v) => v.ch === 'matt-wolfe').slice(0, CASOS.length)
+      meus.forEach((v, i) => { v.likes = CASOS[i]!.likes; v.comments = CASOS[i]!.comments })
+    }, (obs) => {
+      const meus = obs.videos.filter((v) => v.ch === 'matt-wolfe').slice(0, CASOS.length)
+      return { info: Object.fromEntries(meus.map((v, i) => [v.id, { likesHidden: CASOS[i]!.likesHidden, commentsDisabled: CASOS[i]!.commentsDisabled }])) }
+    }, { formato: 'todos', janelaIdade: 'todas', canalIds: ['matt-wolfe'], metricas: TODAS, limite: 50 })
+    const tela = buildCanalVideos(w.obs, 'matt-wolfe').videos
+    const meusIds = w.obs.videos.filter((v) => v.ch === 'matt-wolfe').slice(0, CASOS.length).map((v) => v.id)
+    // os sinalizadores como a tela Canal os lê (mesmas leituras do banco, mesma função)
+    const lido = { videos: { lido: true, dados: meusIds.map((id, i) => ({ id, likesHidden: CASOS[i]!.likesHidden, commentsDisabled: CASOS[i]!.commentsDisabled })) } } as unknown as CanalInteiro
+    const sinais = reacoesDoCanal(lido, tela)!
+    const linhas = todas(montarConjunto(w.p, w.entrada))
+    expect(w.entrada.medidas.videos!.get(meusIds[0]!)!.likesHidden).toBe(true)
+    meusIds.forEach((id, i) => {
+      const v = tela.find((x) => x.id === id)!
+      const l = linhas.find((x) => x.id === id)!
+      for (const [m, cru, sinal, texto] of [['likes', v.likes, sinais[id]?.likesHidden ?? null, v.likesText], ['comentarios', v.comments, sinais[id]?.commentsDisabled ?? null, v.commentsText]] as const) {
+        const daTela = reacaoComEstado(cru, sinal)
+        const c = l.celulas[m]!
+        expect(c.estado, `${i} ${m} estado`).toBe(daTela.estado)
+        expect(c.x, `${i} ${m} x`).toBe(daTela.x)
+        if (daTela.x !== null) expect(numNb(w.obs.fmt, c.x!), `${i} ${m} texto`).toBe(texto)
+      }
+    })
+    // as três formas pedidas existem de fato
+    expect(linhas.find((x) => x.id === meusIds[0])!.celulas.likes).toMatchObject({ estado: 'nao_medido', x: null })
+    expect(linhas.find((x) => x.id === meusIds[1])!.celulas.likes).toMatchObject({ estado: 'zero_medido', x: 0 })
+    expect(linhas.find((x) => x.id === meusIds[2])!.celulas.likes).toMatchObject({ estado: 'nao_medido', x: null })
   })
 })
 
