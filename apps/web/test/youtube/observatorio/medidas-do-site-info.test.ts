@@ -80,7 +80,7 @@ describe('A4 T3: InfoDoVideo e lidoEmMaisAntigo', () => {
     const t = tabelas([video('v1', 'a'), video('v2', 'b')])
     const { abrir } = await montar({ ...t, competitor_video_marks: undefined as never }) // tabela ausente: a leitura de marcas volta não lida
     await abrir(['b'], T0 - 5 * H)
-    const r = await abrir(['a'], T0)
+    const r = await abrir(['a', 'b'], T0)
     expect(r.lidoEmMaisAntigo).toBe(iso(T0))
   })
 })

@@ -1,10 +1,11 @@
 // @vitest-environment node
 // A4 T2: o teto de 1.024 B para `params` em toda ação, o corte determinístico e as formas das chaves da `consultar`.
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { CHAVES_COM_FORMA_DE_PARAMS, FORMA_DOS_PARAMS, TETO_DOS_PARAMS_B, filtrarParams, registrarAcessoDaChave } from '@/lib/youtube/observatorio/acesso-ia/registrar'
+import { METRICAS_DA_CONSULTA } from '@/lib/youtube/observatorio/consulta/catalogo'
 import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
 import { paramsDaEntrada } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 
@@ -17,13 +18,16 @@ const grava = async (params: Record<string, unknown>) => {
   return linhas[0]!.params as Record<string, unknown>
 }
 const PIOR = {
-  acao: 'destaques', desfecho: 'ok', entidade: 'videos', lugar: 'local:vn-hanoi', janela_idade: ['0-30', '31-90', '91-180', '181-365', '365+'],
+  acao: 'destaques', desfecho: 'ok', entidade: 'video', lugar: 'local:vn-hanoi', janela_idade: ['0-30', '31-90', '91-180', '181-365', '365+'],
   publicado_de: '2026-01-01', publicado_ate: '2026-10-31', metricas: ['views', 'likes', 'comentarios', 'vpd7', 'multiplicador', 'engajamento', 'inscritos', 'views'],
   ordenar_por: 'multiplicador', direcao: 'desc', limite: 50, incluir_base_fraca: true, saida: 'tabela',
   canal_ids: Array.from({ length: 6 }, (_, i) => UUID(i)), campos_invalidos: ['canal_id', 'video_id', 'formato', 'janela', 'nicho', 'grao'],
   parametros: Array.from({ length: 3 }, (_, i) => `${String.fromCharCode(97 + i).repeat(10)}=${'v'.repeat(40)}`), linhas: 50, total: 50, elegiveis: 400, cortadas: 350, sem_lugar_calculado: 3, ms: 1234,
   dados_de: '2026-11-10T14', nao_medidos: { views: 1, likes: 99999, comentarios: 2, vpd7: 3, multiplicador: 4, engajamento: 5, inscritos: 6 },
 }
+
+const ENV_ORIGINAL = process.env.VERCEL_ENV
+afterEach(() => { if (ENV_ORIGINAL === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = ENV_ORIGINAL })
 
 describe('A4 T2: teto de 1 KB', () => {
   it('(a) pior caso cabe, avisa e mantém as protegidas', async () => {
@@ -70,6 +74,7 @@ describe('A4 T2: teto de 1 KB', () => {
     expect([...vistos].sort()).toEqual(['1-2', '3', '4'])
   })
   it('(f) propriedade: 200 entradas válidas aleatórias nunca passam de 1.024 e toda chave mantém a própria forma', () => {
+    process.env.VERCEL_ENV = 'production' // a chave `ambiente` mais longa: o corte mede com a mesma que a linha leva
     let seed = 7
     const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
     const pick = <T,>(a: readonly T[]): T => a[Math.floor(rnd() * a.length)]!
@@ -86,12 +91,25 @@ describe('A4 T2: teto de 1 KB', () => {
       if (rnd() < 0.5) e.nao_medidos = Object.fromEntries(mets.map((m) => [m, Math.floor(rnd() * 99999)]))
       for (const k of ['limite', 'elegiveis', 'cortadas', 'linhas', 'total', 'ms']) if (rnd() < 0.6) e[k] = 1 + Math.floor(rnd() * 50)
       const { params } = filtrarParams(e)
-      expect(JSON.stringify({ ...params, ambiente: 'production' }).length).toBeLessThanOrEqual(TETO_DOS_PARAMS_B)
+      expect(JSON.stringify({ ...params, ambiente: process.env.VERCEL_ENV }).length).toBeLessThanOrEqual(TETO_DOS_PARAMS_B)
       for (const [k, v] of Object.entries(params)) {
         if (k === 'params_cortado') continue
         expect(FORMA_DOS_PARAMS[k]!(v), k).not.toBeUndefined()
       }
     }
+  })
+  it('(f2) sem VERCEL_ENV a linha leva ambiente "local"', async () => {
+    delete process.env.VERCEL_ENV
+    const linhas: Array<Record<string, unknown>> = []
+    const sb = { from: () => ({ insert: (l: Record<string, unknown>) => { linhas.push(l); return { abortSignal: async () => ({ error: null }) } } }) }
+    await registrarAcessoDaChave(sb as never, { prova: fabricarProva('s', 'u', 'k', new Date(Date.now() + 86_400_000).toISOString()), acao: 'destaques', params: { desfecho: 'ok' } as never, incluiuPrivado: false, caracteres: 1, resultado: 'ok' } as never)
+    expect((linhas[0]!.params as Record<string, unknown>).ambiente).toBe('local')
+  })
+  it('(f3) M1: n_canais que o chamador já trouxe não é sobrescrito pelo degrau', async () => {
+    const p = await grava({ ...PIOR, n_canais: 9 })
+    expect(p.params_cortado).toBe(true)
+    expect(p.n_canais).toBe(9)
+    expect(p).not.toHaveProperty('canal_ids')
   })
   it('(g) nao_medidos: chave fora do catálogo é descartada, valor fora de 0–99999 também', async () => {
     const p = await grava({ nao_medidos: { views: 3, texto_livre: 1, likes: 100000, vpd7: -1, engajamento: 2.5 } })
@@ -114,6 +132,21 @@ describe('A4 T2: formas das chaves da consultar', () => {
   it('elegiveis e total gravam o mesmo valor (m13) e `comentarios` na consultar não é chave', async () => {
     const p = await grava({ total: 40, elegiveis: 40 })
     expect(p.total).toBe(p.elegiveis)
+    expect(await grava({ comentarios: 5, metricas: ['comentarios'] })).not.toHaveProperty('comentarios')
+  })
+})
+
+describe('A4 R1 revisão I1: lista fechada em entidade, metricas e ordenar_por', () => {
+  it('palavra livre não entra; valor do catálogo entra', async () => {
+    const ruim = await grava({ entidade: 'joaosilva', metricas: ['senha_do_joao'], ordenar_por: 'x' })
+    for (const k of ['entidade', 'metricas', 'ordenar_por']) expect(ruim, k).not.toHaveProperty(k)
+    const misto = await grava({ metricas: ['vpd7', 'senha_do_joao'] })
+    expect(misto).not.toHaveProperty('metricas')
+    expect(await grava({ entidade: 'video', metricas: ['vpd7'], ordenar_por: 'vpd7' })).toMatchObject({ entidade: 'video', metricas: ['vpd7'], ordenar_por: 'vpd7' })
+    expect(await grava({ entidade: 'comentario' })).not.toHaveProperty('entidade')
+  })
+  it('a lista de métricas do registro é a do catálogo da consulta', async () => {
+    for (const m of Object.keys(METRICAS_DA_CONSULTA)) expect(await grava({ ordenar_por: m }), m).toMatchObject({ ordenar_por: m })
   })
 })
 

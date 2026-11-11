@@ -106,7 +106,7 @@ export async function executarChamada(
     prova: c.prova,
     acao,
     // A4 T1: o hash é do texto entregue (só `ok`); nunca vem do chamador. Recusa não leva a chave (divergência declarada do spec 4)
-    params: { ...resposta.params, acao, desfecho: resposta.desfecho, resposta_sha256: entregue ? createHash('sha256').update(resposta.texto, 'utf8').digest('hex') : undefined } as Resposta['params'],
+    params: { ...resposta.params, acao, desfecho: resposta.desfecho, ...(entregue ? { resposta_sha256: createHash('sha256').update(resposta.texto, 'utf8').digest('hex') } : {}) },
     incluiuPrivado: entregue ? resposta.incluiuPrivado : false,
     caracteres: entregue ? resposta.texto.length : null,
     resultado: 'ok',

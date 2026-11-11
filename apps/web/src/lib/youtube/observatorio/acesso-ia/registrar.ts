@@ -10,6 +10,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACOES } from './acoes'
 import { TODOS_OS_CAMPOS } from './exemplos'
+import { METRICAS_DA_CONSULTA } from '../consulta/catalogo'
 import { ACESSO_IA_RULES } from './regras'
 import { telaExiste } from '../contexto-ia/telas'
 import type { ChaveDoPerfilProvada } from './prova'
@@ -70,13 +71,13 @@ function paresDeParametros(v: unknown): { ok: string[]; fora: number } | null {
   return { ok: [...ok].sort().slice(0, 12), fora: new Set(pares).size - ok.size }
 }
 
-/** Nome de métrica (tem dígito: `vpd7`). */
-const NOME_DE_METRICA = /^[a-z][a-z0-9_]{0,31}$/
 const LUGAR = /^(pais:[A-Z]{2}|local:[a-z]{2}-[a-z0-9-]{1,40})$/
 const FAIXA_DE_IDADE = /^(0-30|31-90|91-180|181-365|365\+|todas)$/
 const DADOS_DE = /^\d{4}-\d{2}-\d{2}T\d{2}$/
-/** As métricas da `consultar` (plano A4, T4: `MetricaDaConsulta`). A R3 passa a derivar esta lista de `METRICAS_DA_CONSULTA`; até lá é a cópia fechada. */
-const METRICAS_NAO_MEDIDAS: readonly string[] = ['views', 'likes', 'comentarios', 'vpd7', 'multiplicador', 'engajamento', 'inscritos']
+/** As métricas da `consultar`: derivadas do catálogo (A4 T4), uma lista só para `metricas`, `ordenar_por` e `nao_medidos`. */
+const METRICAS_DO_REGISTRO: readonly string[] = Object.keys(METRICAS_DA_CONSULTA)
+/** `entidade` da `consultar`: `video` hoje, `canal` na 2ª entrega; `comentario` e `yt_own_*` nunca (spec 3.1). */
+const ENTIDADES_DO_REGISTRO = ['video', 'canal'] as const
 
 const CAMPOS_DE_RECUSA: readonly string[] = [...TODOS_OS_CAMPOS, '(desconhecido)']
 
@@ -139,7 +140,7 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
   // A4 T1: sha256 do texto entregue (só em `ok`)
   resposta_sha256: (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : undefined),
   // A4 T2: as chaves da `consultar`. Nenhuma é texto livre: lista fechada, regex curta, data real ou contador.
-  entidade: (v) => (typeof v === 'string' && CHAVE_DE_PARAMETRO.test(v) ? v : undefined),
+  entidade: (v) => (daLista(ENTIDADES_DO_REGISTRO)(v) ? v : undefined),
   lugar: (v) => (typeof v === 'string' && LUGAR.test(v) ? v : undefined),
   janela_idade: (v) => {
     if (typeof v === 'string') return FAIXA_DE_IDADE.test(v) ? v : undefined
@@ -148,8 +149,8 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
   },
   publicado_de: (v) => (dataReal(v) ? v : undefined),
   publicado_ate: (v) => (dataReal(v) ? v : undefined),
-  metricas: (v) => (Array.isArray(v) && v.length > 0 && v.length <= 8 && v.every((x) => typeof x === 'string' && NOME_DE_METRICA.test(x)) ? (v as string[]) : undefined),
-  ordenar_por: (v) => (typeof v === 'string' && NOME_DE_METRICA.test(v) ? v : undefined),
+  metricas: (v) => (Array.isArray(v) && v.length > 0 && v.length <= 8 && v.every(daLista(METRICAS_DO_REGISTRO)) ? (v as string[]) : undefined),
+  ordenar_por: (v) => (daLista(METRICAS_DO_REGISTRO)(v) ? v : undefined),
   direcao: (v) => (daLista(['desc', 'asc'])(v) ? v : undefined),
   limite: (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 50 ? v : undefined),
   incluir_base_fraca: (v) => (typeof v === 'boolean' ? v : undefined),
@@ -163,7 +164,7 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
   nao_medidos: (v) => {
     if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined
     const o: Record<string, number> = {}
-    for (const m of METRICAS_NAO_MEDIDAS) {
+    for (const m of METRICAS_DO_REGISTRO) {
       const x = (v as Record<string, unknown>)[m]
       if (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 99_999) o[m] = x
     }
@@ -204,7 +205,7 @@ export function filtrarParams(params: Record<string, unknown>): { params: Record
   saida.params_cortado = true
   const degrau = (chave: string, contador: string): void => {
     if (tamanho(saida) <= TETO_DOS_PARAMS_B || saida[chave] === undefined) return
-    saida[contador] = contagem(saida[chave])
+    if (saida[contador] === undefined) saida[contador] = contagem(saida[chave])
     delete saida[chave]
   }
   degrau('metricas', 'n_metricas')
