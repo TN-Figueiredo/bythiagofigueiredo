@@ -227,7 +227,7 @@ describe('consultar: recusas (I5)', () => {
     const ctx: ContextoDoObservatorio = { prova: fabricarProva('s', 'u', 'k', '2999-01-01T00:00:00Z'), acesso: { leitura: null, edita: false, negativa: 'sem_direito' }, t0: AGORA }
     const linhas: Array<Record<string, unknown>> = []
     const sb = {
-      rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+      rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
       from: () => ({ insert: (l: Record<string, unknown>) => ({ abortSignal: async () => { linhas.push(l); return { error: null } } }) }),
     }
     const out = await comContextoDoObservatorio(ctx, () => executarChamada({ acao: 'consultar', ...entrada }, { sb: sb as never, responder: (e, _c, agora) => responder(e, ABRIDOR_DE_SESSAO, agora), agora: () => AGORA }))
@@ -256,7 +256,7 @@ describe('consultar: prazo e registro', () => {
       const ctx: ContextoDoObservatorio = { prova: fabricarProva('s', 'u', 'k', '2999-01-01T00:00:00Z'), acesso: { leitura: null, edita: false, negativa: 'sem_direito' }, t0: AGORA }
       const linhas: Array<Record<string, unknown>> = []
       const sb = {
-        rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+        rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
         from: () => ({ insert: (l: Record<string, unknown>) => ({ abortSignal: async () => { linhas.push(l); return { error: null } } }) }),
       }
       const p = comContextoDoObservatorio(ctx, () => executarChamada({ acao: 'consultar' }, { sb: sb as never, responder: (e, _c, agora) => responder(e, ABRIDOR_DE_SESSAO, agora), agora: () => AGORA }))

@@ -15,7 +15,7 @@ vi.mock('@/lib/pipeline/mcp/resources', () => ({ registerResources: vi.fn() }))
 vi.mock('@/lib/pipeline/mcp/prompts', () => ({ registerPrompts: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
-    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
     from: () => ({ insert: (l: Record<string, unknown>) => ({ abortSignal: async () => { h.linhas.push(l); return { error: null } } }) }),
   }),
 }))

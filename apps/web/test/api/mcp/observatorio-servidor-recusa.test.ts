@@ -28,7 +28,7 @@ beforeEach(() => {
   linhas = []
   m.empacotar.outliers = vi.fn(async () => null); m.empacotar.canais = vi.fn(async () => null); m.empacotar.canal = vi.fn(async () => null)
   m.banco = {
-    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
     from: () => ({ insert: (l: Record<string, unknown>) => ({ abortSignal: async () => { linhas.push(l); return { error: null } } }) }),
   }
   chamado = vi.fn()

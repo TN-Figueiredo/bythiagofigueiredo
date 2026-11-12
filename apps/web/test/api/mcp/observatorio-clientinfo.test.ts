@@ -6,7 +6,7 @@ import { createMcpHandler } from 'mcp-handler'
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: () => undefined, captureException: () => undefined }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({
-    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
     from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }),
   }) }))
 
