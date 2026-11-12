@@ -39,6 +39,12 @@ function futureYearsIn(line: string): number[] {
 // Files verified to use future dates inertly (no wall-clock comparison on the
 // consuming path). Re-verify before adding to this list.
 const ALLOWLIST = new Set([
+  // C1 (OAuth do Observatório): datas de 2027 são entrada de funções puras de calendário de SP
+  // (`diaDeVencimentoSp`, `entradaDeConferencia`) e retorno simulado de rpc; nenhuma compara com o relógio
+  'test/youtube/observatorio/acesso-ia-vencimento.test.ts',
+  'test/youtube/observatorio/acesso-ia-liberacao.test.ts',
+  // C1: 2031 é o balde simulado (`p_now` explícito) que o próprio teste cria e apaga na limpeza
+  'test/integration/c1-teto-e-taxa.test.ts',
   // F2b T5: `hoje` é parâmetro de gatilhoD2 (nunca o relógio); 2027-09-08 é a fronteira do placebo de
   // impressões (regra do spec), e as datas de 2027 só exercitam os dois lados dela
   'test/youtube/observatorio/sinais/medida/estimador.test.ts',

@@ -65,7 +65,7 @@ const SITES_POR_PAGINA = 1000
 const SITES_PAGINAS_MAX = 50
 
 /** Percorre a listagem do Auth até o fim (página curta ou vazia). 20 páginas cheias sem fim = não conferido. */
-async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
+export async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: string[] } | { erro: string }> {
   const ids: string[] = []
   for (let pagina = 1; pagina <= PAGINAS_MAX; pagina++) {
     let r: Awaited<ReturnType<typeof sb.auth.admin.listUsers>>
@@ -78,7 +78,7 @@ async function acharPessoas(sb: SupabaseClient, email: string): Promise<{ ids: s
   return { erro: 'listagem_sem_fim' }
 }
 
-async function veOSite(sb: SupabaseClient, userId: string, siteId: string): Promise<boolean | { erro: string }> {
+export async function veOSite(sb: SupabaseClient, userId: string, siteId: string): Promise<boolean | { erro: string }> {
   try {
     const { data, error } = await sb.rpc('can_view_site_as', { p_user: userId, p_site: siteId })
     if (error) return { erro: codigoDe(error) }
@@ -87,7 +87,9 @@ async function veOSite(sb: SupabaseClient, userId: string, siteId: string): Prom
   } catch { return { erro: 'excecao' } }
 }
 
-interface LinhaDeChave { name: unknown; site_id: unknown; user_id: unknown; expires_at: unknown; permissions: unknown; revoked_at: unknown }
+/** C1 (spec 4.4): a chave de uma conexão OAuth se reconhece pelo prefixo do nome E pelo `id` em `obs_ai_conexoes.key_id` (os dois; a órfã é ignorada pelo prefixo). */
+export const PREFIXO_DE_CONEXAO = 'observatorio-oauth-'
+interface LinhaDeChave { id?: unknown; name: unknown; site_id: unknown; user_id: unknown; expires_at: unknown; permissions: unknown; revoked_at: unknown }
 
 export async function criarChaveDoPerfil(deps: DepsDeCriar, p: PedidoDeChave): Promise<ResultadoDeCriar> {
   const { sb, agora } = deps
@@ -143,24 +145,40 @@ export async function criarChaveDoPerfil(deps: DepsDeCriar, p: PedidoDeChave): P
   // 5. as chaves que existem (todas, revogadas ou não: o nome é único entre todas)
   let linhas: LinhaDeChave[]
   try {
-    const r = await sb.from('pipeline_api_keys').select('name, site_id, user_id, expires_at, permissions, revoked_at')
+    const r = await sb.from('pipeline_api_keys').select('id, name, site_id, user_id, expires_at, permissions, revoked_at')
     if (r.error) return falha('nao_conferido', codigoDe(r.error))
     linhas = (r.data ?? []) as LinhaDeChave[]
   } catch { return falha('nao_conferido', 'excecao') }
+  // C1: as conexões OAuth do site (key_id das chaves-conexão) e as liberações ativas (a pessoa que o dono liberou já ocupa uma vaga do teto)
+  const chavesDeConexao = new Set<string>()
+  const pessoasLiberadas = new Set<string>()
+  try {
+    const c = await sb.from('obs_ai_conexoes').select('key_id').eq('site_id', siteId)
+    if (c.error) return falha('nao_conferido', codigoDe(c.error))
+    for (const x of (c.data ?? []) as Array<{ key_id?: unknown }>) if (typeof x.key_id === 'string') chavesDeConexao.add(x.key_id)
+    const b = await sb.from('obs_ai_liberacoes').select('user_id, expires_at').eq('site_id', siteId).is('revoked_at', null)
+    if (b.error) return falha('nao_conferido', codigoDe(b.error))
+    for (const x of (b.data ?? []) as Array<{ user_id?: unknown; expires_at?: unknown }>) {
+      if (typeof x.user_id === 'string' && typeof x.expires_at === 'string' && instanteValido(x.expires_at) && Date.parse(x.expires_at) > t) pessoasLiberadas.add(x.user_id)
+    }
+  } catch { return falha('nao_conferido', 'excecao') }
+  const ehConexao = (l: LinhaDeChave): boolean =>
+    (typeof l.name === 'string' && l.name.startsWith(PREFIXO_DE_CONEXAO)) || (typeof l.id === 'string' && chavesDeConexao.has(l.id))
   const dia = new Date(t - TRES_HORAS_MS).toISOString().slice(0, 10).replace(/-/g, '')
   const nome = `observatorio-${dia}-${deps.aleatorio(2).toString('hex')}`
   if (linhas.some((l) => l.name === nome)) return falha('nome_repetido')
   // "ativa" = não revogada e com validade no futuro (vencer exatamente agora é vencida); só do perfil, só deste site
   const ativas = linhas.filter((l) => {
     if (l.site_id !== siteId || !Array.isArray(l.permissions) || !ehDoPerfil(l.permissions as string[])) return false
+    if (ehConexao(l)) return false // linha de conexão não é chave da pessoa: nem em `daPessoa` nem no teto (a liberação já conta a pessoa)
     if (l.revoked_at !== null && l.revoked_at !== undefined) return false
     return typeof l.expires_at === 'string' && instanteValido(l.expires_at) && Date.parse(l.expires_at) > t
   })
   const daPessoa = ativas.filter((l) => l.user_id === userId)
   if (daPessoa.length >= 2) return falha('ja_tem_chave')
   if (daPessoa.length === 1 && !podeRenovar(daPessoa[0]!.expires_at as string, t)) return falha('ja_tem_chave')
-  // o teto conta PESSOAS (user_id nulo = pessoa apagada: já não abre nada, não conta)
-  const pessoasAtivas = new Set(ativas.map((l) => l.user_id).filter((u): u is string => typeof u === 'string'))
+  // o teto conta PESSOAS (user_id nulo = pessoa apagada: já não abre nada, não conta): donas de chave `obs_` ativa MAIS as de liberação ativa
+  const pessoasAtivas = new Set([...ativas.map((l) => l.user_id).filter((u): u is string => typeof u === 'string'), ...pessoasLiberadas])
   if (!pessoasAtivas.has(userId) && pessoasAtivas.size >= ACESSO_IA_RULES.pessoasComChaveMax) return falha('teto_de_chaves')
   // 6. a chave e a linha
   const chave = `obs_${deps.aleatorio(32).toString('base64url')}`

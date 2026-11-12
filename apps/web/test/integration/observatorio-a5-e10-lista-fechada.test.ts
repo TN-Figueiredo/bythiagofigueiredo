@@ -136,6 +136,8 @@ const LISTA: Par[] = [
   { funcao: 'obs_archive_record_core', tabela: 'obs_archive_unit_parts', linha: 'M3b: refazer a versão em andamento sem parte recebida reescreve as partes dela (controle do próprio arquivo, não dado observado)', disparo: 'agenda' },
   // M6a (20261028000004): a conferência por canal da saída do mês. Sem par: a conferência anterior do canal/mês que não bate é apagada (controle da própria saída, não dado observado).
   { funcao: 'obs_archive_conferir_canal', tabela: 'obs_archive_prechecks', linha: 'M6a: apaga a conferência anterior do canal e mês quando a nova não bate (estado de execução da saída)', disparo: 'agenda' },
+  // C1 F1 (20261111000001): poda dos clientes OAuth registrados (DCR) sem conexão viva; estado de cadastro do OAuth, não dado observado
+  { funcao: 'obs_ai_podar_clientes', tabela: 'obs_ai_oauth_clientes', linha: 'C1 spec 6: cliente sem token nem pedido há 7 dias (ou de conexão encerrada), pela tarefa poda_acesso_ia', disparo: 'agenda' },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por cron nem por idade. */

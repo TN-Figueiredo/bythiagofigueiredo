@@ -49,7 +49,7 @@ function novoBanco(): Banco & { sb: unknown } {
     rpc: (nome: string) => ({
       abortSignal: async () => {
         b.ordem.push(`rpc:${nome}`)
-        return 'erro' in b.taxa ? { data: null, error: { code: 'XX000' } } : { data: [b.taxa], error: null }
+        return 'erro' in b.taxa ? { data: null, error: { code: 'XX000' } } : { data: [{ ...b.taxa, no_dia_pessoa: b.taxa.no_dia }], error: null }
       },
     }),
     from: (tabela: string) => ({
@@ -151,7 +151,7 @@ describe('o servidor: o que ele expõe', () => {
     const { client } = await conectar(responder)
     const r = await comContextoDoObservatorio(ctx(Date.now()), () => client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'definicoes' } }))
     expect(textoDe(r)).toContain(SENTINELA)
-    expect(ordem).toEqual(['rpc:obs_ai_rate_hit', 'responder', 'insert:obs_ai_access_log'])
+    expect(ordem).toEqual(['rpc:obs_ai_rate_hit_v2', 'responder', 'insert:obs_ai_access_log'])
   })
   it('duas chamadas na mesma requisição (lote): dois hits, duas linhas', async () => {
     const { client } = await conectar(respondeOk)
@@ -159,7 +159,7 @@ describe('o servidor: o que ele expõe', () => {
       await client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'definicoes' } })
       await client.callTool({ name: NOME_DA_FERRAMENTA, arguments: { acao: 'listar_canais' } })
     })
-    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit')).toHaveLength(2)
+    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit_v2')).toHaveLength(2)
     expect(banco.linhas).toHaveLength(2)
   })
 })
@@ -169,7 +169,7 @@ describe('executarChamada: a ordem de 4.5', () => {
   it('uma chamada servida: taxa, responder, insert, texto; a linha leva a prova, a ação, o desfecho, o tamanho e incluiuPrivado', async () => {
     const ordem = banco.ordem
     const r = await rodar({ acao: 'canal' }, async () => { ordem.push('responder'); return resposta({ params: { acao: 'canal' } }) })
-    expect(ordem).toEqual(['rpc:obs_ai_rate_hit', 'responder', 'insert:obs_ai_access_log'])
+    expect(ordem).toEqual(['rpc:obs_ai_rate_hit_v2', 'responder', 'insert:obs_ai_access_log'])
     expect(r).toEqual({ texto: `texto com ${SENTINELA}`, erro: false })
     expect(banco.linhas).toHaveLength(1)
     expect(banco.linhas[0]).toMatchObject({ site_id: SITE, user_id: PESSOA, key_id: CHAVE, origin: 'mcp', action: 'canal', included_private: true, output_chars: `texto com ${SENTINELA}`.length, result: 'ok' })
@@ -307,9 +307,9 @@ describe('executarChamada: o prazo único, contado do início da requisição', 
   it('fronteira da taxa: com 47.000 ms a taxa é chamada; com 47.001 não é', async () => {
     banco.taxa = { no_minuto: 32, no_dia: 41 } // barra logo depois da taxa, sem chamar responder
     await rodar({ acao: 'canal' }, respondeOk, AGORA - 47_000)
-    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit')).toHaveLength(1)
+    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit_v2')).toHaveLength(1)
     await rodar({ acao: 'canal' }, respondeOk, AGORA - 47_001)
-    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit')).toHaveLength(1)
+    expect(banco.ordem.filter((o) => o === 'rpc:obs_ai_rate_hit_v2')).toHaveLength(1)
   })
   it('com t0 de 53 s atrás: zero chamadas à taxa e NENHUMA linha (não sobra a reserva do registro), e um aviso no Sentry', async () => {
     await rodar({ acao: 'canal' }, respondeOk, AGORA - 53_000)

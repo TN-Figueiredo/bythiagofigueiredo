@@ -27,7 +27,7 @@ export interface LinhaDeAcesso {
   resultado: 'ok' | 'limite'
 }
 
-export type DesfechoDaRecusa = 'banida' | 'ausente' | 'apagamento_pedido' | 'sem_vinculo'
+export type DesfechoDaRecusa = 'banida' | 'ausente' | 'apagamento_pedido' | 'sem_vinculo' | 'desligado'
 
 const TABELA = 'obs_ai_access_log'
 
@@ -297,7 +297,7 @@ export async function houveRecusaRecente(
   return at >= agora - janela ? 'sim' : 'nao'
 }
 
-const DESFECHOS_DA_RECUSA: ReadonlySet<string> = new Set<DesfechoDaRecusa>(['banida', 'ausente', 'apagamento_pedido', 'sem_vinculo'])
+const DESFECHOS_DA_RECUSA: ReadonlySet<string> = new Set<DesfechoDaRecusa>(['banida', 'ausente', 'apagamento_pedido', 'sem_vinculo', 'desligado'])
 
 /** A linha `recusado` da porta. Valores fixos: `action = 'porta'`, `included_private = false`, `output_chars` nulo, `params = { desfecho, ambiente }`. */
 export async function registrarRecusaDaPorta(

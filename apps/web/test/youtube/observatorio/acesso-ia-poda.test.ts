@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { podarAcessoIa } from '@/lib/youtube/observatorio/acesso-ia/poda'
+import { ACESSO_IA_RULES } from '@/lib/youtube/observatorio/acesso-ia/regras'
 
 const AGORA = Date.parse('2026-10-13T15:00:00.000Z')
 const DIA = 86_400_000
@@ -16,16 +17,28 @@ const iso = (ms: number) => new Date(ms).toISOString()
 const diasAtras = (n: number) => iso(AGORA - n * DIA)
 const SOBRA_FARTA = () => 60_000
 
-type Linha = { at?: string; bucket?: string; origin?: string }
+type Linha = { at?: string; bucket?: string; origin?: string; expires_at?: string }
 type Resp = { data?: unknown; count?: number | null; error?: { code?: string; message?: string } | null }
 
 interface Chamada { tabela: string; modo: 'select' | 'delete'; filtros: Array<[string, string, unknown]> }
+
+/** A ordem das tabelas na poda e a coluna do prazo de cada uma (as duas de hoje primeiro: uma falha numa nova não tira o registro da poda). */
+const TABELAS: Array<[string, string]> = [
+  ['obs_ai_access_log', 'at'], ['obs_ai_rate', 'bucket'],
+  ['obs_ai_oauth_tokens', 'expires_at'], ['obs_ai_oauth_pedidos', 'expires_at'], ['obs_ai_rate_ip', 'bucket'], ['obs_ai_rate_pessoa', 'bucket'],
+]
+const COLUNA = new Map(TABELAS)
 
 interface Banco {
   sb: never
   registro: Linha[]
   taxa: Linha[]
+  /** linhas das tabelas OAuth novas, por nome */
+  novas: Record<string, Linha[]>
   chamadas: Chamada[]
+  /** nome das tabelas e das funções, na ordem em que foram chamadas (`rpc:<nome>` para função) */
+  ordem: string[]
+  rpcs: Array<{ nome: string; args: unknown }>
   sinais: AbortSignal[]
 }
 
@@ -34,13 +47,21 @@ function criarBanco(
   registro: Linha[],
   taxa: Linha[],
   forcar?: (tabela: string, modo: 'select' | 'delete', n: number) => Resp | 'lanca' | undefined,
+  novas: Record<string, Linha[]> = {},
+  rpcData: () => Resp = () => ({ data: 0, error: null }),
 ): Banco {
-  const b = { registro: [...registro], taxa: [...taxa], chamadas: [] as Chamada[], sinais: [] as AbortSignal[] }
+  const lin: Record<string, Linha[]> = { obs_ai_access_log: [...registro], obs_ai_rate: [...taxa] }
+  for (const [t] of TABELAS) if (lin[t] === undefined) lin[t] = [...(novas[t] ?? [])]
+  const b = { chamadas: [] as Chamada[], sinais: [] as AbortSignal[], ordem: [] as string[], rpcs: [] as Array<{ nome: string; args: unknown }> }
   const contagem = new Map<string, number>()
   const sb = {
+    rpc: (nome: string, args: unknown) => {
+      b.ordem.push(`rpc:${nome}`)
+      b.rpcs.push({ nome, args })
+      return { abortSignal: (s: AbortSignal) => { b.sinais.push(s); return Promise.resolve(rpcData()) } }
+    },
     from: (tabela: string) => {
-      const col = tabela === 'obs_ai_access_log' ? 'at' : 'bucket'
-      const alvo = () => (tabela === 'obs_ai_access_log' ? b.registro : b.taxa)
+      const col = COLUNA.get(tabela)!
       let modo: 'select' | 'delete' = 'select'
       let ordenar = false
       let max = Infinity
@@ -55,6 +76,7 @@ function criarBanco(
       cad.abortSignal = (s: AbortSignal) => {
         b.sinais.push(s)
         b.chamadas.push({ tabela, modo, filtros: [...filtros] })
+        b.ordem.push(tabela)
         const chave = `${tabela}:${modo}`
         const n = (contagem.get(chave) ?? 0) + 1
         contagem.set(chave, n)
@@ -66,24 +88,37 @@ function criarBanco(
           return op === 'lt' ? typeof x === 'string' && x < String(v) : x === v
         })
         if (modo === 'select') {
-          const todas = alvo()
+          const todas = lin[tabela]!
           const ordem = [...todas].sort((x, y) => String((x as Record<string, unknown>)[col]).localeCompare(String((y as Record<string, unknown>)[col])))
           return Promise.resolve({ data: ordenar ? ordem.slice(0, max) : ordem, count: todas.length, error: null })
         }
-        const sai = alvo().filter(casa)
-        const fica = alvo().filter((l) => !casa(l))
-        if (tabela === 'obs_ai_access_log') b.registro = fica
-        else b.taxa = fica
+        const sai = lin[tabela]!.filter(casa)
+        lin[tabela] = lin[tabela]!.filter((l) => !casa(l))
         return Promise.resolve({ data: null, count: sai.length, error: null })
       }
       return cad
     },
   }
-  return Object.assign(b, { sb: sb as never }) as Banco
+  const out = Object.assign(b, { sb: sb as never }) as unknown as Banco
+  Object.defineProperty(out, 'registro', { get: () => lin.obs_ai_access_log })
+  Object.defineProperty(out, 'taxa', { get: () => lin.obs_ai_rate })
+  Object.defineProperty(out, 'novas', { get: () => lin })
+  return out
 }
 
 /** Executa a poda e devolve também o banco depois dela (para comparar o que sobrou). */
-const podar = (b: Banco, sobra: () => number = SOBRA_FARTA, agora = AGORA) => podarAcessoIa(b.sb, agora, sobra)
+/** Poda inteira, com tudo o que as tabelas OAuth acrescentaram ao resultado. */
+const podarTudo = (b: Banco, sobra: () => number = SOBRA_FARTA, agora = AGORA) => podarAcessoIa(b.sb, agora, sobra)
+/**
+ * Os testes de A5 (13a) olham o resultado das DUAS tabelas de hoje: o `ok` volta só com os quatro contadores delas. Os contadores das tabelas
+ * OAuth (C1) são provados nos testes da seção própria, com `podarTudo`.
+ */
+const podar = async (b: Banco, sobra: () => number = SOBRA_FARTA, agora = AGORA) => {
+  const r = await podarTudo(b, sobra, agora)
+  if (!r.ok) return r
+  const { registroTotal, registroApagadas, taxaTotal, taxaApagadas } = r.r
+  return { ok: true as const, r: { registroTotal, registroApagadas, taxaTotal, taxaApagadas } }
+}
 
 const registroEm = (...dias: number[]): Linha[] => dias.map((d) => ({ at: diasAtras(d), origin: 'mcp' }))
 const taxaEm = (...dias: number[]): Linha[] => dias.map((d) => ({ bucket: diasAtras(d) }))
@@ -93,7 +128,7 @@ describe('podarAcessoIa: dia normal e tabelas vazias', () => {
   it('as duas tabelas vazias: ok, feitas 0, os dois totais 0 (zero linhas LIDAS, não "nada a fazer por falta de leitura")', async () => {
     const b = criarBanco([], [])
     expect(await podar(b)).toEqual({ ok: true, r: { registroTotal: 0, registroApagadas: 0, taxaTotal: 0, taxaApagadas: 0 } })
-    expect(b.chamadas.filter((c) => c.modo === 'select')).toHaveLength(2)
+    expect(b.chamadas.filter((c) => c.modo === 'select' && (c.tabela === 'obs_ai_access_log' || c.tabela === 'obs_ai_rate'))).toHaveLength(2)
     expect(b.chamadas.filter((c) => c.modo === 'delete')).toHaveLength(0)
   })
 
@@ -288,11 +323,11 @@ describe('podarAcessoIa: o relógio e o prazo', () => {
     expect(b.taxa).toHaveLength(1)
   })
 
-  it('cada ida recebe sinal de cancelamento de 2.500 ms (as quatro)', async () => {
+  it('cada ida recebe sinal de cancelamento de 2.500 ms (as quatro das duas tabelas de hoje, mais uma leitura por tabela OAuth vazia e a função dos clientes)', async () => {
     const espia = vi.spyOn(AbortSignal, 'timeout')
     const b = criarBanco(registroEm(450), taxaEm(10))
     await podar(b)
-    expect(espia.mock.calls.map((c) => c[0])).toEqual([2_500, 2_500, 2_500, 2_500])
+    expect(espia.mock.calls.map((c) => c[0])).toEqual(Array(4 + 4 + 1).fill(2_500))
     espia.mockRestore()
   })
 
@@ -310,6 +345,104 @@ describe('podarAcessoIa: o relógio e o prazo', () => {
     const r = await podarAcessoIa(travado as never, AGORA, SOBRA_FARTA)
     espia.mockRestore()
     expect(r).toMatchObject({ ok: false, motivo: 'banco_falhou' })
+  })
+})
+
+describe('podarAcessoIa: as tabelas do OAuth (C1, spec 6)', () => {
+  const todasAsTabelas = ['obs_ai_access_log', 'obs_ai_rate', 'obs_ai_oauth_tokens', 'obs_ai_oauth_pedidos', 'obs_ai_rate_ip', 'obs_ai_rate_pessoa']
+  const expira = (...dias: number[]): Linha[] => dias.map((d) => ({ expires_at: diasAtras(d) }))
+  const sobras = (...xs: number[]) => {
+    let i = 0
+    return () => xs[Math.min(i++, xs.length - 1)]!
+  }
+
+  it('tokens: vencido há 30 dias menos um minuto fica; há 30 dias e um minuto sai (por expires_at, nunca por used_at)', async () => {
+    const b = criarBanco([], [], undefined, { obs_ai_oauth_tokens: [{ expires_at: iso(AGORA - 30 * DIA + MIN) }, { expires_at: iso(AGORA - 30 * DIA - MIN) }] })
+    const r = await podarTudo(b)
+    expect(r).toMatchObject({ ok: true, r: { tokensTotal: 2, tokensApagadas: 1 } })
+    expect(b.novas.obs_ai_oauth_tokens!.map((l) => l.expires_at)).toEqual([iso(AGORA - 30 * DIA + MIN)])
+    const apagar = b.chamadas.find((c) => c.tabela === 'obs_ai_oauth_tokens' && c.modo === 'delete')!
+    expect(apagar.filtros).toEqual([['lt', 'expires_at', iso(AGORA - 30 * DIA)]])
+  })
+
+  it('pedidos: vencido há 1 dia menos um minuto fica; há 1 dia e um minuto sai', async () => {
+    const b = criarBanco([], [], undefined, { obs_ai_oauth_pedidos: [{ expires_at: iso(AGORA - DIA + MIN) }, { expires_at: iso(AGORA - DIA - MIN) }] })
+    expect(await podarTudo(b)).toMatchObject({ ok: true, r: { pedidosTotal: 2, pedidosApagadas: 1 } })
+    expect(b.novas.obs_ai_oauth_pedidos!.map((l) => l.expires_at)).toEqual([iso(AGORA - DIA + MIN)])
+  })
+
+  it('obs_ai_rate_ip e obs_ai_rate_pessoa: balde de 2 dias menos um minuto fica; de 2 dias e um minuto sai', async () => {
+    const baldes = [{ bucket: iso(AGORA - 2 * DIA + MIN) }, { bucket: iso(AGORA - 2 * DIA - MIN) }]
+    const b = criarBanco([], [], undefined, { obs_ai_rate_ip: baldes, obs_ai_rate_pessoa: baldes })
+    expect(await podarTudo(b)).toMatchObject({ ok: true, r: { rateIpTotal: 2, rateIpApagadas: 1, ratePessoaTotal: 2, ratePessoaApagadas: 1 } })
+    expect(b.novas.obs_ai_rate_ip!.map((l) => l.bucket)).toEqual([iso(AGORA - 2 * DIA + MIN)])
+    expect(b.novas.obs_ai_rate_pessoa!.map((l) => l.bucket)).toEqual([iso(AGORA - 2 * DIA + MIN)])
+  })
+
+  it('todas por `.lt` (sem filtro de site, pessoa ou cliente) e os clientes por rpc obs_ai_podar_clientes(p_agora, p_max), com o número no resultado', async () => {
+    const b = criarBanco(registroEm(450), taxaEm(10), undefined, { obs_ai_oauth_tokens: expira(40), obs_ai_oauth_pedidos: expira(3), obs_ai_rate_ip: taxaEm(5), obs_ai_rate_pessoa: taxaEm(5) }, () => ({ data: 4, error: null }))
+    const r = await podarTudo(b)
+    expect(r).toMatchObject({ ok: true, r: { registroApagadas: 1, taxaApagadas: 1, tokensApagadas: 1, pedidosApagadas: 1, rateIpApagadas: 1, ratePessoaApagadas: 1, clientesApagados: 4 } })
+    for (const c of b.chamadas.filter((x) => x.modo === 'delete')) expect(c.filtros.every(([op]) => op === 'lt')).toBe(true)
+    expect(b.rpcs).toEqual([{ nome: 'obs_ai_podar_clientes', args: { p_agora: iso(AGORA), p_max: ACESSO_IA_RULES.clientesPodadosPorExecucao } }])
+  })
+
+  it('a ordem: as duas de hoje primeiro, depois tokens, pedidos, rate_ip, rate_pessoa e por último a função dos clientes', async () => {
+    const b = criarBanco([], [])
+    await podarTudo(b)
+    expect(b.ordem).toEqual([...todasAsTabelas, 'rpc:obs_ai_podar_clientes'])
+  })
+
+  it('falha numa tabela nova: as duas de hoje já foram podadas e estão no feito; as seguintes e os clientes não são tocados', async () => {
+    const b = criarBanco(registroEm(450), taxaEm(10), (t, modo) => (t === 'obs_ai_oauth_tokens' && modo === 'select' ? { data: null, count: null, error: { code: '57014' } } : undefined))
+    expect(await podarTudo(b)).toEqual({ ok: false, motivo: 'banco_falhou', feito: { registroTotal: 1, registroApagadas: 1, taxaTotal: 1, taxaApagadas: 1 } })
+    expect(b.ordem).toEqual(['obs_ai_access_log', 'obs_ai_access_log', 'obs_ai_rate', 'obs_ai_rate', 'obs_ai_oauth_tokens'])
+  })
+
+  it('tabela nova ausente (42P01, antes da migration): schema_ausente, e o registro e o contador de hoje seguem podados', async () => {
+    const b = criarBanco(registroEm(450), [], (t) => (t === 'obs_ai_oauth_pedidos' ? { data: null, count: null, error: { code: '42P01' } } : undefined))
+    expect(await podarTudo(b)).toMatchObject({ ok: false, motivo: 'schema_ausente', feito: { registroApagadas: 1, tokensTotal: 0, tokensApagadas: 0 } })
+    expect(b.registro).toEqual([])
+  })
+
+  it('a função dos clientes: erro vira banco_falhou, função ausente vira schema_ausente, número inválido vira contagem_ausente', async () => {
+    const com = (resp: Resp) => criarBanco([], [], undefined, {}, () => resp)
+    expect(await podarTudo(com({ data: null, error: { code: '57014' } }))).toMatchObject({ ok: false, motivo: 'banco_falhou' })
+    expect(await podarTudo(com({ data: null, error: { code: 'PGRST202' } }))).toMatchObject({ ok: false, motivo: 'schema_ausente' })
+    for (const data of [null, -1, 1.5, '3']) expect(await podarTudo(com({ data, error: null })), String(data)).toMatchObject({ ok: false, motivo: 'contagem_ausente' })
+  })
+
+  it('para no sobraMs: sobram menos de 3 s antes da 3ª tabela, a poda pára com o feito das duas de hoje e não toca as novas', async () => {
+    const b = criarBanco([], [])
+    const r = await podarTudo(b, sobras(60_000, 60_000, 2_999))
+    expect(r).toEqual({ ok: false, motivo: 'sem_tempo_para_terminar', feito: { registroTotal: 0, registroApagadas: 0, taxaTotal: 0, taxaApagadas: 0 } })
+    expect(b.ordem).toEqual(['obs_ai_access_log', 'obs_ai_rate'])
+  })
+
+  it('para no sobraMs também antes da função dos clientes: a função não é chamada', async () => {
+    const b = criarBanco([], [])
+    const r = await podarTudo(b, sobras(...Array(6).fill(60_000), 2_999))
+    expect(r).toMatchObject({ ok: false, motivo: 'sem_tempo_para_terminar', feito: { ratePessoaApagadas: 0 } })
+    expect(b.rpcs).toHaveLength(0)
+  })
+
+  it('atraso nas tabelas novas devolve atraso_restante com o limite inferior mais antigo (fatia de 30 dias)', async () => {
+    const b = criarBanco([], [], undefined, { obs_ai_oauth_tokens: expira(...intervalo(31, 130)) })
+    const r = await podarTudo(b)
+    expect(r).toMatchObject({ ok: false, motivo: 'atraso_restante', feito: { tokensApagadas: 30, limpoAte: diasAtras(100) } })
+  })
+
+  it('conta de tempo (Phil M10): o pior caso são 13 idas de 2,5 s = 32,5 s, mais as folgas de 3 s, abaixo dos 85 s de fimAteMs', async () => {
+    const espia = vi.spyOn(AbortSignal, 'timeout')
+    const velho = { obs_ai_oauth_tokens: expira(40), obs_ai_oauth_pedidos: expira(3), obs_ai_rate_ip: taxaEm(5), obs_ai_rate_pessoa: taxaEm(5) }
+    const b = criarBanco(registroEm(450), taxaEm(10), undefined, velho)
+    expect(await podarTudo(b)).toMatchObject({ ok: true })
+    const prazos = espia.mock.calls.map((c) => c[0] as number)
+    espia.mockRestore()
+    expect(prazos).toHaveLength(13)
+    const pior = prazos.reduce((a, x) => a + x, 0) + ACESSO_IA_RULES.folgaMs
+    expect(pior).toBe(35_500)
+    expect(pior).toBeLessThan(85_000)
   })
 })
 

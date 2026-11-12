@@ -16,7 +16,7 @@ const prova = () => fabricarProva('3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', '9a1b2
 function rodar(resposta: Resposta) {
   const linhas: Array<Record<string, unknown>> = []
   const sb = {
-    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1 }], error: null }) }),
+    rpc: () => ({ abortSignal: async () => ({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }),
     from: () => ({ insert: (l: Record<string, unknown>) => ({ abortSignal: async () => { linhas.push(l); return { error: null } } }) }),
   }
   const responder: Responder = async () => resposta

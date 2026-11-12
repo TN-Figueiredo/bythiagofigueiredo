@@ -115,6 +115,13 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       waitlist_emails: emails,
     };
 
+    // C1 (PL4): revoga a liberação e as conexões OAuth do Observatório (e, por gatilho, as chaves e os tokens) antes de qualquer limpeza.
+    // Erro = lança: a fase 1 não segue com um acesso de IA vivo; o sweep repete.
+    const { error: oauthErr } = await this.supabase.rpc('obs_ai_revogar_lgpd', { p_user: userId });
+    if (oauthErr) {
+      throw new Error(`phase1Cleanup: obs_ai_revogar_lgpd failed: ${oauthErr.message}`);
+    }
+
     const { error } = await this.supabase.rpc('lgpd_phase1_cleanup', {
       p_user_id: userId,
       p_pre_capture: preCapture,

@@ -40,6 +40,7 @@ vi.mock('../../src/app/cms/reset/actions', () => ({
 }))
 
 import CmsLoginPage from '../../src/app/cms/login/page'
+import { destinoSeguro } from '../../src/app/cms/login/destino'
 import CmsForgotPage from '../../src/app/cms/forgot/page'
 import CmsResetPage from '../../src/app/cms/reset/page'
 
@@ -72,5 +73,25 @@ describe('cms login pages', () => {
   it('mounts <CmsResetPassword>', async () => {
     render(await CmsResetPage())
     expect(screen.getByTestId('cms-reset-component')).toBeTruthy()
+  })
+
+  it('destinoSeguro recusa destino externo ou malformado', () => {
+    for (const ruim of ['https://evil.example', '//x', '//evil.com', '/\\evil', '/\t/evil', '/a\x00b', '/a\x7fb', '', undefined]) {
+      expect(destinoSeguro(ruim)).toBe('/cms')
+    }
+  })
+
+  it('destinoSeguro aceita caminho relativo', () => {
+    expect(destinoSeguro('/oauth/consentimento?authorization_id=abc')).toBe('/oauth/consentimento?authorization_id=abc')
+    expect(destinoSeguro('/cms/x?y=1')).toBe('/cms/x?y=1')
+  })
+
+  it('a pagina entrega redirectTo = destinoSeguro(next)', async () => {
+    mockCmsLogin.mockClear()
+    render(await CmsLoginPage({ searchParams: Promise.resolve({ next: '//evil.com' }) }))
+    expect((mockCmsLogin.mock.calls[0]?.[0] as { redirectTo: string }).redirectTo).toBe('/cms')
+    mockCmsLogin.mockClear()
+    render(await CmsLoginPage({ searchParams: Promise.resolve({ next: '/oauth/consentimento?authorization_id=abc' }) }))
+    expect((mockCmsLogin.mock.calls[0]?.[0] as { redirectTo: string }).redirectTo).toBe('/oauth/consentimento?authorization_id=abc')
   })
 })

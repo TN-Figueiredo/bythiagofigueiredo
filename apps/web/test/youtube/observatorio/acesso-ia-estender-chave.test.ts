@@ -15,18 +15,26 @@ const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const ANA = '9a1b2c3d-0000-4000-8000-00000000aaaa'
 const PERFIL = 'observatorio_leitura'
 
-interface Linha { name: string; site_id: string; user_id: string | null; expires_at: string; permissions: string[]; revoked_at: string | null }
+interface Linha { id?: string; name: string; site_id: string; user_id: string | null; expires_at: string; permissions: string[]; revoked_at: string | null }
 const linha = (o: Partial<Linha> = {}): Linha => ({ name: NOME, site_id: SITE, user_id: ANA, expires_at: new Date(AGORA + 10 * DIA).toISOString(), permissions: [PERFIL], revoked_at: null, ...o })
 
-function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; usuario?: boolean; casPerde?: boolean; updateErro?: boolean; userErro?: { status?: number; code?: string }; rpc?: 'erro' | 'forma'; lancaNoUpdate?: boolean } = {}) {
-  const cen = { linhas: [linha()], ve: true, banidoAte: null as string | null, usuario: true, casPerde: false, updateErro: false, userErro: undefined as { status?: number; code?: string } | undefined, rpc: undefined as 'erro' | 'forma' | undefined, lancaNoUpdate: false, ...o }
+function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; usuario?: boolean; casPerde?: boolean; updateErro?: boolean; userErro?: { status?: number; code?: string }; rpc?: 'erro' | 'forma'; lancaNoUpdate?: boolean; conexoes?: string[]; conexoesErro?: boolean } = {}) {
+  const cen = { linhas: [linha()], ve: true, banidoAte: null as string | null, usuario: true, casPerde: false, updateErro: false, userErro: undefined as { status?: number; code?: string } | undefined, rpc: undefined as 'erro' | 'forma' | undefined, lancaNoUpdate: false, conexoes: [] as string[], conexoesErro: false, ...o }
   const selects: string[] = []
+  const consultasDeConexao: Array<[string, unknown]> = []
   const updates: Array<{ set: Record<string, unknown>; filtros: Array<[string, unknown]> }> = []
   const sb = {
     rpc: async () => (cen.rpc === 'erro' ? { data: null, error: { code: 'XX000' } } : cen.rpc === 'forma' ? { data: 'sim', error: null } : { data: cen.ve, error: null }),
     auth: { admin: { getUserById: async () => (cen.userErro ? { data: { user: null }, error: cen.userErro } : { data: { user: cen.usuario ? { id: ANA, banned_until: cen.banidoAte } : null }, error: null }) } },
-    from: () => ({
-      select: (colunas?: string) => { selects.push(String(colunas)); return { eq: async (_c: string, nome: string) => ({ data: cen.linhas.filter((l) => l.name === nome), error: null }) } },
+    from: (tabela: string) => ({
+      select: (colunas?: string) => {
+        if (tabela === 'obs_ai_conexoes') {
+          return { eq: async (c: string, v: unknown) => {
+            consultasDeConexao.push([c, v])
+            return cen.conexoesErro ? { data: null, error: { code: '42P01' } } : { data: cen.conexoes.filter((k) => k === v).map((k) => ({ key_id: k })), error: null }
+          } }
+        }
+         selects.push(String(colunas)); return { eq: async (_c: string, nome: string) => ({ data: cen.linhas.filter((l) => l.name === nome), error: null }) } },
       update: (set: Record<string, unknown>) => {
         const filtros: Array<[string, unknown]> = []
         const q = {
@@ -44,7 +52,7 @@ function fazer(o: { linhas?: Linha[]; ve?: boolean; banidoAte?: string | null; u
     }),
   }
   const deps: DepsDeEstender = { sb: sb as never, agora: () => AGORA, e19: () => ({ ok: true }), excecaoEm: ymd(AGORA - 9 * DIA) }
-  return { deps, updates, selects }
+  return { deps, updates, selects, consultasDeConexao }
 }
 const pedido = { chave: NOME }
 
@@ -107,6 +115,34 @@ describe('estenderChaveDoPerfil', () => {
   })
 })
 
+describe('C1: linha de conexão OAuth (spec 4.4)', () => {
+  const KEY = '7c000000-0000-4000-8000-000000000009'
+  it('nome com o prefixo observatorio-oauth-: e_conexao, sem ler a linha nem atualizar', async () => {
+    const nome = `observatorio-oauth-chatgpt-${ymd(AGORA - 5 * DIA).replace(/-/g, '')}-abcd`
+    const c = fazer({ linhas: [linha({ name: nome })] })
+    expect(await estenderChaveDoPerfil(c.deps, { chave: nome })).toEqual({ ok: false, recusa: 'e_conexao' })
+    expect(c.updates).toHaveLength(0)
+  })
+  it('nome comum cujo id está em obs_ai_conexoes.key_id: e_conexao, zero updates', async () => {
+    const c = fazer({ linhas: [linha({ id: KEY })], conexoes: [KEY] })
+    expect(await estenderChaveDoPerfil(c.deps, pedido)).toEqual({ ok: false, recusa: 'e_conexao' })
+    expect(c.consultasDeConexao).toEqual([['key_id', KEY]])
+    expect(c.updates).toHaveLength(0)
+  })
+  it('chave com id fora das conexões estende normalmente', async () => {
+    const c = fazer({ linhas: [linha({ id: KEY })], conexoes: [] })
+    expect((await estenderChaveDoPerfil(c.deps, pedido)).ok).toBe(true)
+  })
+  it('não consegue ler obs_ai_conexoes: nao_conferido, zero updates', async () => {
+    const c = fazer({ linhas: [linha({ id: KEY })], conexoesErro: true })
+    expect(await estenderChaveDoPerfil(c.deps, pedido)).toMatchObject({ ok: false, recusa: 'nao_conferido', code: '42P01' })
+    expect(c.updates).toHaveLength(0)
+  })
+  it('a frase manda usar estender --liberacao', () => {
+    expect(descreverResultadoDeEstender({ ok: false, recusa: 'e_conexao' }).texto).toBe('recusado: e_conexao (esta linha é de uma conexão OAuth: use estender --liberacao)')
+  })
+})
+
 describe('erros do Auth e do banco', () => {
   it('I-3: erro passageiro do getUserById vira nao_conferido; 404 / user_not_found vira sem_vinculo', async () => {
     expect(await estenderChaveDoPerfil(fazer({ userErro: { status: 500, code: 'unexpected_failure' } }).deps, pedido)).toMatchObject({ ok: false, recusa: 'nao_conferido', code: 'unexpected_failure' })
@@ -119,7 +155,7 @@ describe('colunas lidas, banimento e fronteiras', () => {
   it('M-1: lista as colunas, sem key_hash e sem *', async () => {
     const c = fazer()
     await estenderChaveDoPerfil(c.deps, pedido)
-    expect(c.selects).toEqual(['name, site_id, user_id, expires_at, permissions, revoked_at'])
+    expect(c.selects).toEqual(['id, name, site_id, user_id, expires_at, permissions, revoked_at'])
   })
   it('M-3: banned_until preenchido bane, como em lib/lgpd (passado, futuro ou ilegível)', async () => {
     for (const b of [new Date(AGORA - DIA).toISOString(), new Date(AGORA + DIA).toISOString(), 'lixo']) {

@@ -64,9 +64,9 @@ export async function executarChamada(
   if (decorrido0 > LIMITE_PARA_SOMAR_MS) { await registrarTempo(decorrido0); return erro(FRASES_DA_FERRAMENTA.demorou) }
 
   // 2. a taxa
-  const t = await somarNaTaxa(sb, c.prova.keyId, agora())
+  const t = await somarNaTaxa(sb, c.prova.keyId, c.prova.userId, agora())
   if (!t.ok) { avisar('taxa_nao_conferida', t.code); return erro(FRASES_DA_FERRAMENTA.taxa_nao_conferida) }
-  const decisao = decidirTaxa(t.noMinuto, t.noDia, agora())
+  const decisao = decidirTaxa(t.noMinuto, t.noDiaPessoa, agora())
   if (!decisao.serve) {
     if (decisao.registrar) {
       const r = await registrarAcessoDaChave(sb, { ...base, resultado: 'limite', params: { acao, desfecho: 'limite', por: decisao.por } })

@@ -186,60 +186,74 @@ function clienteDaTaxa(resposta: Resp | 'lanca' | 'pendente') {
 
 describe('somarNaTaxa', () => {
   it.each([['null', null], ['undefined', undefined], ['texto vazio', ''], ['só espaços', '   '], ['número', 7], ['objeto', {}]])('keyId %s: key_invalida no TypeScript, sem ida ao banco', async (_nome, k) => {
-    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1 }, error: null })
-    expect(await somarNaTaxa(sb, k as unknown as string, AGORA)).toEqual({ ok: false, code: 'key_invalida' })
+    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }, error: null })
+    expect(await somarNaTaxa(sb, k as unknown as string, 'user-1', AGORA)).toEqual({ ok: false, code: 'key_invalida' })
     expect(chamadas).toEqual([])
   })
 
   it('a função recebe o keyId pedido e o instante, e mais nada (argumentos exatos)', async () => {
-    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 3, no_dia: 9 }, error: null })
-    await somarNaTaxa(sb, 'key-do-pedido', AGORA)
-    expect(chamadas).toEqual([{ nome: 'obs_ai_rate_hit', args: { p_key: 'key-do-pedido', p_now: '2026-10-13T15:07:42.500Z' } }])
+    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 3, no_dia: 9, no_dia_pessoa: 12 }, error: null })
+    await somarNaTaxa(sb, 'key-do-pedido', 'user-1', AGORA)
+    expect(chamadas).toEqual([{ nome: 'obs_ai_rate_hit_v2', args: { p_key: 'key-do-pedido', p_user: 'user-1', p_now: '2026-10-13T15:07:42.500Z' } }])
   })
 
   it.each([
-    ['uma linha', { no_minuto: 3, no_dia: 9 }],
-    ['uma lista com uma linha', [{ no_minuto: 3, no_dia: 9 }]],
+    ['uma linha', { no_minuto: 3, no_dia: 9, no_dia_pessoa: 12 }],
+    ['uma lista com uma linha', [{ no_minuto: 3, no_dia: 9, no_dia_pessoa: 12 }]],
   ])('a função devolve %s: vale', async (_n, data) => {
     const { sb } = clienteDaTaxa({ data, error: null })
-    expect(await somarNaTaxa(sb, 'k', AGORA)).toEqual({ ok: true, noMinuto: 3, noDia: 9 })
+    expect(await somarNaTaxa(sb, 'k', 'user-1', AGORA)).toEqual({ ok: true, noMinuto: 3, noDia: 9, noDiaPessoa: 12 })
   })
 
   it.each([
     ['lista vazia', []],
-    ['lista com duas linhas (não se escolhe uma)', [{ no_minuto: 3, no_dia: 9 }, { no_minuto: 4, no_dia: 10 }]],
+    ['lista com duas linhas (não se escolhe uma)', [{ no_minuto: 3, no_dia: 9, no_dia_pessoa: 12 }, { no_minuto: 4, no_dia: 10, no_dia_pessoa: 13 }]],
     ['null', null],
-    ['número em texto', { no_minuto: '3', no_dia: '9' }],
+    ['número em texto', { no_minuto: '3', no_dia: '9', no_dia_pessoa: '9' }],
     ['só um dos dois números', { no_minuto: 3 }],
+    ['no_dia_pessoa ausente', { no_minuto: 3, no_dia: 9 }],
     ['zero (depois de somar nunca é zero)', { no_minuto: 0, no_dia: 0 }],
     ['fracionário', { no_minuto: 1.5, no_dia: 2 }],
     ['NaN e infinito', { no_minuto: Number.NaN, no_dia: Number.POSITIVE_INFINITY }],
     ['um texto solto', 'ok'],
   ])('a função devolve %s: erro forma_invalida (sem número não se serve)', async (_n, data) => {
     const { sb } = clienteDaTaxa({ data, error: null })
-    expect(await somarNaTaxa(sb, 'k', AGORA)).toEqual({ ok: false, code: 'forma_invalida' })
+    expect(await somarNaTaxa(sb, 'k', 'user-1', AGORA)).toEqual({ ok: false, code: 'forma_invalida' })
   })
 
   it('erro do banco e função ausente: ok false com o code', async () => {
-    expect(await somarNaTaxa(clienteDaTaxa({ data: null, error: { code: 'PGRST202', message: 'x' } }).sb, 'k', AGORA)).toEqual({ ok: false, code: 'PGRST202' })
-    expect(await somarNaTaxa(clienteDaTaxa({ data: null, error: { message: 'sem código' } }).sb, 'k', AGORA)).toEqual({ ok: false, code: 'desconhecido' })
+    expect(await somarNaTaxa(clienteDaTaxa({ data: null, error: { code: 'PGRST202', message: 'x' } }).sb, 'k', 'user-1', AGORA)).toEqual({ ok: false, code: 'PGRST202' })
+    expect(await somarNaTaxa(clienteDaTaxa({ data: null, error: { message: 'sem código' } }).sb, 'k', 'user-1', AGORA)).toEqual({ ok: false, code: 'desconhecido' })
   })
 
   it('exceção: nunca lança, devolve ok false', async () => {
-    expect(await somarNaTaxa(clienteDaTaxa('lanca').sb, 'k', AGORA)).toEqual({ ok: false, code: 'excecao' })
+    expect(await somarNaTaxa(clienteDaTaxa('lanca').sb, 'k', 'user-1', AGORA)).toEqual({ ok: false, code: 'excecao' })
   })
 
   it('não responde em 20 ms (relógio de verdade): ok false com code tempo, e a chamada recebeu sinal de cancelamento', async () => {
     const { sb, sinais } = clienteDaTaxa('pendente')
-    expect(await somarNaTaxa(sb, 'k', AGORA, { prazoMs: 20 })).toEqual({ ok: false, code: 'tempo' })
+    expect(await somarNaTaxa(sb, 'k', 'user-1', AGORA, { prazoMs: 20 })).toEqual({ ok: false, code: 'tempo' })
     expect(sinais).toHaveLength(1)
     expect(sinais[0]!.aborted).toBe(true)
   })
 
   it('sem opcoes o prazo é 5.000 (espia AbortSignal.timeout)', async () => {
     const espia = vi.spyOn(AbortSignal, 'timeout')
-    await somarNaTaxa(clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1 }, error: null }).sb, 'k', AGORA)
+    await somarNaTaxa(clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }, error: null }).sb, 'k', 'user-1', AGORA)
     expect(espia.mock.calls.map((c) => c[0])).toEqual([5_000])
     espia.mockRestore()
+  })
+})
+
+describe('somarNaTaxa: a pessoa', () => {
+  it.each([['null', null], ['undefined', undefined], ['texto vazio', ''], ['só espaços', '   '], ['número', 7]])('userId %s: key_invalida sem banco', async (_n, u) => {
+    const { sb, chamadas } = clienteDaTaxa({ data: { no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }, error: null })
+    expect(await somarNaTaxa(sb, 'k', u as unknown as string, AGORA)).toEqual({ ok: false, code: 'key_invalida' })
+    expect(chamadas).toEqual([])
+  })
+
+  it('o dia decide por pessoa: 501 registra, 502 não', () => {
+    expect(decidirTaxa(1, 501, AGORA)).toMatchObject({ serve: false, por: 'dia', registrar: true })
+    expect(decidirTaxa(1, 502, AGORA)).toMatchObject({ serve: false, por: 'dia', registrar: false })
   })
 })
