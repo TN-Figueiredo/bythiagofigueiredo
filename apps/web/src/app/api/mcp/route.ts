@@ -111,17 +111,25 @@ async function ramoOAuth(req: Request, t0: number): Promise<Response | null> {
   if (cred.tipo === 'oat_em_pipeline_key' || cred.tipo === 'ort') return jsonRpcErro(401, -32600, 'Invalid or revoked API key')
   const ligado = oauthLigado()
   if (cred.tipo === 'oat') {
-    const resolvido = await resolverTokenDeAcesso(getSupabaseServiceClient(), cred.token, t0)
+    // Infra (client que não nasce) = 503: com a trava aberta `nao_conferido`, com a fechada `temporarily_unavailable`, nunca o 500 do catch geral.
+    let sb: ReturnType<typeof getSupabaseServiceClient> | null = null
+    try { sb = getSupabaseServiceClient() } catch (e) { avisarDoRamo('oauth-cliente', codigoDe(e)) }
+    if (!sb) {
+      return ligado
+        ? jsonRpcErro(FRASES.nao_conferido.status, -32603, FRASES.nao_conferido.frase)
+        : jsonRpcErro(503, -32600, 'temporarily_unavailable')
+    }
+    const resolvido = await resolverTokenDeAcesso(sb, cred.token, t0)
     if (!ligado) {
       // Trava fechada: o token só é resolvido para registrar a recusa; não resolveu = sem registro.
-      if (resolvido.estado === 'erro') avisarDoRamo('oauth-leitura', resolvido.code)
+      if (resolvido.estado === 'erro') avisarDoRamo('oauth-leitura', codigoDe({ code: resolvido.code }))
       else if ((resolvido.estado === 'ativa' || resolvido.estado === 'vencida') && resolvido.chave.userId !== null) {
         await registrarRecusaComLimite(resolvido.chave, resolvido.chave.userId, 'desligado', t0)
       }
       return jsonRpcErro(503, -32600, 'temporarily_unavailable')
     }
     if (resolvido.estado === 'erro') {
-      avisarDoRamo('oauth-token', resolvido.code)
+      avisarDoRamo('oauth-token', codigoDe({ code: resolvido.code }))
       return jsonRpcErro(FRASES.nao_conferido.status, -32603, FRASES.nao_conferido.frase)
     }
     if (resolvido.estado !== 'ativa') return jsonRpcErro(401, -32600, 'Invalid or revoked API key', true)

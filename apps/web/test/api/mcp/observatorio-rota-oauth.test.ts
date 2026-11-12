@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   captureException: vi.fn(),
   log: vi.fn(),
   banco: { atual: null as unknown },
+  clienteLanca: false,
   pessoa: vi.fn(), apagamento: vi.fn(), vinculo: vi.fn(), privado: vi.fn(),
   runCtx: vi.fn(),
   espiaoResolver: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('mcp-handler', () => ({
 }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: h.captureMessage, captureException: h.captureException }))
 vi.mock('@/lib/pipeline/logger', () => ({ pipelineLog: h.log }))
-vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => h.banco.atual }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { if (h.clienteLanca) throw new Error('env'); return h.banco.atual } }))
 vi.mock('@/lib/pipeline/mcp/tools', () => ({ registerTools: vi.fn() }))
 vi.mock('@/lib/pipeline/mcp/resources', () => ({ registerResources: vi.fn() }))
 vi.mock('@/lib/pipeline/mcp/prompts', () => ({ registerPrompts: vi.fn() }))
@@ -61,13 +62,14 @@ const dia = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString()
 const CONVITE = 'Bearer resource_metadata="https://bythiagofigueiredo.com/.well-known/oauth-protected-resource/api/mcp", scope="observatorio:read"'
 
 type Linha = Record<string, unknown>
-interface Banco { inserts: Linha[]; chave: Linha | null; rpcLinhas: Linha[]; rpcLanca: boolean; fromLanca: boolean; rpcChamadas: unknown[][]; sb: unknown }
+interface Banco { inserts: Linha[]; chave: Linha | null; rpcLinhas: Linha[]; rpcLanca: boolean; rpcErro: Linha | null; fromLanca: boolean; rpcChamadas: unknown[][]; sb: unknown }
 function novoBanco(chave: Linha | null): Banco {
-  const b: Banco = { inserts: [], chave, rpcLinhas: [], rpcLanca: false, fromLanca: false, rpcChamadas: [], sb: null }
+  const b: Banco = { inserts: [], chave, rpcLinhas: [], rpcLanca: false, rpcErro: null, fromLanca: false, rpcChamadas: [], sb: null }
   b.sb = {
     rpc: (...a: unknown[]) => {
       b.rpcChamadas.push(a)
       if (b.rpcLanca) throw new Error('rpc caiu')
+      if (b.rpcErro) return Promise.resolve({ data: null, error: b.rpcErro })
       return Promise.resolve({ data: b.rpcLinhas, error: null })
     },
     from: (tabela: string) => {
@@ -109,6 +111,7 @@ beforeEach(() => {
   h.privado.mockResolvedValue(ACESSO)
   process.env.OBSERVATORIO_IA_EXTERNA = 'on'
   process.env.OBSERVATORIO_IA_OAUTH = 'on'
+  h.clienteLanca = false
   preparar(linhaDaChave())
   banco.rpcLinhas = [linhaDoToken()]
 })
@@ -265,6 +268,50 @@ describe('resolverTokenDeAcesso', () => {
     const r = await POST(req({ Authorization: 'Bearer oat_bom' }))
     expect(r.status).toBe(503)
     expect(r.headers.get('WWW-Authenticate')).toBeNull()
+  })
+  it('rota Foco 2: token_expira === agora, com a rpc devolvendo a linha = 401 COM convite', async () => {
+    banco.rpcLinhas = [linhaDoToken({ token_expira: new Date().toISOString() })]
+    const r = await POST(req({ Authorization: 'Bearer oat_k' }))
+    expect(r.status).toBe(401)
+    expect(r.headers.get('WWW-Authenticate')).toBe(conviteOAuth())
+    expect(h.obs).not.toHaveBeenCalled()
+  })
+  it('rota: erro DEVOLVIDO pela rpc = 503 sem convite, e o code passa pelo filtro no log e no Sentry', async () => {
+    banco.rpcErro = { code: '42501' }
+    const r = await POST(req({ Authorization: 'Bearer oat_bom' }))
+    expect(r.status).toBe(503)
+    expect(r.headers.get('WWW-Authenticate')).toBeNull()
+    expect(h.captureMessage).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ tags: expect.objectContaining({ code: '42501' }) }))
+  })
+  it('M1: code do erro da rpc fora do padrão vira "excecao" no log e no Sentry', async () => {
+    banco.rpcErro = { code: 'senha=abc def' }
+    await POST(req({ Authorization: 'Bearer oat_bom' }))
+    expect(JSON.stringify(h.captureMessage.mock.calls)).not.toContain('senha')
+    expect(JSON.stringify(h.log.mock.calls)).not.toContain('senha')
+    expect(h.captureMessage).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ tags: expect.objectContaining({ code: 'excecao' }) }))
+  })
+  it('rota: trava fechada com a rpc falhando = 503 temporarily_unavailable e sem registro', async () => {
+    delete process.env.OBSERVATORIO_IA_OAUTH
+    banco.rpcErro = { code: '42501' }
+    const r = await POST(req({ Authorization: 'Bearer oat_bom' }))
+    expect(r.status).toBe(503)
+    expect(await msg(r)).toBe('temporarily_unavailable')
+    expect(banco.inserts).toEqual([])
+  })
+  it('I1: getSupabaseServiceClient lançando, trava aberta = 503 nao_conferido sem convite', async () => {
+    h.clienteLanca = true
+    const r = await POST(req({ Authorization: 'Bearer oat_bom' }))
+    expect(r.status).toBe(503)
+    expect(r.headers.get('WWW-Authenticate')).toBeNull()
+    expect(h.runCtx).not.toHaveBeenCalled()
+  })
+  it('I1: getSupabaseServiceClient lançando, trava fechada = 503 temporarily_unavailable', async () => {
+    delete process.env.OBSERVATORIO_IA_OAUTH
+    h.clienteLanca = true
+    const r = await POST(req({ Authorization: 'Bearer oat_bom' }))
+    expect(r.status).toBe(503)
+    expect(await msg(r)).toBe('temporarily_unavailable')
+    expect(h.runCtx).not.toHaveBeenCalled()
   })
 })
 
