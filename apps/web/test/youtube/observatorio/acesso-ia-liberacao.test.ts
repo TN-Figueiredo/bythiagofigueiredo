@@ -4,26 +4,33 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { lerSubcomando, executarSubcomando, entradaDeConferencia, FRASE_DO_TETO } from '@/lib/youtube/observatorio/acesso-ia/liberacao'
-import type { DepsDeCriar } from '@/lib/youtube/observatorio/acesso-ia/criar-chave'
+import { lerSubcomando, executarSubcomando, entradaDeConferencia, ehSubcomandoDeLiberacao, FRASE_DO_TETO } from '@/lib/youtube/observatorio/acesso-ia/liberacao'
 
 const ANA = '9a1b2c3d-0000-4000-8000-00000000aaaa'
 const SITE = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
 const LIB = '3f2a1b2c-1111-4222-8333-444455556666'
+const SITE_B = '7c9d1e2f-5a47-4d0e-9b1c-7e6a2d4f8bbb'
 const AGORA = Date.parse('2026-11-11T12:00:00Z')
 
-function fazer(respostas: Record<string, unknown> = {}) {
+interface Opcoes { sites?: string[]; usuarios?: Array<{ id: string; email: string }>; ve?: (site: string) => boolean | { erro: string } }
+
+function fazer(respostas: Record<string, unknown> = {}, o: Opcoes = {}) {
   const chamadas: Array<{ nome: string; args: Record<string, unknown> }> = []
+  const sites = o.sites ?? [SITE]
+  const usuarios = o.usuarios ?? [{ id: ANA, email: 'ana@example.com' }]
   const sb = {
     rpc: async (nome: string, args: Record<string, unknown>) => {
-      if (nome === 'can_view_site_as') return { data: true, error: null }
+      if (nome === 'can_view_site_as') {
+        const v = o.ve ? o.ve(String(args.p_site)) : true
+        return typeof v === 'boolean' ? { data: v, error: null } : { data: null, error: { code: v.erro } }
+      }
       chamadas.push({ nome, args })
       return { data: respostas[nome] ?? [], error: null }
     },
-    auth: { admin: { listUsers: async () => ({ data: { users: [{ id: ANA, email: 'ana@example.com' }] }, error: null }) } },
-    from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: [{ id: SITE }], error: null }) }) }) }),
+    auth: { admin: { listUsers: async () => ({ data: { users: usuarios }, error: null }) } },
+    from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: sites.map((id) => ({ id })), error: null }) }) }) }),
   } as unknown as SupabaseClient
-  const deps: DepsDeCriar = { sb, agora: () => AGORA, e19: () => ({ ok: true }), excecaoEm: null, aleatorio: () => Buffer.alloc(0) }
+  const deps = { sb, agora: () => AGORA }
   return { deps, chamadas }
 }
 
@@ -34,6 +41,24 @@ describe('lerSubcomando', () => {
     expect(lerSubcomando(['estender', '--liberacao', LIB, '--dias', '10'])).toEqual({ ok: true, s: { tipo: 'estender_liberacao', liberacao: LIB, dias: 10 } })
     expect(lerSubcomando(['cortar', '--usuario', 'a@b.c'])).toEqual({ ok: true, s: { tipo: 'cortar', email: 'a@b.c' } })
     expect(lerSubcomando(['cortar', '--usuario', 'a@b.c', '--cliente', 'gemini'])).toEqual({ ok: true, s: { tipo: 'cortar', email: 'a@b.c', cliente: 'gemini' } })
+  })
+  it('--site: liberar (as duas formas) e cortar aceitam; estender não', () => {
+    expect(lerSubcomando(['liberar', '--usuario', 'a@b.c', '--site', SITE])).toEqual({ ok: true, s: { tipo: 'liberar', email: 'a@b.c', siteId: SITE } })
+    expect(lerSubcomando(['liberar', '--cliente', 'claude', '--usuario', 'a@b.c', '--site', SITE.toUpperCase()])).toEqual({ ok: true, s: { tipo: 'liberar_cliente', email: 'a@b.c', cliente: 'claude', siteId: SITE } })
+    expect(lerSubcomando(['cortar', '--usuario', 'a@b.c', '--site', SITE])).toEqual({ ok: true, s: { tipo: 'cortar', email: 'a@b.c', siteId: SITE } })
+    const x = lerSubcomando(['estender', '--liberacao', LIB, '--dias', '3', '--site', SITE])
+    expect(x.ok ? 'ok' : x.recusa).toBe('opcao_desconhecida')
+  })
+  it('--site que não é uuid é recusa de leitura', () => {
+    const x = lerSubcomando(['cortar', '--usuario', 'a@b.c', '--site', 'xyz'])
+    expect(x.ok ? 'ok' : x.recusa).toBe('site_invalido')
+  })
+  it('o despacho: estender --liberacao é do liberacao.ts; estender --chave e criar não', () => {
+    expect(ehSubcomandoDeLiberacao(['estender', '--liberacao', LIB, '--dias', '3'])).toBe(true)
+    expect(ehSubcomandoDeLiberacao(['estender', '--chave', 'observatorio-20261111-abcd'])).toBe(false)
+    expect(ehSubcomandoDeLiberacao(['liberar', '--usuario', 'a@b.c'])).toBe(true)
+    expect(ehSubcomandoDeLiberacao(['cortar', '--usuario', 'a@b.c'])).toBe(true)
+    expect(ehSubcomandoDeLiberacao(['criar', '--usuario', 'a@b.c'])).toBe(false)
   })
   it('recusas', () => {
     const r = (a: string[]) => { const x = lerSubcomando(a); return x.ok ? 'ok' : x.recusa }
@@ -91,6 +116,40 @@ describe('executarSubcomando', () => {
     const r = await executarSubcomando(deps, { tipo: 'cortar', email: 'ana@example.com' })
     expect(chamadas[0]!.args.p_cliente).toBeNull()
     expect(r.ok && r.linhas).toEqual(['corte feito: 2 linha(s) afetada(s)', `obs_ai_liberacoes: ${LIB}`, 'pipeline_api_keys: k1'])
+  })
+  it('pessoa e site: email_ambiguo, e-mail sem usuário, sem_acesso_ao_site, site_ambiguo, nao_conferido de veOSite', async () => {
+    const dois = fazer({}, { usuarios: [{ id: ANA, email: 'ana@example.com' }, { id: SITE_B, email: 'ana@example.com' }] })
+    expect(await executarSubcomando(dois.deps, { tipo: 'cortar', email: 'ana@example.com' })).toEqual({ ok: false, recusa: 'email_ambiguo' })
+    const nenhum = fazer({}, { usuarios: [] })
+    expect(await executarSubcomando(nenhum.deps, { tipo: 'cortar', email: 'ana@example.com' })).toEqual({ ok: false, recusa: 'email_ausente' })
+    const nao = fazer({}, { ve: () => false })
+    expect(await executarSubcomando(nao.deps, { tipo: 'cortar', email: 'ana@example.com' })).toEqual({ ok: false, recusa: 'sem_acesso_ao_site' })
+    const amb = fazer({}, { sites: [SITE, SITE_B] })
+    expect(await executarSubcomando(amb.deps, { tipo: 'cortar', email: 'ana@example.com' })).toEqual({ ok: false, recusa: 'site_ambiguo' })
+    expect(amb.chamadas).toHaveLength(0)
+    const erro = fazer({}, { ve: () => ({ erro: 'XX000' }) })
+    expect(await executarSubcomando(erro.deps, { tipo: 'cortar', email: 'ana@example.com' })).toEqual({ ok: false, recusa: 'nao_conferido', code: 'XX000' })
+  })
+  it('--site com 2 sites visíveis: chama a rpc com aquele p_site (liberar, liberar_cliente e cortar)', async () => {
+    const a = fazer({ obs_ai_cortar: [{ tabela: 'obs_ai_liberacoes', id: LIB, motivo: null }], obs_ai_liberar: [{ motivo: null, liberacao_id: LIB, expires_at: '2027-05-10T12:00:00Z' }],
+                      obs_ai_liberar_cliente: [{ motivo: null, bloqueios: [] }] }, { sites: [SITE, SITE_B] })
+    await executarSubcomando(a.deps, { tipo: 'cortar', email: 'ana@example.com', siteId: SITE_B })
+    await executarSubcomando(a.deps, { tipo: 'liberar', email: 'ana@example.com', siteId: SITE_B })
+    await executarSubcomando(a.deps, { tipo: 'liberar_cliente', email: 'ana@example.com', cliente: 'claude', siteId: SITE_B })
+    expect(a.chamadas.map((c) => c.args.p_site)).toEqual([SITE_B, SITE_B, SITE_B])
+  })
+  it('--site que a pessoa não vê = sem_acesso_ao_site; que não é uuid (chamada direta) idem; erro do veOSite = nao_conferido', async () => {
+    const a = fazer({}, { sites: [SITE, SITE_B], ve: (s) => s === SITE })
+    expect(await executarSubcomando(a.deps, { tipo: 'cortar', email: 'ana@example.com', siteId: SITE_B })).toEqual({ ok: false, recusa: 'sem_acesso_ao_site' })
+    expect(await executarSubcomando(a.deps, { tipo: 'cortar', email: 'ana@example.com', siteId: 'xyz' })).toEqual({ ok: false, recusa: 'sem_acesso_ao_site' })
+    const e = fazer({}, { ve: () => ({ erro: 'XX000' }) })
+    expect(await executarSubcomando(e.deps, { tipo: 'cortar', email: 'ana@example.com', siteId: SITE })).toEqual({ ok: false, recusa: 'nao_conferido', code: 'XX000' })
+    expect(a.chamadas).toHaveLength(0)
+  })
+  it('Phil I1: cortar sem liberação mas com chave afetada é corte feito, não falha', async () => {
+    const { deps } = fazer({ obs_ai_cortar: [{ tabela: 'pipeline_api_keys', id: 'k1', motivo: null }, { tabela: 'pipeline_api_keys', id: 'k2', motivo: null }, { tabela: null, id: null, motivo: 'sem_liberacao' }] })
+    const r = await executarSubcomando(deps, { tipo: 'cortar', email: 'ana@example.com' })
+    expect(r).toEqual({ ok: true, linhas: ['corte feito: 2 chave(s) Bearer; a pessoa não tinha liberação', 'pipeline_api_keys: k1', 'pipeline_api_keys: k2'] })
   })
   it('cortar sem liberação recusa; erro de rpc vira nao_conferido', async () => {
     const a = fazer({ obs_ai_cortar: [{ tabela: null, id: null, motivo: 'sem_liberacao' }] })

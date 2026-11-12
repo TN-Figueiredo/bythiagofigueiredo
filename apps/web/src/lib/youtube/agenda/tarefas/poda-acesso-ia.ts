@@ -5,6 +5,12 @@ import type { ResultadoTarefa, Tarefa } from '../tipos'
 
 const DIA_MS = 86_400_000
 
+/** Tudo que a poda apagou, das tabelas antigas e das novas (tokens, pedidos, contadores, clientes). */
+function apagadasDe(f: Partial<FeitoDaPoda>): number {
+  return (f.registroApagadas ?? 0) + (f.taxaApagadas ?? 0) + (f.tokensApagadas ?? 0) + (f.pedidosApagadas ?? 0)
+    + (f.rateIpApagadas ?? 0) + (f.ratePessoaApagadas ?? 0) + (f.clientesApagados ?? 0)
+}
+
 /** Só número vai ao `detalhe`: a data do limite inferior vira "há quantos dias". */
 function detalheDe(f: FeitoDaPoda, agora: number): Record<string, number> {
   const d: Record<string, number> = {}
@@ -12,6 +18,15 @@ function detalheDe(f: FeitoDaPoda, agora: number): Record<string, number> {
   if (f.registroApagadas !== undefined) d.registro_apagadas = f.registroApagadas
   if (f.taxaTotal !== undefined) d.taxa_total = f.taxaTotal
   if (f.taxaApagadas !== undefined) d.taxa_apagadas = f.taxaApagadas
+  if (f.tokensTotal !== undefined) d.tokens_total = f.tokensTotal
+  if (f.tokensApagadas !== undefined) d.tokens_apagadas = f.tokensApagadas
+  if (f.pedidosTotal !== undefined) d.pedidos_total = f.pedidosTotal
+  if (f.pedidosApagadas !== undefined) d.pedidos_apagadas = f.pedidosApagadas
+  if (f.rateIpTotal !== undefined) d.rate_ip_total = f.rateIpTotal
+  if (f.rateIpApagadas !== undefined) d.rate_ip_apagadas = f.rateIpApagadas
+  if (f.ratePessoaTotal !== undefined) d.rate_pessoa_total = f.ratePessoaTotal
+  if (f.ratePessoaApagadas !== undefined) d.rate_pessoa_apagadas = f.ratePessoaApagadas
+  if (f.clientesApagados !== undefined) d.clientes_apagados = f.clientesApagados
   if (f.limpoAte !== undefined) {
     const t = Date.parse(f.limpoAte)
     if (Number.isFinite(t)) d.limpo_ha_dias = Math.max(0, Math.floor((agora - t) / DIA_MS))
@@ -32,13 +47,13 @@ export const podaAcessoIa: Tarefa = {
       const sobraMs = () => c.t0 + DEFINICAO_PODA_ACESSO_IA.fimAteMs - c.agora()
       const r = await podarAcessoIa(c.sb, c.agora(), sobraMs)
       if (r.ok) {
-        return { estado: 'ok', feitas: r.r.registroApagadas + r.r.taxaApagadas, deixadas: 0, detalhe: detalheDe(r.r, c.agora()) }
+        return { estado: 'ok', feitas: apagadasDe(r.r), deixadas: 0, detalhe: detalheDe(r.r, c.agora()) }
       }
       const parcial = r.motivo === 'sem_tempo_para_terminar' || r.motivo === 'atraso_restante'
       const detalhe = detalheDe(r.feito, c.agora())
       return {
         estado: parcial ? 'parcial' : 'erro',
-        feitas: (r.feito.registroApagadas ?? 0) + (r.feito.taxaApagadas ?? 0),
+        feitas: apagadasDe(r.feito),
         deixadas: null,
         motivo: r.motivo,
         ...(Object.keys(detalhe).length > 0 ? { detalhe } : {}),

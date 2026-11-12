@@ -2,20 +2,20 @@
 // só service_role, com o lock da pessoa): este arquivo não faz `.from(...).update/delete` (um teste lê o texto e confere).
 // A pessoa e o site saem como em `criarChaveDoPerfil` (`acharPessoas`, `veOSite`). Nenhum agente roda estes comandos.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { acharPessoas, veOSite, type DepsDeCriar } from './criar-chave'
+import { acharPessoas, veOSite } from './criar-chave'
+import { diaDeVencimentoSp } from './vencimento'
 import { ACESSO_IA_RULES } from './regras'
 
 export type Cliente = 'claude' | 'chatgpt' | 'gemini'
 export type Subcomando =
-  | { tipo: 'liberar'; email: string; dias?: number }
-  | { tipo: 'liberar_cliente'; email: string; cliente: Cliente }
+  | { tipo: 'liberar'; email: string; dias?: number; siteId?: string }
+  | { tipo: 'liberar_cliente'; email: string; cliente: Cliente; siteId?: string }
   | { tipo: 'estender_liberacao'; liberacao: string; dias: number }
-  | { tipo: 'cortar'; email: string; cliente?: Cliente }
-export type RecusaDeLeitura = 'subcomando' | 'opcao_desconhecida' | 'email_ausente' | 'validade_invalida' | 'cliente_invalido' | 'liberacao_ausente'
+  | { tipo: 'cortar'; email: string; cliente?: Cliente; siteId?: string }
+export type RecusaDeLeitura = 'subcomando' | 'opcao_desconhecida' | 'email_ausente' | 'validade_invalida' | 'cliente_invalido' | 'liberacao_ausente' | 'site_invalido'
 
 export const FRASE_DO_TETO = 'teto de 2 pessoas com acesso: corte alguém antes (cortar --usuario <e-mail>)'
 
-const TRES_HORAS_MS = 3 * 3_600_000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const CLIENTES: readonly string[] = ['claude', 'chatgpt', 'gemini']
 const SITES_POR_PAGINA = 1000
@@ -23,10 +23,16 @@ const SITES_PAGINAS_MAX = 50
 
 /* ---------------------------------------------------------------- argumentos */
 
+/** O despacho de `scripts/observatorio-acesso.ts`: `estender --liberacao` é daqui; `estender --chave` e `criar` são da chave do perfil. */
+export function ehSubcomandoDeLiberacao(argv: readonly string[]): boolean {
+  const sub = argv[0]
+  return sub === 'liberar' || sub === 'cortar' || (sub === 'estender' && argv.includes('--liberacao'))
+}
+
 export function lerSubcomando(argv: readonly string[]): { ok: true; s: Subcomando } | { ok: false; recusa: RecusaDeLeitura } {
   const [sub, ...resto] = argv
   if (sub !== 'liberar' && sub !== 'estender' && sub !== 'cortar') return { ok: false, recusa: 'subcomando' }
-  const permitidas = sub === 'liberar' ? ['--usuario', '--dias', '--cliente'] : sub === 'estender' ? ['--liberacao', '--dias'] : ['--usuario', '--cliente']
+  const permitidas = sub === 'liberar' ? ['--usuario', '--dias', '--cliente', '--site'] : sub === 'estender' ? ['--liberacao', '--dias'] : ['--usuario', '--cliente', '--site']
   const v: Record<string, string> = {}
   for (let i = 0; i < resto.length; i += 2) {
     const k = resto[i]
@@ -53,28 +59,29 @@ export function lerSubcomando(argv: readonly string[]): { ok: true; s: Subcomand
   const email = v.usuario
   const c = cliente()
   if (c === null) return { ok: false, recusa: 'cliente_invalido' }
-  if (sub === 'cortar') return { ok: true, s: { tipo: 'cortar', email, ...(c !== undefined ? { cliente: c } : {}) } }
+  if (v.site !== undefined && !UUID.test(v.site)) return { ok: false, recusa: 'site_invalido' }
+  const site = v.site !== undefined ? { siteId: v.site.toLowerCase() } : {}
+  if (sub === 'cortar') return { ok: true, s: { tipo: 'cortar', email, ...(c !== undefined ? { cliente: c } : {}), ...site } }
   if (c !== undefined) {
     if (v.dias !== undefined) return { ok: false, recusa: 'opcao_desconhecida' }
-    return { ok: true, s: { tipo: 'liberar_cliente', email, cliente: c } }
+    return { ok: true, s: { tipo: 'liberar_cliente', email, cliente: c, ...site } }
   }
   const d = dias()
   if (d === null) return { ok: false, recusa: 'validade_invalida' }
-  return { ok: true, s: { tipo: 'liberar', email, ...(d !== undefined ? { dias: d } : {}) } }
+  return { ok: true, s: { tipo: 'liberar', email, ...(d !== undefined ? { dias: d } : {}), ...site } }
 }
 
 /* ---------------------------------------------------------------- a conferência (K14) */
 
 /** Texto de uma `Conferencia` (lib/conferencias.ts) para o dono colar: id `e17d2-liberacao-<8 do id>-vence-AAAAMMDD`, data = vencimento (dia de SP) menos 14 dias. */
 export function entradaDeConferencia(liberacaoId: string, expiresAtIso: string): string {
-  const venceSp = new Date(Date.parse(expiresAtIso) - TRES_HORAS_MS)
-  const dia = new Date(Date.UTC(venceSp.getUTCFullYear(), venceSp.getUTCMonth(), venceSp.getUTCDate() - ACESSO_IA_RULES.avisoDeVencimentoDias))
-  const dd = String(venceSp.getUTCDate()).padStart(2, '0')
-  const mm = String(venceSp.getUTCMonth() + 1).padStart(2, '0')
+  const v = diaDeVencimentoSp(expiresAtIso)
+  const dd = String(v.dia).padStart(2, '0')
+  const mm = String(v.mes).padStart(2, '0')
   const curto = liberacaoId.slice(0, 8)
-  const id = `e17d2-liberacao-${curto}-vence-${venceSp.getUTCFullYear()}${mm}${dd}`
+  const id = `e17d2-liberacao-${curto}-vence-${v.ano}${mm}${dd}`
   const onde = `a liberação ${curto} do acesso por OAuth vence em ${dd}/${mm}. Decida estender (comando estender --liberacao ${liberacaoId} --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita`
-  return `{ id: '${id}', etapa: 'E17', data: '${dia.toISOString().slice(0, 10)}', responsavel: 'dono', onde: '${onde}', feitaEm: null },`
+  return `{ id: '${id}', etapa: 'E17', data: '${v.avisoEm}', responsavel: 'dono', onde: '${onde}', feitaEm: null },`
 }
 
 /* ---------------------------------------------------------------- o núcleo */
@@ -95,7 +102,7 @@ async function chamar(sb: SupabaseClient, nome: string, args: Record<string, unk
 }
 
 /** A pessoa pelo e-mail e o único site que ela vê. */
-async function acharPessoaESite(sb: SupabaseClient, emailBruto: string): Promise<{ userId: string; siteId: string } | { falha: ReturnType<typeof falha> }> {
+async function acharPessoaESite(sb: SupabaseClient, emailBruto: string, siteIdPedido?: string): Promise<{ userId: string; siteId: string } | { falha: ReturnType<typeof falha> }> {
   const email = emailBruto.trim().toLowerCase()
   if (email === '') return { falha: falha('email_ausente') }
   const pessoas = await acharPessoas(sb, email)
@@ -103,6 +110,13 @@ async function acharPessoaESite(sb: SupabaseClient, emailBruto: string): Promise
   if (pessoas.ids.length === 0) return { falha: falha('email_ausente') }
   if (pessoas.ids.length > 1) return { falha: falha('email_ambiguo') }
   const userId = pessoas.ids[0]!
+  if (siteIdPedido !== undefined) {
+    if (!UUID.test(siteIdPedido)) return { falha: falha('sem_acesso_ao_site') }
+    const v = await veOSite(sb, userId, siteIdPedido)
+    if (typeof v === 'object') return { falha: falha('nao_conferido', v.erro) }
+    if (!v) return { falha: falha('sem_acesso_ao_site') }
+    return { userId, siteId: siteIdPedido }
+  }
   const ids: string[] = []
   try {
     for (let pagina = 0; ; pagina++) {
@@ -125,7 +139,7 @@ async function acharPessoaESite(sb: SupabaseClient, emailBruto: string): Promise
   return { userId, siteId: vistos[0]! }
 }
 
-export async function executarSubcomando(deps: DepsDeCriar, s: Subcomando): Promise<Resultado> {
+export async function executarSubcomando(deps: { sb: SupabaseClient; agora: () => number }, s: Subcomando): Promise<Resultado> {
   const { sb } = deps
   const t = deps.agora()
   if (!Number.isFinite(t)) return falha('nao_conferido', 'relogio')
@@ -146,7 +160,7 @@ export async function executarSubcomando(deps: DepsDeCriar, s: Subcomando): Prom
     ] }
   }
 
-  const pe = await acharPessoaESite(sb, s.email)
+  const pe = await acharPessoaESite(sb, s.email, s.siteId)
   if ('falha' in pe) return pe.falha
 
   if (s.tipo === 'liberar') {
@@ -179,9 +193,16 @@ export async function executarSubcomando(deps: DepsDeCriar, s: Subcomando): Prom
   const r = await chamar(sb, 'obs_ai_cortar', { p_user: pe.userId, p_site: pe.siteId, p_cliente: s.cliente ?? null, p_agora: pAgora })
   if ('erro' in r) return falha('nao_conferido', r.erro)
   if (r.linhas.length === 0) return falha('nao_conferido', 'forma_invalida')
-  const sem = r.linhas.find((l) => ehTexto(l.motivo))
-  if (sem) return falha(String(sem.motivo))
   const afetadas = r.linhas.filter((l) => ehTexto(l.tabela) && ehTexto(l.id))
+  const sem = r.linhas.find((l) => ehTexto(l.motivo))
+  // sem_liberacao COM chave afetada = corte feito (a pessoa só tinha chave Bearer); sem chave afetada = nada a cortar
+  if (sem && !(sem.motivo === 'sem_liberacao' && afetadas.length > 0)) return falha(String(sem.motivo))
+  if (sem) {
+    return { ok: true, linhas: [
+      `corte feito: ${afetadas.length} chave(s) Bearer; a pessoa não tinha liberação`,
+      ...afetadas.map((l) => `${String(l.tabela)}: ${String(l.id)}`),
+    ] }
+  }
   return { ok: true, linhas: [
     `corte feito${s.cliente ? ` (só ${s.cliente})` : ''}: ${afetadas.length} linha(s) afetada(s)`,
     ...afetadas.map((l) => `${String(l.tabela)}: ${String(l.id)}`),

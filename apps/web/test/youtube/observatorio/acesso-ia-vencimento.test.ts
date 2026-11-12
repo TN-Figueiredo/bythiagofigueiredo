@@ -107,3 +107,12 @@ describe('podeRenovar', () => {
     expect(podeRenovar(iso(AGORA + DIA), Number.POSITIVE_INFINITY)).toBe(false)
   })
 })
+
+describe('diaDeVencimentoSp (Yannis M7): a conta única da data de SP', () => {
+  it('dia de SP do vencimento e a data do aviso, 14 dias antes', async () => {
+    const { diaDeVencimentoSp } = await import('@/lib/youtube/observatorio/acesso-ia/vencimento')
+    expect(diaDeVencimentoSp('2027-05-10T03:00:00Z')).toEqual({ ano: 2027, mes: 5, dia: 10, avisoEm: '2027-04-26' })
+    expect(diaDeVencimentoSp('2027-05-10T02:59:00Z')).toEqual({ ano: 2027, mes: 5, dia: 9, avisoEm: '2027-04-25' })
+    expect(diaDeVencimentoSp('2027-01-05T02:00:00Z')).toEqual({ ano: 2027, mes: 1, dia: 4, avisoEm: '2026-12-21' })
+  })
+})

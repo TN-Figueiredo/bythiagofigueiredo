@@ -22,6 +22,13 @@ const dataDoTextoExiste = (instante: string): boolean => dataReal(Number(instant
 
 const PLANO = 'docs/superpowers/plans/2026-10-13-a5-e17-degrau-2-acesso-pelo-claude-code-plan.md, seção 7 (vencimento da chave)'
 
+/** O dia de São Paulo em que `expiresAt` vence e a data (AAAA-MM-DD) do aviso, `avisoDeVencimentoDias` antes. Conta única das duas conferências. */
+export function diaDeVencimentoSp(expiresAt: string): { ano: number; mes: number; dia: number; avisoEm: string } {
+  const venceSp = new Date(Date.parse(expiresAt) - TRES_HORAS_MS)
+  const aviso = new Date(Date.UTC(venceSp.getUTCFullYear(), venceSp.getUTCMonth(), venceSp.getUTCDate() - ACESSO_IA_RULES.avisoDeVencimentoDias))
+  return { ano: venceSp.getUTCFullYear(), mes: venceSp.getUTCMonth() + 1, dia: venceSp.getUTCDate(), avisoEm: aviso.toISOString().slice(0, 10) }
+}
+
 /**
  * `null` quando `expiresAt` não passa em `instanteValido` ou o nome não tem a forma `observatorio-AAAAMMDD-xxxx`: nunca uma conferência com
  * data inventada, nunca um identificador que carregue e-mail ou nome de pessoa.
@@ -31,15 +38,14 @@ export function conferenciaDeVencimento(nomeDaChave: string, expiresAt: string):
   if (!m || !dataReal(Number(m[1]), Number(m[2]), Number(m[3]))) return null
   // o motor de datas aceita 30 de fevereiro e rola para março: a data do TEXTO tem de existir
   if (!instanteValido(expiresAt) || !dataDoTextoExiste(expiresAt)) return null
-  const venceNoDiaDeSp = new Date(Date.parse(expiresAt) - TRES_HORAS_MS)
-  const dia = new Date(Date.UTC(venceNoDiaDeSp.getUTCFullYear(), venceNoDiaDeSp.getUTCMonth(), venceNoDiaDeSp.getUTCDate() - ACESSO_IA_RULES.avisoDeVencimentoDias))
-  const dd = String(venceNoDiaDeSp.getUTCDate()).padStart(2, '0')
-  const mm = String(venceNoDiaDeSp.getUTCMonth() + 1).padStart(2, '0')
+  const v = diaDeVencimentoSp(expiresAt)
+  const dd = String(v.dia).padStart(2, '0')
+  const mm = String(v.mes).padStart(2, '0')
   return {
     // o id leva o dia do vencimento: estender gera uma entrada NOVA e a antiga fica marcada como feita (ids únicos, histórico preservado)
-    id: `e17d2-chave-${nomeDaChave}-vence-${venceNoDiaDeSp.getUTCFullYear()}${mm}${dd}`,
+    id: `e17d2-chave-${nomeDaChave}-vence-${v.ano}${mm}${dd}`,
     etapa: 'E17',
-    data: dia.toISOString().slice(0, 10),
+    data: v.avisoEm,
     responsavel: 'dono',
     onde: `${PLANO}: a chave ${nomeDaChave} vence em ${dd}/${mm}. Decida renovar (comando estender --chave ${nomeDaChave}: mesma chave, nova validade, nada a reinstalar) ou deixar vencer; nos dois casos marque esta conferência como feita, ou 7 dias depois do vencimento o cron fica vermelho`,
     feitaEm: null,

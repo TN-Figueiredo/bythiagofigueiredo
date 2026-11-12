@@ -65,6 +65,19 @@ describe('poda_acesso_ia: o adaptador', () => {
     const r = await podaAcessoIa.rodar(ctx())
     expect(r).toEqual({ estado: 'ok', feitas: 8, deixadas: 0, detalhe: { registro_total: 10, registro_apagadas: 3, taxa_total: 8, taxa_apagadas: 5 } })
   })
+  it('Phil I2: as tabelas novas entram em feitas e no detalhe (ok)', async () => {
+    podar.mockResolvedValue({ ok: true, r: { ...R, tokensTotal: 9, tokensApagadas: 5, pedidosTotal: 4, pedidosApagadas: 0, rateIpTotal: 3, rateIpApagadas: 0, ratePessoaTotal: 2, ratePessoaApagadas: 0, clientesApagados: 2 } })
+    const r = await podaAcessoIa.rodar(ctx())
+    expect(r.feitas).toBe(8 + 5 + 2)
+    expect(r.detalhe).toEqual({ registro_total: 10, registro_apagadas: 3, taxa_total: 8, taxa_apagadas: 5, tokens_total: 9, tokens_apagadas: 5, pedidos_total: 4, pedidos_apagadas: 0,
+      rate_ip_total: 3, rate_ip_apagadas: 0, rate_pessoa_total: 2, rate_pessoa_apagadas: 0, clientes_apagados: 2 })
+  })
+  it('Phil I2: erro depois do registro mostra onde parou (registro_ e tokens_total) e soma o que já foi apagado', async () => {
+    podar.mockResolvedValue({ ok: false, motivo: 'banco_falhou', feito: { registroTotal: 4, registroApagadas: 1, tokensTotal: 7, tokensApagadas: 3, clientesApagados: 2 } })
+    const r = await podaAcessoIa.rodar(ctx())
+    expect(r).toMatchObject({ estado: 'erro', motivo: 'banco_falhou', feitas: 6 })
+    expect(r.detalhe).toMatchObject({ registro_total: 4, tokens_total: 7 })
+  })
   it('as duas tabelas vazias: ok com zeros (dado lido, não ausente)', async () => {
     podar.mockResolvedValue({ ok: true, r: { registroTotal: 0, registroApagadas: 0, taxaTotal: 0, taxaApagadas: 0 } })
     const r = await podaAcessoIa.rodar(ctx())
