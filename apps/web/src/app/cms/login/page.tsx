@@ -3,6 +3,7 @@ import { CmsLogin } from '@tn-figueiredo/cms/login'
 import { loadBranding } from '@/lib/auth/auth-branding'
 import { buildAuthTheme } from '@/lib/auth/auth-theme'
 import { LoginSemGoogle } from '@/lib/auth/login-sem-google'
+import { destinoSeguro } from './destino'
 import { signInWithPassword, signInWithGoogle } from './actions'
 
 export default async function Page({
@@ -11,7 +12,7 @@ export default async function Page({
   searchParams?: Promise<{ next?: string }>
 }) {
   const { next } = (await searchParams) ?? {}
-  const redirectTo = next ?? '/cms'
+  const redirectTo = destinoSeguro(next)
   const branding = await loadBranding()
   const logo = branding?.logo_url ? (
     <img
@@ -22,7 +23,7 @@ export default async function Page({
   ) : undefined
   const theme = buildAuthTheme(branding?.primary_color)
 
-  // CmsLogin internally calls useSearchParams (reads `?redirect=`). In Next 15
+  // CmsLogin internally calls useSearchParams (reads `?redirect=`, which this page does not use: the destination comes from `next`, validated by destinoSeguro). In Next 15
   // App Router, components that read searchParams during prerender must be
   // wrapped in a Suspense boundary — otherwise the build errors with
   // "missing-suspense-with-csr-bailout". Before the T10a split this page
