@@ -453,6 +453,7 @@ declare
   v_user uuid;
   v_lib public.obs_ai_liberacoes%rowtype;
   v_exp timestamptz;
+  v_motivo text;
 begin
   if p_dias is null or p_dias < 1 or p_dias > 366 then
     return query select 'dias'::text, null::timestamptz; return;
@@ -470,6 +471,13 @@ begin
     return query select 'revogada'::text, v_lib.expires_at; return;
   end if;
   v_exp := p_agora + make_interval(days => p_dias);
+  if v_exp > v_lib.expires_at then
+    -- só estender (ou reabrir) quem ainda tem direito: banida e pedido de apagamento recusam, sem mexer
+    v_motivo := public.obs_ai_motivo_inelegivel(v_user, v_lib.site_id, p_agora);
+    if v_motivo is not null then
+      return query select v_motivo, v_lib.expires_at; return;
+    end if;
+  end if;
   begin
     update public.obs_ai_liberacoes l set expires_at = v_exp where l.id = p_liberacao;
   exception when raise_exception then
@@ -490,15 +498,19 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_lib_id uuid;
   v_ids uuid[];
+  v_chaves uuid[];
 begin
+  if p_cliente is not null and p_cliente not in ('claude', 'chatgpt', 'gemini') then
+    return query select null::text, null::uuid, 'cliente'::text; return;
+  end if;
   perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
   -- 1º a liberação (aberta, ativa ou vencida), depois conexão e tokens
   select l.id into v_lib_id from public.obs_ai_liberacoes l
    where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
-  if v_lib_id is null then
-    return query select null::text, null::uuid, 'sem_liberacao'::text; return;
-  end if;
   if p_cliente is not null then
+    if v_lib_id is null then
+      return query select null::text, null::uuid, 'sem_liberacao'::text; return;
+    end if;
     update public.obs_ai_liberacoes l set bloqueios = array_append(l.bloqueios, p_cliente)
      where l.id = v_lib_id and not (p_cliente = any(l.bloqueios));
     return query select 'obs_ai_liberacoes'::text, v_lib_id, null::text;
@@ -508,17 +520,24 @@ begin
          where c.liberacao_id = v_lib_id and c.cliente = p_cliente and c.revoked_at is null returning c.id)
       select 'obs_ai_conexoes'::text, u.id, null::text from u;
   else
-    select coalesce(array_agg(c.id), '{}'::uuid[]) into v_ids from public.obs_ai_conexoes c
-     where c.liberacao_id = v_lib_id and c.revoked_at is null;
-    update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'dono' where l.id = v_lib_id;
-    return query select 'obs_ai_liberacoes'::text, v_lib_id, null::text;
-    return query select 'obs_ai_conexoes'::text, x, null::text from unnest(v_ids) x;
-    return query
-      with u as (
-        update public.pipeline_api_keys k set revoked_at = p_agora
-         where k.site_id = p_site and k.user_id = p_user and k.revoked_at is null
-           and 'observatorio_leitura' = any(k.permissions) returning k.id)
-      select 'pipeline_api_keys'::text, u.id, null::text from u;
+    if v_lib_id is not null then
+      select coalesce(array_agg(c.id), '{}'::uuid[]) into v_ids from public.obs_ai_conexoes c
+       where c.liberacao_id = v_lib_id and c.revoked_at is null;
+      update public.obs_ai_liberacoes l set revoked_at = p_agora, revogada_por = 'dono' where l.id = v_lib_id;
+      return query select 'obs_ai_liberacoes'::text, v_lib_id, null::text;
+      return query select 'obs_ai_conexoes'::text, x, null::text from unnest(v_ids) x;
+    end if;
+    -- as chaves Bearer obs_ da pessoa caem em todos os casos, com ou sem liberação
+    with u as (
+      update public.pipeline_api_keys k set revoked_at = p_agora
+       where k.site_id = p_site and k.user_id = p_user and k.revoked_at is null
+         and 'observatorio_leitura' = any(k.permissions) returning k.id)
+    select coalesce(array_agg(u.id), '{}'::uuid[]) into v_chaves from u;
+    return query select 'pipeline_api_keys'::text, x, null::text from unnest(v_chaves) x;
+    if v_lib_id is null then
+      -- sem liberação: motivo só avisa (junto com as chaves revogadas, se houve) ou diz que não havia nada
+      return query select null::text, null::uuid, 'sem_liberacao'::text;
+    end if;
   end if;
 end $$;
 revoke all on function public.obs_ai_cortar(uuid, uuid, text, timestamptz) from public, anon, authenticated;
@@ -581,9 +600,13 @@ declare
   v_con_id uuid;
   v_key_id uuid;
   v_nome text;
+  v_ultima text;
 begin
   if p_user is null then
     return query select 'sem_login'::text, null::uuid, null::text, null::text, null::text; return;
+  end if;
+  if p_site is null then
+    return query select 'site'::text, null::uuid, null::text, null::text, null::text; return;
   end if;
   perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
   update public.obs_ai_oauth_pedidos p set consumido_em = p_agora
@@ -594,10 +617,10 @@ begin
     return query select 'pedido_invalido'::text, null::uuid, null::text, null::text, null::text; return;
   end if;
   select c.cliente into v_cliente from public.obs_ai_oauth_clientes c where c.client_id = v_p.client_id;
-  if v_p.site_id <> p_site or v_cliente is null then
+  if v_p.site_id is distinct from p_site or v_cliente is null then
     update public.obs_ai_oauth_pedidos p set consumido_em = null where p.hash = p_pedido_hash;
     perform public.obs_ai_log_recusa_consentimento(p_user, p_site, v_cliente, 'invalido', null, p_agora);
-    return query select (case when v_p.site_id <> p_site then 'site' else 'pedido_invalido' end)::text,
+    return query select (case when v_p.site_id is distinct from p_site then 'site' else 'pedido_invalido' end)::text,
                         null::uuid, null::text, null::text, null::text;
     return;
   end if;
@@ -607,10 +630,13 @@ begin
    where l.site_id = p_site and l.user_id = p_user and l.revoked_at is null for update;
   if not found or v_lib.expires_at <= p_agora then
     -- cortada pelo dono (a mais recente revogada por 'dono', sem aberta) = cortado; o resto = nao_liberada
-    if not found and (select l.revogada_por from public.obs_ai_liberacoes l
-                       where l.site_id = p_site and l.user_id = p_user
-                       order by l.created_at desc, l.id limit 1) = 'dono' then
+    select l.revogada_por into v_ultima from public.obs_ai_liberacoes l
+     where l.site_id = p_site and l.user_id = p_user
+     order by l.created_at desc, l.id limit 1;
+    if v_lib.id is null and v_ultima = 'dono' then
       v_motivo := 'cortado'; v_desfecho := 'cortado';
+    elsif v_lib.id is null and v_ultima = 'lgpd' then
+      v_motivo := 'apagamento'; v_desfecho := 'sem_direito';
     else
       v_motivo := 'nao_liberada'; v_desfecho := 'sem_direito';
     end if;
@@ -630,7 +656,7 @@ begin
        where c.site_id = p_site and c.user_id = p_user and c.cliente = v_cliente and c.revoked_at is null for update;
       if found then
         select k.expires_at, k.revoked_at into v_key_exp, v_key_rev from public.pipeline_api_keys k where k.id = v_con.key_id;
-        if v_key_rev is null and v_key_exp > p_agora then
+        if v_con.liberacao_id = v_lib.id and v_key_rev is null and v_key_exp > p_agora then
           v_con_id := v_con.id;
         else
           update public.obs_ai_conexoes c
@@ -693,6 +719,9 @@ begin
   if p_user is null then
     return query select 'sem_login'::text, null::text, null::text; return;
   end if;
+  if p_site is null then
+    return query select 'site'::text, null::text, null::text; return;
+  end if;
   perform pg_advisory_xact_lock(hashtext('obs_ai:' || p_user::text));
   update public.obs_ai_oauth_pedidos p set consumido_em = v_agora
    where p.hash = p_pedido_hash and p.consumido_em is null and p.expires_at > v_agora
@@ -702,7 +731,7 @@ begin
     return query select 'pedido_invalido'::text, null::text, null::text; return;
   end if;
   select c.cliente into v_cliente from public.obs_ai_oauth_clientes c where c.client_id = v_p.client_id;
-  if v_p.site_id <> p_site then
+  if v_p.site_id is distinct from p_site then
     update public.obs_ai_oauth_pedidos p set consumido_em = null where p.hash = p_pedido_hash;
     perform public.obs_ai_log_recusa_consentimento(p_user, p_site, v_cliente, 'invalido', null, v_agora);
     return query select 'site'::text, null::text, null::text; return;

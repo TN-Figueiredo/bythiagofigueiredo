@@ -46,6 +46,7 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T5: aprovar e negar o pedido (banco lo
       if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       for (const u of users) await deleteAuthUser(u)
     } finally {
+      await pg.query(`drop function if exists public.c1t5_falha()`).catch(() => undefined)
       await pg.end()
     }
   })
@@ -327,6 +328,46 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T5: aprovar e negar o pedido (banco lo
     expect((await negar(pg, h, u, sB)).motivo).toBe('site')
     expect((await ped(h)).consumido_em).toBeNull()
     expect((await aprovar(pg, h, u, s)).motivo).toBeNull()
+  })
+
+  it('(i) Phil M2: liberação revogada por lgpd grava apagamento no log, não nao_liberada', async () => {
+    const { s, u } = await cena(); const cid = await cadastro(); await liberar(u, s)
+    await pg.query(`select public.obs_ai_revogar_lgpd($1)`, [u])
+    const r = await aprovar(pg, await pedido(s, cid), u, s)
+    expect(r.motivo).toBe('apagamento')
+    const ls = await logs(u)
+    expect(ls[0].params).toEqual({ desfecho: 'sem_direito', cliente: 'claude', motivo: 'apagamento' })
+  })
+
+  it('(j) Yannis M1: p_site nulo em aprovar e negar devolve site, sem exceção e com o pedido intacto', async () => {
+    const { s, u } = await cena(); const cid = await cadastro(); await liberar(u, s)
+    const h = await pedido(s, cid)
+    const r = await pg.query(`select * from public.obs_ai_aprovar_conexao($1, $2, null, $3, now())`, [h, u, randomBytes(16).toString('hex')])
+    expect(r.rows[0].motivo).toBe('site')
+    expect((await ped(h)).consumido_em).toBeNull()
+    const n = await pg.query(`select * from public.obs_ai_negar_pedido($1, $2, null)`, [h, u])
+    expect(n.rows[0].motivo).toBe('site')
+    expect((await ped(h)).consumido_em).toBeNull()
+    expect(await conexoesDe(u)).toHaveLength(0)
+  })
+
+  it('(k) Yannis M3: conexão aberta de OUTRA liberação não é reaproveitada: encerra como dono_pessoa e cria outra', async () => {
+    const { s, u } = await cena(); const cid = await cadastro(); const l1 = await liberar(u, s)
+    const a1 = await aprovar(pg, await pedido(s, cid), u, s)
+    // só com os gatilhos desligados na transação a conexão sobrevive à liberação que caiu
+    await pg.query('begin')
+    try {
+      await pg.query(`set local session_replication_role = replica`)
+      await pg.query(`update public.obs_ai_liberacoes set revoked_at = now(), revogada_por = 'dono' where id = $1`, [l1])
+      await pg.query(`insert into public.obs_ai_liberacoes (site_id, user_id, expires_at) values ($1, $2, now() + interval '30 days')`, [s, u])
+      await pg.query('commit')
+    } catch (e) { await pg.query('rollback'); throw e }
+    const a2 = await aprovar(pg, await pedido(s, cid), u, s)
+    expect(a2.motivo).toBeNull(); expect(a2.conexao_id).not.toBe(a1.conexao_id)
+    const cs = await conexoesDe(u)
+    expect(cs[0]).toMatchObject({ id: a1.conexao_id, revogada_por: 'dono_pessoa' })
+    expect(cs[1]).toMatchObject({ id: a2.conexao_id, revoked_at: null })
+    expect(await conferencia()).toHaveLength(0)
   })
 
   async function corrida(nome: string, b: (c: Client, u: string, s: string) => Promise<unknown>) {

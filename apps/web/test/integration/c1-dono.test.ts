@@ -224,6 +224,45 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T4: funções do dono (banco local)', 
     expect((await lib(String(v.rows[0].id))).bloqueios).toEqual(['claude'])
   })
 
+  it('(h) Phil I1 / Yannis I2: cortar sem liberação revoga as chaves Bearer; 2ª chamada devolve sem_liberacao; com --cliente segue sem_liberacao', async () => {
+    const { s, u } = await cena()
+    const k = await chaveBearer(s, u)
+    expect(await cortar(pg, u, s, 'claude')).toEqual([{ tabela: null, id: null, motivo: 'sem_liberacao' }])
+    expect((await key(k)).revoked_at).toBeNull()
+    const r = await cortar(pg, u, s, null)
+    expect(r).toContainEqual({ tabela: 'pipeline_api_keys', id: k, motivo: null })
+    expect(r).toContainEqual({ tabela: null, id: null, motivo: 'sem_liberacao' })
+    expect((await key(k)).revoked_at).not.toBeNull()
+    expect(await cortar(pg, u, s, null)).toEqual([{ tabela: null, id: null, motivo: 'sem_liberacao' }])
+  })
+
+  it('(h) Phil I1: cortar com liberação aberta continua devolvendo liberação, conexões e chaves, sem o aviso', async () => {
+    const { s, u } = await cena()
+    const l = (await liberar(pg, u, s, 30)).liberacao_id!
+    const k = await chaveBearer(s, u)
+    const r = await cortar(pg, u, s, null)
+    expect(r.map(x => x.tabela)).toContain('obs_ai_liberacoes')
+    expect(r).toContainEqual({ tabela: 'pipeline_api_keys', id: k, motivo: null })
+    expect(r.filter(x => x.motivo !== null)).toHaveLength(0)
+    expect((await lib(l)).revoked_at).not.toBeNull()
+  })
+
+  it('(i) Phil M1: estender não reabre liberação vencida de pessoa banida; devolve o motivo e não mexe', async () => {
+    const { s, u } = await cena()
+    const v = await pg.query(`insert into public.obs_ai_liberacoes (site_id, user_id, expires_at) values ($1, $2, now() - interval '1 day') returning id, expires_at`, [s, u])
+    await pg.query(`update auth.users set banned_until = now() + interval '10 years' where id = $1`, [u])
+    const r = (await pg.query(`select * from public.obs_ai_estender_liberacao($1, 30, now())`, [v.rows[0].id])).rows[0]
+    expect(r.motivo).toBe('banida')
+    expect((await lib(String(v.rows[0].id))).expires_at).toEqual(v.rows[0].expires_at)
+  })
+
+  it('(j) Phil M4: cortar com cliente fora da lista devolve cliente e não grava bloqueio', async () => {
+    const { s, u } = await cena()
+    const l = (await liberar(pg, u, s, 30)).liberacao_id!
+    expect(await cortar(pg, u, s, 'bard')).toEqual([{ tabela: null, id: null, motivo: 'cliente' }])
+    expect((await lib(l)).bloqueios).toEqual([])
+  })
+
   it('(c) C1-14: estender com 3 pessoas forçadas: menos passa, mais devolve teto', async () => {
     const s = await site(); const u1 = await pessoa(s), u2 = await pessoa(s), u3 = await pessoa(s)
     const ids: string[] = []
