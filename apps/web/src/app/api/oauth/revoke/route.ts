@@ -19,7 +19,7 @@ export async function POST(req: Request): Promise<Response> {
   const lido = await lerForm(req)
   if (!lido.ok) return vazio(200)
   const token = lido.f.get('token')
-  if (!token) return vazio(200)
+  if (!token || !(token.startsWith('oat_') || token.startsWith('ort_'))) return vazio(200)
 
   try {
     const { error } = await getSupabaseServiceClient().rpc('obs_ai_revogar_token', {

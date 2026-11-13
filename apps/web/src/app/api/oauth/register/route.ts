@@ -60,7 +60,7 @@ export async function POST(req: Request): Promise<Response> {
     if (!linha.success) return indisponivel()
     const { n, n_dia, estourou } = linha.data
     if (n > LIMITES.registerHora || n_dia > LIMITES.registerDia || estourou) {
-      avisarRecusa('limite_register')
+      avisarRecusa(estourou || n_dia > LIMITES.registerDia ? 'teto_dia' : 'limite_register')
       return json(429, { error: 'rate_limited' })
     }
   } catch {

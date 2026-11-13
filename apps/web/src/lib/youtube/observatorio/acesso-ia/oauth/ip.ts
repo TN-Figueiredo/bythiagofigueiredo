@@ -45,6 +45,11 @@ function normalizar(bruto: string | null): string {
   if (tipo === 6) {
     const g = expandirIpv6(ip)
     if (!g) return 'sem-ip'
+    // IPv4 mapeado (::ffff:a.b.c.d) vira o IPv4, senão todos caem no mesmo /64
+    if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) {
+      const [x = 0, y = 0] = g.slice(6)
+      return `${x >> 8}.${x & 255}.${y >> 8}.${y & 255}`
+    }
     return g.slice(0, 4).map((n) => n.toString(16)).join(':') + '::/64'
   }
   return 'sem-ip'

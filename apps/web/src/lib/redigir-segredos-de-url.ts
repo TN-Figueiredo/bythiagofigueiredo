@@ -22,7 +22,7 @@ const MARCA_PROFUNDA = '[profundo demais]'
 
 /** Nomes de parâmetro de query/fragmento que carregam segredo. */
 const NOMES_PARAM =
-  'key|api[_-]?key|access_token|id_token|refresh_token|token|x-pipeline-key|x-api-key|x-goog-api-key'
+  'key|api[_-]?key|access_token|id_token|refresh_token|token|x-pipeline-key|x-api-key|x-goog-api-key|client_id|redirect_uri|state|code|code_verifier|authorization_id'
 
 /** `?key=…`, `&key=…`, `&amp;key=…`, `#access_token=…`, `KEY=…` e a forma nua em início/espaço. */
 const PARAM_RE = new RegExp(

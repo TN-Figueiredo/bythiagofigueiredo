@@ -12,7 +12,7 @@ export const preferredRegion = 'gru1'
 const json = (status: number, corpo: unknown): Response =>
   new Response(JSON.stringify(corpo), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Pragma: 'no-cache' },
   })
 const erro = (error: string, error_description?: string): Response =>
   json(400, error_description ? { error, error_description } : { error })
@@ -38,15 +38,18 @@ export async function POST(req: Request): Promise<Response> {
   if (!oauthLigado() || !acessoExternoLigado().ligado) return indisponivel()
 
   const lido = await lerForm(req)
-  if (!lido.ok) return lido.status === 413 ? json(413, { error: 'invalid_request' }) : invalidRequest('corpo inválido')
+  if (!lido.ok) return lido.status === 413 ? json(413, { error: 'invalid_request' }) : invalidRequest('invalid body')
   const dados = obj(lido.f)
 
   const grant = dados.grant_type
-  if (!grant) return invalidRequest('grant_type ausente')
+  if (!grant) return invalidRequest('grant_type missing')
   if (grant !== 'authorization_code' && grant !== 'refresh_token') return erro('unsupported_grant_type')
 
   const p = (grant === 'authorization_code' ? Codigo : Refresh).safeParse(dados)
-  if (!p.success) return invalidRequest('parâmetro ausente ou inválido')
+  if (!p.success) return invalidRequest('missing or invalid parameter')
+  // corte barato: formato errado nunca chega ao banco
+  if (grant === 'refresh_token' && !(p.data as z.infer<typeof Refresh>).refresh_token.startsWith('ort_')) return erro('invalid_grant')
+  if (grant === 'authorization_code' && !(p.data as z.infer<typeof Codigo>).code.startsWith('oac_')) return erro('invalid_grant')
   if (dados.resource !== undefined && dados.resource !== RECURSO) return erro('invalid_target')
 
   const acesso = novoToken('oat_')

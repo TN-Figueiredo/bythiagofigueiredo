@@ -121,6 +121,17 @@ describe('GET /api/oauth/authorize', () => {
     expect(b.insert).not.toHaveBeenCalled()
   })
 
+  it('M5: redirect_uri repetido = 200 sem Location; code_challenge repetido = 302 invalid_request', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    const u1 = new URL(req().url); u1.searchParams.append('redirect_uri', 'https://evil.test/x')
+    const r1 = await GET(new Request(u1, { headers: { 'x-forwarded-for': '1.2.3.4' } }))
+    expect(r1.status).toBe(200)
+    expect(r1.headers.get('location')).toBeNull()
+    const u2 = new URL(req().url); u2.searchParams.append('code_challenge', CH)
+    const r2 = await GET(new Request(u2, { headers: { 'x-forwarded-for': '1.2.3.5' } }))
+    expect(r2.status).toBe(302)
+    expect(new URL(r2.headers.get('location')!).searchParams.get('error')).toBe('invalid_request')
+  })
   it('invalid_target traz a descrição', async () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
     const res = await GET(req({ resource: 'https://bythiagofigueiredo.com/api/mcp/' }))

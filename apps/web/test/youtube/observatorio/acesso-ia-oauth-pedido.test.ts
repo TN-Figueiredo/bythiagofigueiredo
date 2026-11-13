@@ -44,4 +44,27 @@ describe('validarPedido', () => {
     const r = validarPedido(base({ resource: 'https://bythiagofigueiredo.com/api/mcp/' }), REG)
     expect(r).toEqual({ ok: false, erro: 'invalid_target', descricao: 'use https://bythiagofigueiredo.com/api/mcp' })
   })
+
+  it('M2: toda descricao é ASCII sem aspas nem barra invertida (RFC 6749)', () => {
+    const ok = /^[\x20-\x21\x23-\x5B\x5D-\x7E]*$/
+    const casos = [
+      base({}, ['code_challenge']), base({ code_challenge_method: 'plain' }), base({ code_challenge: 'x' }),
+      base({ state: 's'.repeat(600) }), base({ scope: 'admin' }), base({ resource: 'https://x' }),
+    ]
+    for (const q of casos) {
+      const r = validarPedido(q, REG)
+      expect(r.ok).toBe(false)
+      expect('descricao' in r && ok.test(r.descricao)).toBe(true)
+    }
+  })
+  it('M5: client_id/redirect_uri repetidos = cliente/redirect; os demais = invalid_request', () => {
+    const rep = (k: string, v: string) => { const q = base(); q.append(k, v); return q }
+    expect(validarPedido(rep('client_id', 'c2'), REG)).toEqual({ ok: false, erro: 'cliente' })
+    expect(validarPedido(rep('redirect_uri', REG.redirect_uris[0]!), REG)).toEqual({ ok: false, erro: 'redirect' })
+    for (const k of ['code_challenge', 'code_challenge_method', 'state', 'scope', 'resource']) {
+      const q = base({ state: 'a', scope: 'observatorio:read', resource: 'https://bythiagofigueiredo.com/api/mcp' }); q.append(k, 'b')
+      const r = validarPedido(q, REG)
+      expect(!r.ok && 'descricao' in r && r.erro).toBe('invalid_request')
+    }
+  })
 })

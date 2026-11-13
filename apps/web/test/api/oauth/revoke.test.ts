@@ -57,6 +57,14 @@ describe('POST /api/oauth/revoke', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
+  it('M1: token sem prefixo oat_/ort_ = 200 sem rpc', async () => {
+    const rpc = banco()
+    expect((await POST(req({ token: 'lixo' }))).status).toBe(200)
+    expect(rpc).not.toHaveBeenCalled()
+    expect((await POST(req({ token: 'oat_ok' }))).status).toBe(200)
+    expect(rpc).toHaveBeenCalledTimes(1)
+  })
+
   it('trava fechada = 503 sem rpc', async () => {
     const rpc = banco()
     delete process.env.OBSERVATORIO_IA_EXTERNA

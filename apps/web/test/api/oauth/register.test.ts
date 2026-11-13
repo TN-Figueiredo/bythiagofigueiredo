@@ -103,6 +103,17 @@ describe('POST /api/oauth/register', () => {
     expect(r.status).toBe(429)
   })
 
+  it('M4: teto do dia avisa teto_dia; limite por IP avisa limite_register', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ diaAtual: 200 }) as never)
+    await POST(req(OK))
+    expect(JSON.stringify(captureMessage.mock.calls)).toContain('teto_dia')
+    captureMessage.mockClear(); __zerarAvisos()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    for (let i = 0; i < 31; i++) await POST(req(OK))
+    expect(JSON.stringify(captureMessage.mock.calls)).toContain('limite_register')
+    expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('teto_dia')
+  })
+
   it('100 recusas = 1 Sentry', async () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
     for (let i = 0; i < 30; i++) await POST(req(OK))

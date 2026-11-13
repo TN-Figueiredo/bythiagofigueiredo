@@ -110,6 +110,30 @@ describe('POST /api/oauth/token', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
+  it('M1: code sem oac_ e refresh sem ort_ = 400 invalid_grant sem rpc', async () => {
+    const rpc = banco()
+    for (const corpo of [{ ...CODIGO, code: 'xyz' }, { ...REFRESH, refresh_token: 'xyz' }, { ...REFRESH, refresh_token: 'oat_abc' }]) {
+      const res = await POST(req(corpo))
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('invalid_grant')
+    }
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('M2/M6: error_description ASCII; Pragma no-cache no 200 e nos erros', async () => {
+    banco()
+    const ok = /^[\x20-\x21\x23-\x5B\x5D-\x7E]*$/
+    for (const corpo of ['json{', { grant_type: 'refresh_token' }, {}]) {
+      const res = await POST(req(corpo as never))
+      const d = (await res.json()).error_description as string | undefined
+      if (d !== undefined) expect(ok.test(d)).toBe(true)
+    }
+    const res = await POST(req(REFRESH))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('pragma')).toBe('no-cache')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+  })
+
   it('code_verifier fora da regex = invalid_request', async () => {
     const rpc = banco()
     for (const v of ['curto', 'A'.repeat(129), 'A'.repeat(42) + '!']) {

@@ -20,6 +20,10 @@ describe('hashDoIp', () => {
     expect(hashDoIp(req('2001:db8::1'), SEG, DIA1)).toBe(hashDoIp(req('2001:0db8:0000:0000:ffff::2'), SEG, DIA1))
     expect(hashDoIp(req('2001:db8::1'), SEG, DIA1)).not.toBe(hashDoIp(req('2001:db8:0:1::1'), SEG, DIA1))
   })
+  it('M3: IPv4 mapeado em IPv6 = hash do IPv4; mapeados distintos não colidem', () => {
+    expect(hashDoIp(req('::ffff:1.2.3.4'), SEG, DIA1)).toBe(hashDoIp(req('1.2.3.4'), SEG, DIA1))
+    expect(hashDoIp(req('::ffff:1.2.3.4'), SEG, DIA1)).not.toBe(hashDoIp(req('::ffff:5.6.7.8'), SEG, DIA1))
+  })
   it('sem x-forwarded-for ou ilegível = hash de sem-ip, estável, sem lançar', () => {
     const a = hashDoIp(req(), SEG, DIA1)
     expect(a).toBe(hashDoIp(req('lixo'), SEG, DIA1))
