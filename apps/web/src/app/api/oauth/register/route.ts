@@ -4,13 +4,12 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { LIMITES, oauthLigado, segredoDeIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
 import { hashDoIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/ip'
 import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
+import { lerCorpoLimitado } from '@/lib/youtube/observatorio/acesso-ia/oauth/tokens'
 import { clienteDaLista } from '@/lib/youtube/observatorio/acesso-ia/oauth/redirects'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const preferredRegion = 'gru1'
-
-const MAX_CORPO = 8 * 1024
 
 const json = (status: number, corpo: unknown): Response =>
   new Response(JSON.stringify(corpo), {
@@ -21,27 +20,6 @@ const json = (status: number, corpo: unknown): Response =>
 const indisponivel = (): Response => json(503, { error: 'temporarily_unavailable' })
 const metadadosInvalidos = (): Response => json(400, { error: 'invalid_client_metadata' })
 
-/** Lê o corpo até MAX_CORPO bytes; `null` = passou do limite. */
-async function lerCorpo(req: Request): Promise<string | null> {
-  const cl = Number(req.headers.get('content-length'))
-  if (Number.isFinite(cl) && cl > MAX_CORPO) return null
-  if (!req.body) return ''
-  const leitor = req.body.getReader()
-  const partes: Uint8Array[] = []
-  let total = 0
-  for (;;) {
-    const { done, value } = await leitor.read()
-    if (done) break
-    total += value.byteLength
-    if (total > MAX_CORPO) {
-      await leitor.cancel().catch(() => undefined)
-      return null
-    }
-    partes.push(value)
-  }
-  return Buffer.concat(partes).toString('utf8')
-}
-
 const Linha = z.object({ n: z.number(), n_dia: z.number(), estourou: z.boolean() })
 
 export async function POST(req: Request): Promise<Response> {
@@ -51,7 +29,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let texto: string | null
   try {
-    texto = await lerCorpo(req)
+    texto = await lerCorpoLimitado(req)
   } catch {
     return metadadosInvalidos()
   }
