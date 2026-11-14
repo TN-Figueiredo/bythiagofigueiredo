@@ -7,7 +7,7 @@
 // core/fetch.js, core/utils/url.js) e chamam os ganchos de verdade. NENHUM evento é
 // enviado ao Sentry: só as funções puras de `beforeSend`/`beforeBreadcrumb`.
 import { describe, it, expect } from 'vitest'
-import { redigirSegredosDeUrl, redigirSegredosEmProfundidade } from '@/lib/redigir-segredos-de-url'
+import { redigirQueryString, redigirSegredosDeUrl, redigirSegredosEmProfundidade } from '@/lib/redigir-segredos-de-url'
 import { scrubBreadcrumbPii, scrubEventPii } from '@/lib/sentry-pii'
 
 const CHAVE = 'AIzaSyFAKE-chave_123'
@@ -65,7 +65,7 @@ describe('redigirSegredosDeUrl — variações de posição e forma', () => {
 
   it('fragmento (#access_token=...)', () => {
     expect(redigirSegredosDeUrl('https://x.test/cb#access_token=abc123&state=1')).toBe(
-      'https://x.test/cb#access_token=[REDACTED]&state=1',
+      'https://x.test/cb#access_token=[REDACTED]&state=[REDACTED]',
     )
   })
 
@@ -315,5 +315,24 @@ describe('ganchos do Sentry com eventos no formato real do SDK', () => {
       },
     }
     expect(() => scrubBreadcrumbPii(bc as never)).not.toThrow()
+  })
+})
+
+describe('I1 — parâmetros OAuth nunca sobem ao Sentry', () => {
+  const URL_OAUTH = '/api/oauth/authorize?client_id=abc123&redirect_uri=https%3A%2F%2Fclaude.ai%2Fx&state=s1&code_challenge=c'
+  it('string de URL', () => {
+    const out = redigirSegredosDeUrl(URL_OAUTH)
+    for (const v of ['abc123', 'claude.ai', 's1']) expect(out).not.toContain(v)
+    expect(out).toContain('code_challenge=c')
+    expect(redigirSegredosDeUrl('/oauth/consentimento?authorization_id=zzz')).not.toContain('zzz')
+    expect(redigirSegredosDeUrl('code=oac_x&code_verifier=vvv&refresh_token=ort_y')).not.toMatch(/oac_x|vvv|ort_y/)
+  })
+  it('transaction com url.full e request.query_string', () => {
+    const ev = {
+      contexts: { trace: { data: { 'url.full': 'https://x/api/oauth/authorize?client_id=abc123' } } },
+      request: { url: 'https://x/api/oauth/authorize?client_id=abc123', query_string: 'client_id=abc123&state=s1' },
+    }
+    expect(JSON.stringify(scrubEventPii(ev as never))).not.toMatch(/abc123|s1"/)
+    expect(JSON.stringify(redigirQueryString({ client_id: 'abc123', state: 's1' }))).not.toMatch(/abc123|s1/)
   })
 })
