@@ -268,7 +268,7 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
     const hojeSp = spDateOf(agora)
     const deDosDias = ultimosDias !== undefined ? new Date(Date.parse(hojeSp + 'T00:00:00Z') - (ultimosDias - 1) * 86_400_000).toISOString().slice(0, 10) : undefined
     const ordenarPor = e.ordenar_por ?? 'multiplicador'
-    const base: MetricaDaConsulta[] = e.metricas ?? ['views', 'likes', 'comentarios', 'multiplicador']
+    const base: MetricaDaConsulta[] = e.metricas ?? ['views', 'likes', 'comentarios', 'multiplicador', 'engajamento']
     const metricas = base.includes(ordenarPor) ? base : [...base, ordenarPor]
     // período pedido em dias sem faixa de idade: a faixa padrão (até 90 dias) não pode cortar o período
     const janelaIdade: string[] | 'todas' = e.janela_idade === undefined ? (ultimosDias !== undefined ? 'todas' : [...DEFAULT_AGES]) : e.janela_idade === 'todas' ? 'todas' : Array.isArray(e.janela_idade) ? e.janela_idade : [e.janela_idade]
