@@ -35,8 +35,8 @@ export const DESCRICAO_DOS_CAMPOS_DA_CONSULTA = {
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
 export type FatiaDeInstrucao = 'R4' | 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'R4', texto: 'PRIMEIRO esta ferramenta para pergunta sobre vídeos, canais, views, títulos ou miniaturas do YouTube acompanhados, mesmo só com código de 11 caracteres ou link; não busque na web antes.' },
-  { fatia: 'T5', texto: 'Antes de recomendar, comparar ou concluir, diga quanto viu (seção "Cobertura") e, se não viu tudo, pergunte "quer que eu aprofunde em X?" (X: "Próximas chamadas").' },
+  { fatia: 'R4', texto: 'PRIMEIRO esta ferramenta para pergunta sobre vídeos, canais, títulos ou miniaturas do YouTube acompanhados, mesmo só com código de 11 caracteres ou link; não busque na web.' },
+  { fatia: 'T5', texto: 'Termine com a seção "Cobertura"; antes de recomendar, comparar ou concluir, diga quanto viu e, se não viu tudo, pergunte "quer que eu aprofunde em X?" (X: "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média nem ordene.' },
   { fatia: 'T6', texto: 'Pedido recusado traz exemplo válido: corrija e tente uma vez.' },
   { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas); se a lista mudou, refaça da linha 1.' },
