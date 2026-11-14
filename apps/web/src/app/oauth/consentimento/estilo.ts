@@ -38,7 +38,7 @@ export const ESTILO = `
 .c1c .alert svg{flex:none;color:var(--amber)}
 .c1c .who svg,.c1c .when svg{flex:none;vertical-align:-3px;margin-right:4px}
 .c1c .when svg{margin-top:2px}
-.c1c .sair-link{display:inline-flex;align-items:center;min-height:44px;margin-left:16px;padding:0 4px;background:transparent;border:0;color:var(--text);font:400 14px/20px Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.c1c .sair-link{display:inline-flex;align-items:center;min-height:44px;margin-left:0;padding:0 4px;background:transparent;border:0;color:var(--text);font:400 14px/20px Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .c1c .alert strong{display:block;font-weight:600}
 .c1c .alert span{display:block;margin-top:2px;font-size:13px;line-height:18px}
 .c1c .note{margin-top:12px;font-size:13px;line-height:18px}
