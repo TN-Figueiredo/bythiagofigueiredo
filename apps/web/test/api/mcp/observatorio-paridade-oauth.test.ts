@@ -44,6 +44,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_consultar/montar', () => ({ mon
 import { POST } from '../../../src/app/api/mcp/route'
 import { contextoDoObservatorio } from '@/lib/pipeline/mcp/observatorio/contexto'
 import { registrarServidorDoObservatorio, NOME_DA_FERRAMENTA } from '@/lib/pipeline/mcp/observatorio/servidor'
+import { executarChamada } from '@/lib/pipeline/mcp/observatorio/executar'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { abridorDaChave } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/abrir-por-chave'
 import { ACOES } from '@/lib/youtube/observatorio/acesso-ia/acoes'
@@ -73,7 +74,6 @@ const SITE = 'site-1'
 const PESSOA = 'user-1'
 const CHAVE = 'key-1'
 const ACESSO = { leitura: null, edita: false, negativa: 'sem_direito' as const }
-const AGORA = Date.UTC(2026, 10, 9, 15)
 const dia = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString()
 
 type Linha = Record<string, unknown>
@@ -81,7 +81,11 @@ function novoBanco() {
   const b = { rpcChamadas: [] as string[], inserts: [] as Linha[], sb: null as unknown }
   const chave: Linha = { id: CHAVE, site_id: SITE, name: 'k', permissions: ['observatorio_leitura'], user_id: PESSOA, expires_at: dia(30) }
   b.sb = {
-    rpc: (nome: string) => { b.rpcChamadas.push(nome); return Promise.resolve({ data: [{ key_id: CHAVE, token_expira: dia(1) }], error: null }) },
+    rpc: (nome: string) => {
+      // a taxa (`obs_ai_rate_hit_v2`) é da ferramenta, não do token: fica fora de `rpcChamadas`, que só conta quem toca no token
+      if (nome === 'obs_ai_rate_hit_v2') return { abortSignal: () => Promise.resolve({ data: [{ no_minuto: 1, no_dia: 1, no_dia_pessoa: 1 }], error: null }) }
+      b.rpcChamadas.push(nome); return Promise.resolve({ data: [{ key_id: CHAVE, token_expira: dia(1) }], error: null })
+    },
     from: (tabela: string) => {
       if (tabela === 'pipeline_api_keys') {
         const sel: Record<string, unknown> = {}
@@ -110,12 +114,19 @@ beforeEach(() => {
   for (const t of telas) h.empacotar[t] = vi.fn(async () => ({ modelo: { ...modeloCheio(), tela: t }, recente: '13/10/2026 09:10', estado: {} }))
   h.empacotar['canal?'] = vi.fn(async () => ({ modelo: { ...modeloCheio(), tela: 'canal' as const }, recente: '13/10/2026 09:10', estado: {} }))
   h.pipeline.mockImplementation(async () => new Response('{}', { status: 200 }))
-  // o servidor do Observatório: o que a rota real faz, com o `responder` e o `abridorDaChave` reais
+  // o servidor do Observatório: o que a rota real faz, com o `executarChamada` (taxa, `responder`, REGISTRO), o `responder` e o `abridorDaChave` reais
   h.obs.mockImplementation(async () => {
     const c = contextoDoObservatorio()
     h.visto.push({ siteId: c.prova.siteId, userId: c.prova.userId, keyId: c.prova.keyId, acesso: c.acesso })
-    const r = await responder(h.pedido.atual, abridorDaChave(c.prova, c.acesso), AGORA)
-    h.respostas.push({ texto: r.texto, desfecho: r.desfecho, params: r.params })
+    const r = await executarChamada(h.pedido.atual, {
+      sb: h.banco.atual as never,
+      agora: () => Date.now(),
+      responder: async (e, ctx, agora, prazo) => {
+        const x = await responder(e, abridorDaChave(ctx.prova, ctx.acesso), agora, prazo)
+        h.respostas.push({ texto: x.texto, desfecho: x.desfecho, params: x.params })
+        return x
+      },
+    })
     return new Response(JSON.stringify({ jsonrpc: '2.0', result: { texto: r.texto }, id: 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
   })
   h.pessoa.mockResolvedValue({ estado: 'ativa' })
@@ -140,6 +151,17 @@ describe('C1-22: chave Bearer e token OAuth da mesma pessoa dão a mesma respost
     expect(h.respostas[0]!.desfecho).toBe('ok')
     expect(h.visto[0]).toEqual({ siteId: SITE, userId: PESSOA, keyId: CHAVE, acesso: ACESSO })
     expect(h.visto[1]).toEqual(h.visto[0])
+    // a prova privada é chamada com os MESMOS argumentos pelas duas portas (o mock devolve `ACESSO` fixo, então comparar o retorno não provaria nada)
+    expect(h.privado.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(h.privado.mock.calls[1]).toEqual(h.privado.mock.calls[0])
+    const prova = (i: number) => h.privado.mock.calls[i]![0] as { siteId: string; userId: string; keyId: string }
+    expect({ siteId: prova(0).siteId, userId: prova(0).userId, keyId: prova(0).keyId }).toEqual({ siteId: SITE, userId: PESSOA, keyId: CHAVE })
+    expect({ siteId: prova(1).siteId, userId: prova(1).userId, keyId: prova(1).keyId }).toEqual({ siteId: SITE, userId: PESSOA, keyId: CHAVE })
+    // a linha de registro: cada porta grava uma, com a mesma chave, pessoa, origem e ação
+    expect(banco.inserts).toHaveLength(2)
+    const linha = (l: Linha) => ({ key_id: l.key_id, user_id: l.user_id, origin: l.origin, action: l.action, site_id: l.site_id })
+    expect(linha(banco.inserts[0]!)).toMatchObject({ key_id: CHAVE, user_id: PESSOA, origin: 'mcp', site_id: SITE })
+    expect(linha(banco.inserts[1]!)).toEqual(linha(banco.inserts[0]!))
     const [a, b] = h.respostas
     expect(semGerado(b!.texto)).toBe(semGerado(a!.texto))
     expect(b!.desfecho).toBe(a!.desfecho)

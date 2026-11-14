@@ -31,11 +31,11 @@ describe.skipIf(skipIfNoLocalDb())('C1 T23: consulta 4.3 do registro (banco loca
   const keys: string[] = []
   const users: string[] = []
 
-  const chave = async (nome: string): Promise<string> => {
+  const chave = async (nome: string, dono: string = pessoa): Promise<string> => {
     const k = await pg.query(
       `insert into public.pipeline_api_keys (site_id, name, key_hash, permissions, user_id, expires_at, created_by)
        values ($1, $2, $3, array['observatorio_leitura']::text[], $4, now() + interval '30 days', null) returning id`,
-      [siteId, nome, randomUUID(), pessoa])
+      [siteId, nome, randomUUID(), dono])
     const id = String(k.rows[0].id); keys.push(id); return id
   }
   const log = async (o: { origin: string; keyId: string | null; userId: string | null; params?: Record<string, unknown>; result?: string; action?: string }) =>
@@ -58,11 +58,14 @@ describe.skipIf(skipIfNoLocalDb())('C1 T23: consulta 4.3 do registro (banco loca
   })
   afterAll(async () => {
     try {
-      await pg.query(`delete from public.obs_ai_access_log where site_id = $1`, [siteId])
-      await pg.query(`delete from public.pipeline_api_keys where id = any($1::uuid[])`, [keys])
-      await pg.query(`delete from public.site_memberships where site_id = $1`, [siteId])
-      await pg.query(`delete from public.audit_log where site_id = $1`, [siteId])
-      if (siteId) await apagarSites(pg, 'id = any($1::uuid[])', [[siteId]])
+      // sem `siteId` (o seed falhou) nada com `site_id = ''` roda: o cast de uuid abortaria a limpeza dos usuários
+      if (siteId) {
+        await pg.query(`delete from public.obs_ai_access_log where site_id = $1`, [siteId])
+        await pg.query(`delete from public.pipeline_api_keys where id = any($1::uuid[])`, [keys])
+        await pg.query(`delete from public.site_memberships where site_id = $1`, [siteId])
+        await pg.query(`delete from public.audit_log where site_id = $1`, [siteId])
+        await apagarSites(pg, 'id = any($1::uuid[])', [[siteId]])
+      }
       for (const u of users) await deleteAuthUser(u).catch(() => undefined)
     } finally {
       await pg.end()
@@ -70,7 +73,8 @@ describe.skipIf(skipIfNoLocalDb())('C1 T23: consulta 4.3 do registro (banco loca
   })
 
   it('devolve as cinco classes; a pessoa apagada fica sem e-mail e a chamada antiga do ChatGPT continua "chatgpt"', async () => {
-    const chatgpt = await chave(`observatorio-oauth-chatgpt-${randomUUID().slice(0, 8)}`)
+    // a chave do ChatGPT é da pessoa que vai ser apagada: `pipeline_api_keys.user_id on delete set null` é o caso real
+    const chatgpt = await chave(`observatorio-oauth-chatgpt-${randomUUID().slice(0, 8)}`, apagada)
     const claude = await chave(`observatorio-oauth-claude-${randomUUID().slice(0, 8)}`)
     const manual = await chave(`observatorio-${randomUUID().slice(0, 8)}`)
     await log({ origin: 'mcp', keyId: chatgpt, userId: apagada, action: 'canal' })   // a que sobrevive à exclusão
@@ -84,6 +88,7 @@ describe.skipIf(skipIfNoLocalDb())('C1 T23: consulta 4.3 do registro (banco loca
 
     await deleteAuthUser(apagada)
     users.splice(users.indexOf(apagada), 1)
+    expect((await pg.query(`select user_id from public.pipeline_api_keys where id = $1`, [chatgpt])).rows[0].user_id).toBeNull()
 
     const linhas = await consulta()
     const por = (a: string) => linhas.find((l) => l.action === a)!
