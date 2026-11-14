@@ -104,12 +104,25 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
   let valeAte: string | null = null
   let jaConectado = false
   let privado = false
+  let cortado = false
   try {
     const sb = getSupabaseServiceClient()
-    const lib = await sb.from('obs_ai_liberacoes').select('expires_at').eq('site_id', siteId).eq('user_id', user.id).is('revoked_at', null).maybeSingle()
+    const lib = await sb.from('obs_ai_liberacoes').select('expires_at, bloqueios').eq('site_id', siteId).eq('user_id', user.id).is('revoked_at', null).maybeSingle()
     if (lib.error) return erro(id, lib.error)
-    const fim = typeof (lib.data as { expires_at?: unknown } | null)?.expires_at === 'string' ? Date.parse((lib.data as { expires_at: string }).expires_at) : NaN
+    const viva = lib.data as { expires_at?: unknown; bloqueios?: unknown } | null
+    const fim = typeof viva?.expires_at === 'string' ? Date.parse(viva.expires_at) : NaN
     if (Number.isFinite(fim) && fim > agora) valeAte = dia(fim)
+    // Da: o mesmo "cortado" da obs_ai_aprovar_conexao, já na abertura (quadro 3 do M1, sem Aprovar). A função continua sendo a guarda.
+    if (viva) {
+      cortado = valeAte !== null && Array.isArray(viva.bloqueios) && viva.bloqueios.includes(cliente)
+    } else {
+      try {
+        const ult = await sb.from('obs_ai_liberacoes').select('revogada_por').eq('site_id', siteId).eq('user_id', user.id).order('created_at', { ascending: false }).order('id').limit(1).maybeSingle()
+        cortado = !ult.error && (ult.data as { revogada_por?: unknown } | null)?.revogada_por === 'dono'
+      } catch {
+        cortado = false
+      }
+    }
     const ve = await vePrivado(siteId)
     if (ve === null) return erro(id) // não deu para conferir: nunca descrever um escopo que pode estar errado
     privado = ve
@@ -126,5 +139,10 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
 
   const feito = expira - PRAZOS.pedidoMin * 60_000
   const ia = NOME_DA_IA[cliente]
-  return tela(id, null, { ia, email: user.email, hora: hora(feito), tarde: agora - feito > TRES_MIN, privado, valeAte, jaConectado })
+  const dados: DadosDoPedido = { ia, email: user.email, hora: hora(feito), tarde: agora - feito > TRES_MIN, privado, valeAte, jaConectado }
+  if (cortado) {
+    await gravar(siteId, user.id, cliente, 'cortado', agora)
+    return tela(id, { estado: 'cortado' }, dados)
+  }
+  return tela(id, null, dados)
 }

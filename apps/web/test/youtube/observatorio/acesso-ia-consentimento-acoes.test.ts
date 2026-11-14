@@ -49,15 +49,23 @@ const CHATGPT = 'https://chatgpt.com/connector_platform_oauth_redirect'
 const HASH = createHash('sha256').update(ID).digest('hex')
 
 type Res = { data: unknown; error: unknown } | 'lanca'
-type Cadeia = { select: () => Cadeia; eq: () => Cadeia; is: () => Cadeia; limit: () => Cadeia; maybeSingle: () => Promise<unknown> }
+type Cadeia = { select: () => Cadeia; eq: () => Cadeia; is: () => Cadeia; order: () => Cadeia; limit: () => Cadeia; maybeSingle: () => Promise<unknown> }
 const cadeia = (r: Res): Cadeia => {
-  const c: Cadeia = { select: () => c, eq: () => c, is: () => c, limit: () => c, maybeSingle: async () => { if (r === 'lanca') throw new Error('banco'); return r } }
+  const c: Cadeia = { select: () => c, eq: () => c, is: () => c, order: () => c, limit: () => c, maybeSingle: async () => { if (r === 'lanca') throw new Error('banco'); return r } }
   return c
 }
 const pedidoOk = (o: Record<string, unknown> = {}) => ({ data: { client_id: 'cid', redirect_uri: CHATGPT, expires_at: FUTURO, consumido_em: null, site_id: 'site-1', ...o }, error: null })
 
-function tabelas(t: Partial<Record<'obs_ai_oauth_pedidos' | 'obs_ai_liberacoes' | 'obs_ai_conexoes', Res>>) {
-  m.from.mockImplementation((nome: string) => cadeia(t[nome as keyof typeof t] ?? { data: null, error: null }))
+// Res[]: uma resposta por chamada, na ordem (a última se repete)
+function tabelas(t: Partial<Record<'obs_ai_oauth_pedidos' | 'obs_ai_liberacoes' | 'obs_ai_conexoes', Res | Res[]>>) {
+  const vez: Record<string, number> = {}
+  m.from.mockImplementation((nome: string) => {
+    const r = t[nome as keyof typeof t] ?? { data: null, error: null }
+    if (!Array.isArray(r)) return cadeia(r)
+    const i = vez[nome] ?? 0
+    vez[nome] = i + 1
+    return cadeia(r[Math.min(i, r.length - 1)])
+  })
 }
 const libOk: Res = { data: { expires_at: new Date(AGORA + 90 * 86_400_000).toISOString() }, error: null }
 
@@ -263,6 +271,32 @@ describe('página /oauth/consentimento', () => {
       const h = await html()
       expect(h).toContain(FRASES_DA_TELA.aprovar)
       expect(h).not.toContain('O acesso vale até')
+    })
+    it('Da: cortada pelo dono (última liberação revogada por dono): Acesso pausado já na abertura, sem botão Aprovar', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: [{ data: null, error: null }, { data: { revogada_por: 'dono' }, error: null }] })
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.cortado_titulo)
+      expect(h).not.toContain(FRASES_DA_TELA.aprovar)
+      expect(h).toContain(FRASES_DA_TELA.voltar('ChatGPT'))
+      expect(chamadasDe('obs_ai_aprovar_conexao')).toHaveLength(0)
+    })
+    it('Da: liberação viva com este cliente nos bloqueios: Acesso pausado, sem botão Aprovar', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: { data: { expires_at: new Date(AGORA + 86_400_000).toISOString(), bloqueios: ['chatgpt'] }, error: null } })
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.cortado_titulo)
+      expect(h).not.toContain(FRASES_DA_TELA.aprovar)
+    })
+    it('Da: bloqueio de OUTRO cliente não pausa este', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: { data: { expires_at: new Date(AGORA + 86_400_000).toISOString(), bloqueios: ['claude'] }, error: null } })
+      expect(await html()).toContain(FRASES_DA_TELA.aprovar)
+    })
+    it('Da: última revogada por lgpd ou sem histórico: pedido normal (a recusa segue na função)', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: [{ data: null, error: null }, { data: { revogada_por: 'lgpd' }, error: null }] })
+      expect(await html()).toContain(FRASES_DA_TELA.aprovar)
+    })
+    it('Da: erro ao ler o histórico da liberação: não pausa (a função continua sendo a guarda)', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: [{ data: null, error: null }, { data: null, error: { code: 'x' } }] })
+      expect(await html()).toContain(FRASES_DA_TELA.aprovar)
     })
     it('conexão viva do mesmo cliente: "já conectou antes"', async () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: libOk, obs_ai_conexoes: { data: { id: 'c1' }, error: null } })
