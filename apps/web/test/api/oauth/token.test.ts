@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { POST } from '../../../src/app/api/oauth/token/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { pipelineLog } from '@/lib/pipeline/logger'
+import { __zerarAvisos } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 import { novoToken, s256 } from '@/lib/youtube/observatorio/acesso-ia/oauth/tokens'
 import { credencialDe } from '@/lib/youtube/observatorio/acesso-ia/oauth/resolver'
 
@@ -26,12 +27,13 @@ const CODIGO = {
 const REFRESH = { grant_type: 'refresh_token', refresh_token: 'ort_xyz', client_id: 'cli-secreto' }
 
 type Args = Record<string, string>
-function banco(opts: { motivo?: string | null; erro?: boolean; lanca?: boolean } = {}) {
+function banco(opts: { motivo?: string | null; erro?: boolean; lanca?: boolean; duracaoS?: number; semExpira?: boolean; codeErro?: string } = {}) {
   const rpc = vi.fn(async (_f: string, _a: Args) => {
     if (opts.lanca) throw new Error('boom')
-    if (opts.erro) return { data: null, error: { code: '40001', message: 'x' } }
+    if (opts.erro) return { data: null, error: { code: opts.codeErro ?? '40001', message: 'x' } }
+    if (opts.semExpira) return { data: [{ motivo: null, acesso_expira: null, refresh_expira: null }], error: null }
     if (opts.motivo) return { data: [{ motivo: opts.motivo, acesso_expira: null, refresh_expira: null }], error: null }
-    return { data: [{ motivo: null, acesso_expira: 'a', refresh_expira: 'b' }], error: null }
+    return { data: [{ motivo: null, acesso_expira: new Date(Date.now() + (opts.duracaoS ?? 3600) * 1000).toISOString(), refresh_expira: 'b' }], error: null }
   })
   vi.mocked(getSupabaseServiceClient).mockReturnValue({ rpc } as never)
   return rpc
@@ -226,5 +228,74 @@ describe('POST /api/oauth/token', () => {
     const tudo = JSON.stringify([vi.mocked(pipelineLog).mock.calls, captureMessage.mock.calls, captureException.mock.calls])
     expect(tudo).not.toContain('cli-secreto')
     expect(tudo).not.toContain('ort_xyz')
+  })
+
+  it('M3: expires_in vem de acesso_expira do banco (piso, mínimo 1)', async () => {
+    banco({ duracaoS: 1800 })
+    const a = await (await POST(req(CODIGO))).json()
+    expect(a.expires_in).toBeGreaterThanOrEqual(1799)
+    expect(a.expires_in).toBeLessThanOrEqual(1800)
+    banco({ duracaoS: -5 })
+    expect((await (await POST(req(REFRESH))).json()).expires_in).toBe(1)
+  })
+
+  it('M3: acesso_expira nulo no sucesso = 503', async () => {
+    banco({ semExpira: true })
+    const res = await POST(req(CODIGO))
+    expect(res.status).toBe(503)
+    expect(vi.mocked(pipelineLog).mock.calls[0]?.[3]).toEqual({ code: 'linha_invalida' })
+  })
+
+  it.each([
+    ['erro', { erro: true, codeErro: 'XX000' }, 'XX000'],
+    ['lanca', { lanca: true }, 'excecao'],
+  ] as const)('I1: 503 (%s) gera pipelineLog com etapa e code, sem segredo', async (_n, o, code) => {
+    banco({ ...o })
+    expect((await POST(req(REFRESH))).status).toBe(503)
+    expect(pipelineLog).toHaveBeenCalledTimes(1)
+    const [nivel, , etapa, extra] = vi.mocked(pipelineLog).mock.calls[0]
+    expect(nivel).toBe('error')
+    expect(etapa).toBe('giro')
+    expect(extra).toEqual({ code })
+    const tudo = JSON.stringify(vi.mocked(pipelineLog).mock.calls)
+    for (const x of ['cli-secreto', 'ort_xyz', sha('ort_xyz')]) expect(tudo).not.toContain(x)
+  })
+
+  it('I1: etapa troca na troca de código', async () => {
+    banco({ erro: true })
+    await POST(req(CODIGO))
+    expect(vi.mocked(pipelineLog).mock.calls[0]?.[2]).toBe('troca')
+  })
+
+  it('A3: reuso_familia e reuso_carencia avisam o Sentry e logam só o motivo', async () => {
+    for (const m of ['reuso_familia', 'reuso_carencia']) {
+      captureMessage.mockClear(); vi.mocked(pipelineLog).mockClear()
+      __zerarAvisos()
+      banco({ motivo: m })
+      const res = await POST(req(REFRESH))
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('invalid_grant')
+      expect(captureMessage).toHaveBeenCalledTimes(1)
+      expect(captureMessage.mock.calls[0][1].tags.tipo).toBe('reuso_refresh')
+      expect(vi.mocked(pipelineLog).mock.calls[0]).toEqual(['warn', 'oauth-token', 'reuso de refresh', { motivo: m }])
+      const tudo = JSON.stringify([captureMessage.mock.calls, vi.mocked(pipelineLog).mock.calls])
+      for (const x of ['cli-secreto', 'ort_xyz', sha('ort_xyz')]) expect(tudo).not.toContain(x)
+    }
+  })
+
+  it('A3: invalid_grant comum não avisa', async () => {
+    banco({ motivo: 'invalid_grant' })
+    expect((await POST(req(REFRESH))).status).toBe(400)
+    expect(captureMessage).not.toHaveBeenCalled()
+    expect(pipelineLog).not.toHaveBeenCalled()
+  })
+
+  it('A6: Host fora da lista = 404 sem rpc', async () => {
+    const rpc = banco()
+    const r = new Request('https://x.vercel.app/api/oauth/token', {
+      method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', host: 'x.vercel.app' }, body: new URLSearchParams(CODIGO).toString(),
+    })
+    expect((await POST(r)).status).toBe(404)
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

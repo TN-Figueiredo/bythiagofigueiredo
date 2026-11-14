@@ -1,7 +1,7 @@
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 
-export type TipoDeRecusa = 'limite_register' | 'limite_authorize' | 'teto_dia' | 'redirect'
+export type TipoDeRecusa = 'limite_register' | 'limite_authorize' | 'teto_dia' | 'redirect' | 'reuso_refresh'
 
 type Estado = { hora: number; ultimaHoraAvisada: number | null; pendentes: number }
 

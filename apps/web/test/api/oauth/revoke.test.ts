@@ -75,13 +75,26 @@ describe('POST /api/oauth/revoke', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
-  it.each(['erro', 'lanca'] as const)('erro de banco (%s) = 200, log só com o código, sem o token', async (modo) => {
+  it.each(['erro', 'lanca'] as const)('A2: erro de banco (%s) = 503 com Retry-After, log só com o código, sem o token', async (modo) => {
     banco(modo)
     const res = await POST(req({ token: 'ort_zzz' }))
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('5')
+    expect(await res.json()).toEqual({ error: 'temporarily_unavailable' })
+    expect(pipelineLog).toHaveBeenCalledTimes(1)
     const tudo = JSON.stringify([vi.mocked(pipelineLog).mock.calls, captureMessage.mock.calls, captureException.mock.calls])
+    expect(tudo).toContain(modo === 'erro' ? '57014' : 'excecao')
     expect(tudo).not.toContain('ort_zzz')
     expect(tudo).not.toContain(createHash('sha256').update('ort_zzz').digest('hex'))
+  })
+
+  it('A6: Host fora da lista = 404 sem rpc', async () => {
+    const rpc = banco()
+    const r = new Request('https://x.vercel.app/api/oauth/revoke', {
+      method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', host: 'x.vercel.app' }, body: 'token=ort_a',
+    })
+    expect((await POST(r)).status).toBe(404)
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('forma errada ou corpo grande = 200 sem rpc', async () => {
