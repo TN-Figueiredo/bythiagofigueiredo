@@ -139,11 +139,11 @@ Plano e ledger da C1: `.superpowers/sdd/acesso-irma-ia/c1/` (`plano.md`, `progre
 Quem conecta: a pessoa liberada (seção "Liberar, estender e cortar"). URL do servidor, exatamente assim, **sem barra no fim**: `https://bythiagofigueiredo.com/api/mcp`.
 
 - A pessoa abre a página do CMS `https://bythiagofigueiredo.com/cms/conectar-ia` (para o ChatGPT, o link do bilhete é `https://bythiagofigueiredo.com/cms/conectar-ia?ia=chatgpt`; `?ia=claude` abre a aba do Claude). A página mostra os passos por IA, a URL e a validade do acesso dela. Sem login ela manda para o login do CMS e volta.
-- Na IA: adicionar conector personalizado com o nome `Observatório` e a URL acima; conectar. Abre uma janela no nosso site (endereço começa com `https://bythiagofigueiredo.com/`), login do CMS e a tela "Aprovar" com a frase "Só aprove se você acabou de clicar em Conectar no seu Claude". Um clique em Aprovar.
+- Na IA: adicionar conector personalizado com o nome `Observatório do Thiago` (o da página) e a URL acima; conectar. Abre uma janela no nosso site (endereço começa com `https://bythiagofigueiredo.com/`), login do CMS e a tela "Aprovar" com a frase "Só aprove se você acabou de clicar em Conectar no seu Claude". Um clique em Aprovar.
 - O acesso dura 1 hora e a IA renova sozinha por até 30 dias (nunca além do fim da liberação). Passou disso, ou a liberação foi cortada, pede para conectar de novo.
 - Roteiro completo da prova do dono, passo a passo: `.superpowers/sdd/acesso-irma-ia/c1/roteiro-prova.md`.
 
-**Passo fixo P6: no dia seguinte a TODA aprovação, rodar a consulta 4.3 e conferir que a linha `consentimento:<cliente>` é da pessoa que aprovou** (e-mail e cliente certos). Linha de outra pessoa ou de cliente errado = alguém aprovou no nome de outro: cortar a pessoa (seção abaixo) e chamar o controlador.
+**Passo fixo P6: no dia seguinte a TODA aprovação, rodar a consulta P6 (`docs/ops/observatorio-c1-consulta-p6.sql`, só consentimentos, sem o limite de 200 da 4.3, onde a aprovação pode sumir da janela) e conferir que a linha `consentimento:<cliente>` é da pessoa que aprovou** (e-mail e cliente certos). Linha de outra pessoa ou de cliente errado = alguém aprovou no nome de outro: cortar a pessoa (seção abaixo) e chamar o controlador.
 
 ## Religar e desligar o OAuth (uma implantação, ~5 min)
 
@@ -151,6 +151,8 @@ A trava é `OBSERVATORIO_IA_OAUTH` (valor exato `on` liga), **só em Production*
 
 - **Religar:** `bash .superpowers/sdd/acesso-irma-ia/c1/f5-religar.sh` (troca para `on`, redeploy, confere o metadado e o convite, e faz o `explain` do resolvedor de token; saída em `c1/f5-religar.out`).
 - **Desligar o OAuth:** `bash .superpowers/sdd/acesso-irma-ia/c1/f5-desligar.sh` (troca para `off`, redeploy, e o `curl` do metadado tem de dar 404). **Leva uma implantação, uns 5 minutos:** até ela terminar o OAuth continua ligado. Para cortar uma pessoa já, sem esperar o deploy, use `f6-cortar-pessoa.sh` (abaixo). Com a trava fechada, tokens e conexões ficam no banco, inertes; religar devolve o mesmo token de acesso enquanto não passar da 1 h dele.
+- **Desligar não revoga nada:** religar devolve todas as conexões com refresh válido (até 30 dias). Se o motivo foi um acesso indevido, rode `f6-cortar-pessoa.sh` ANTES de religar.
+- **O `explain` do religar** espera `Index Scan using obs_ai_oauth_tokens_hash_unico` (ou `Bitmap Index Scan` no mesmo índice). Seq Scan com menos de ~100 linhas é aceito (o planejador prefere varrer tabela pequena); refazer o `explain` no D+32. O script antes mostra os índices únicos da tabela (`obs_ai_oauth_tokens_hash_unico | t`, mais a pkey).
 
 ## Liberar, estender e cortar
 
@@ -158,16 +160,17 @@ Comandos do dono, no terminal do repo principal, fora do Claude Code. Atrás est
 
 | O que | Comando | Aparece |
 |---|---|---|
-| Liberar a pessoa (180 dias) | `bash .superpowers/sdd/acesso-irma-ia/c1/f5-liberar.sh <e-mail>` | `liberado até dd/mm/aaaa` e um bloco `e17d2-liberacao-…` (vai para `src/lib/conferencias.ts`, num commit do controlador) |
-| Estender a liberação | `observatorio-acesso.ts estender --liberacao <uuid> --dias N` (linha `npx tsx` do `criar`, acima) | nova validade; a chave Bearer ligada acompanha |
-| Cortar um cliente da pessoa | `bash …/c1/f6-cortar-cliente.sh <e-mail> <claude\|chatgpt>` | `corte feito (só <cliente>): N linha(s) afetada(s)` |
+| Liberar a pessoa (180 dias) | `bash .superpowers/sdd/acesso-irma-ia/c1/f5-liberar.sh <e-mail>` | `liberação criada: <id>, vence em AAAA-MM-DDTHH:MM…Z` (UTC) e um bloco `e17d2-liberacao-…` (vai para `src/lib/conferencias.ts`, num commit do controlador). Os erros: `recusado: email_ausente` = nenhum usuário do CMS com esse e-mail (erro de digitação?); `email_ambiguo` = mais de um; `sem_acesso_ao_site` = a pessoa não vê o site |
+| Estender a liberação | `cd ~/Workspace/bythiagofigueiredo && npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts estender --liberacao <uuid> --dias N` | `liberação estendida: <id>, agora vence em <ISO>` e a entrada nova; o controlador marca `feitaEm` na antiga e cola a nova (a chave Bearer ligada acompanha a validade) |
+| Cortar um cliente da pessoa | `bash …/c1/f6-cortar-cliente.sh <e-mail> <claude\|chatgpt>` | `corte feito (só <cliente>): N linha(s) afetada(s)`, uma linha `obs_ai_liberacoes: <id>` (sempre: é onde grava o bloqueio) e, se havia conexão do cliente, uma linha `obs_ai_conexoes: <id>`. N = 1: só bloqueou; N = 2: bloqueou e cortou a conexão. Sem liberação: `recusado: sem_liberacao` |
 | Devolver o cliente | `bash …/c1/f6-liberar-cliente.sh <e-mail> <cliente>` | `bloqueio de <cliente> apagado; bloqueios que restam: …` |
-| Cortar a pessoa inteira | `bash …/c1/f6-cortar-pessoa.sh <e-mail>` | `corte feito: N linha(s) afetada(s)` |
+| Cortar a pessoa inteira | `bash …/c1/f6-cortar-pessoa.sh <e-mail>` | `corte feito: N linha(s) afetada(s)` e uma linha `tabela: id` para a liberação, cada conexão e cada chave Bearer do Observatório (`pipeline_api_keys`). **Derruba também a chave Bearer do Claude Code e do Cowork da pessoa; `liberar` não a devolve, é preciso `criar --usuario <e-mail>` (linha do controlador).** Rodar duas vezes: a 2ª imprime `recusado: sem_liberacao` (já estava cortado) |
 
 Regras que o dono precisa saber:
 
 - **Contrato do `cortar` sem liberação (Phil F1 M6, re-revisão da emenda, item 2):** a pessoa que só tem chave Bearer, sem liberação, é cortada do mesmo jeito: o comando revoga as chaves do perfil e imprime `corte feito: N chave(s) Bearer; a pessoa não tinha liberação`. Sem liberação e sem chave: `recusado: sem_liberacao` (nada a cortar). Quem consumir a função SQL `obs_ai_cortar` fora do TS: a linha de aviso `sem_liberacao` vem também quando houve chave revogada; ler as linhas de tabela, não só o `motivo`.
-- **Ordem de desfazer (Phil F1 M6):** o corte revoga nesta ordem liberação, conexões, tokens e chaves; para voltar, a ordem é a inversa e só por comando: `f5-liberar.sh <e-mail>` cria liberação nova e a pessoa conecta de novo (conexão e token cortados nunca ressuscitam). `f6-liberar-cliente.sh` só apaga o bloqueio do cliente; não recria conexão.
+- **Desfazer a C1 (Phil F1 M6):** 1) código da C1 fora do ar (revert + deploy); 2) só então `drop` de gatilhos, funções e tabelas novas; 3) o `check` de `origin` volta ao antigo só depois de `delete from public.obs_ai_access_log where origin = 'oauth'`. Invertido, todo pedido de apagamento da LGPD falha em `obs_ai_revogar_lgpd` (fonte: `c1/spec.md:386`).
+- **Voltar depois de um corte:** o corte revoga nesta ordem liberação, conexões, tokens e chaves; para voltar, a ordem é a inversa e só por comando: `f5-liberar.sh <e-mail>` cria liberação nova e a pessoa conecta de novo (conexão e token cortados nunca ressuscitam). `f6-liberar-cliente.sh` só apaga o bloqueio do cliente; não recria conexão.
 - **Pedido de exclusão cancelado** (a pessoa pediu apagar a conta e desistiu): rodar `f5-liberar.sh <e-mail>` de novo (Phil M7).
 - **Refresh perto do fim da liberação:** um refresh emitido perto do fim da liberação vence junto com ela; mesmo depois de a liberação ser estendida, a pessoa pede login uma vez (Phil M8).
 - **O dia da pessoa vira às 21:00 BRT** (o contador diário é por dia de UTC; Phil M6).
@@ -209,9 +212,9 @@ Entradas em `apps/web/src/lib/conferencias.ts` (`conferenciasC1`, ids `c1-`), to
 
 | Id | Constante | Quando | O que conferir | Esperado |
 |---|---|---|---|---|
-| `c1-poda-clientes-d8` | `C1_DEPLOY` | D+8 do deploy | clientes de cadastro nunca aprovados, sem token, com `created_at < now() - interval '8 days'` | 0 (a poda roda 1×/dia: 7 dias mais 1; Phil M2) |
-| `c1-poda-tokens-d31` | `C1_PRIMEIRO_TOKEN` | D+31 do 1º token | `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'` | 0 (guarda de 30 dias mais 1) |
-| `c1-chatgpt-d1` | `C1_CHATGPT_CONEXAO` | D+1 da 1ª conexão real da irmã (C1-25) | consulta 4.3: classe `chatgpt` com o e-mail dela e `consentimento:chatgpt`/`aprovado`, com o `redirect_uri` real no registro (H8) | linha presente |
+| `c1-poda-clientes-d9` | `C1_DEPLOY` | D+9 do deploy | clientes de cadastro nunca aprovados, sem token, com `created_at < now() - interval '8 days'` | 0 (a poda roda 1×/dia: 7 dias mais 1; D+9 cobre o D0 inteiro a qualquer hora; Phil I3). Se `select count(*) from public.obs_ai_oauth_clientes where aprovado_em is null` = 0 e a K7 nunca teve `clientesApagados` > 0: anotar "sem sujeito", não "ok" |
+| `c1-poda-tokens-d32` | `C1_PRIMEIRO_TOKEN` | D+32 do 1º token | `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'` | 0 **e** a K7 com `tokensApagadas` >= 1 em alguma execução desde o D+30 (o código do 1º token venceu em 10 min; 0 = a poda dos tokens não roda) |
+| `c1-chatgpt-d1` | `C1_CHATGPT_CONEXAO` | D+1 da 1ª conexão real da irmã (C1-25) | consulta P6 (`desfecho = aprovado`, `result = ok`, e-mail dela) + 4.3 (classe `chatgpt`) + o `redirect_uri` real (H8): `select client_id, cliente, redirect_uris, created_at, aprovado_em from public.obs_ai_oauth_clientes where cliente = 'chatgpt' order by created_at desc limit 5;` | linhas presentes |
 
 Falhou o ChatGPT: o controlador lê o log da Vercel, conserta, e ela usa o Claude.ai enquanto isso. Falhou a poda: ver a K7 do degrau 2 (a tarefa `poda_acesso_ia`).
 

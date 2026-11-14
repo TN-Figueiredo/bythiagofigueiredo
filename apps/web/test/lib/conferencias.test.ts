@@ -1097,15 +1097,20 @@ describe('C1: conferências datadas do OAuth', () => {
     expect(conferenciasC1(null, null, null)).toEqual([])
     expect(CONFERENCIAS.filter(x => x.id.startsWith('c1-'))).toEqual([])
   })
-  it('com data: D+8 do deploy, D+31 do 1º token e D+1 da conexão do ChatGPT, com a consulta e o esperado', () => {
+  it('com data: D+9 do deploy, D+32 do 1º token e D+1 da conexão do ChatGPT, com a consulta e o esperado', () => {
     const c = conferenciasC1(dia(-10), dia(-10), dia(-10))
-    expect(c.map(x => x.id)).toEqual(['c1-poda-clientes-d8', 'c1-poda-tokens-d31', 'c1-chatgpt-d1'])
-    expect(c.map(x => x.data)).toEqual([dia(-2), dia(21), dia(-9)])
+    expect(c.map(x => x.id)).toEqual(['c1-poda-clientes-d9', 'c1-poda-tokens-d32', 'c1-chatgpt-d1'])
+    expect(c.map(x => x.data)).toEqual([dia(-1), dia(22), dia(-9)])
     for (const x of c) { expect(x.etapa).toBe('C1'); expect(x.feitaEm).toBeNull() }
     expect(c[0].onde).toContain("interval '8 days'")
     expect(c[1].onde).toContain("interval '31 days'")
     expect(c[0].onde).toContain('Esperado 0')
     expect(c[2].onde).toContain('consentimento:chatgpt')
+    // Phil I3: D+9/D+32 (qualquer hora do dia cobre o D0 inteiro) e prova de que a poda rodou, não só "0"
+    expect(c[1].onde).toContain('tokensApagadas')
+    expect(c[0].onde).toContain('sem sujeito')
+    // Phil M1: o valor gravado é desfecho = aprovado (result = ok)
+    expect(c[2].onde).toContain('desfecho = aprovado')
   })
   it('data malformada vira entrada de 1970 por marco', () => {
     expect(conferenciasC1('x', null, null).map(x => x.id)).toEqual(['c1-deploy-invalido'])

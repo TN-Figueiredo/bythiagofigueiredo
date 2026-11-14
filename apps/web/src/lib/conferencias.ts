@@ -508,22 +508,22 @@ export const C1_CHATGPT_CONEXAO: string | null = null
 
 const PLANO_C1 = 'docs/ops/observatorio-acesso-ia.md (seções "Consultas 4.3 e 4.7" e "Conferências datadas da C1"); anotar o resultado em .superpowers/sdd/acesso-irma-ia/c1/progress.md'
 
-/** D+8 do deploy e D+31 do 1º token (a poda roda 1x/dia: o limite é 7 e 30 dias mais 1) e D+1 da 1ª conexão do ChatGPT. Data malformada vira entrada de 1970 (vermelha). */
+/** D+9 do deploy e D+32 do 1º token (a poda roda 1x/dia e o filtro é de 8 e 31 dias; um dia a mais cobre o D0 inteiro, a qualquer hora da conferência: Phil I3) e D+1 da 1ª conexão do ChatGPT. Data malformada vira entrada de 1970 (vermelha). */
 export function conferenciasC1(deploy: string | null, primeiroToken: string | null, chatgpt: string | null): Conferencia[] {
   const out: Conferencia[] = []
   const e = (id: string, base: string, mais: number, onde: string): Conferencia => ({ id: `c1-${id}`, etapa: 'C1', data: somaDias(base, mais), responsavel: 'agente', onde: `${PLANO_C1}: ${onde}`, feitaEm: null })
   const ruim = (id: string, nome: string, v: string): Conferencia => ({ id: `c1-${id}-invalido`, etapa: 'C1', data: '1970-01-01', responsavel: 'agente', onde: `${nome} (apps/web/src/lib/conferencias.ts) está malformada: "${v}". Corrigir para AAAA-MM-DD (dia de São Paulo) ou null`, feitaEm: null })
   if (deploy !== null) {
     if (!dataReal(deploy)) out.push(ruim('deploy', 'C1_DEPLOY', deploy))
-    else out.push(e('poda-clientes-d8', deploy, 8, "D+8 do deploy: `select count(*) from public.obs_ai_oauth_clientes c where c.aprovado_em is null and c.created_at < now() - interval '8 days' and not exists (select 1 from public.obs_ai_oauth_tokens t where t.client_id = c.client_id)`. Esperado 0 (a poda roda 1x/dia; 7 dias mais 1). Diferente de 0: a tarefa `poda_acesso_ia` não está podando os clientes; ver a K7"))
+    else out.push(e('poda-clientes-d9', deploy, 9, "D+9 do deploy: `select count(*) from public.obs_ai_oauth_clientes c where c.aprovado_em is null and c.created_at < now() - interval '8 days' and not exists (select 1 from public.obs_ai_oauth_tokens t where t.client_id = c.client_id)`. Esperado 0 (a poda roda 1x/dia; 7 dias mais 1; conferido no D+9 para cobrir o D0 inteiro). Diferente de 0: a tarefa `poda_acesso_ia` não está podando os clientes; ver a K7. Se `select count(*) from public.obs_ai_oauth_clientes where aprovado_em is null` = 0 e a K7 nunca teve `clientesApagados` > 0, anotar 'sem sujeito', não 'ok'"))
   }
   if (primeiroToken !== null) {
     if (!dataReal(primeiroToken)) out.push(ruim('primeiro-token', 'C1_PRIMEIRO_TOKEN', primeiroToken))
-    else out.push(e('poda-tokens-d31', primeiroToken, 31, "D+31 do 1º token: `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'`. Esperado 0 (a poda roda 1x/dia; guarda de 30 dias mais 1). Diferente de 0: a poda dos tokens não rodou; ver a K7"))
+    else out.push(e('poda-tokens-d32', primeiroToken, 32, "D+32 do 1º token: `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'`. Esperado 0 (a poda roda 1x/dia; guarda de 30 dias mais 1; conferido no D+32 para cobrir o D0 inteiro) e a K7 com `tokensApagadas` >= 1 em alguma execução desde o D+30 (o código do 1º token venceu em 10 min, então tem de ter sido apagado; 0 = a poda dos tokens não roda). Diferente disso: a poda dos tokens não rodou; ver a K7"))
   }
   if (chatgpt !== null) {
     if (!dataReal(chatgpt)) out.push(ruim('chatgpt', 'C1_CHATGPT_CONEXAO', chatgpt))
-    else out.push(e('chatgpt-d1', chatgpt, 1, "D+1 da 1ª conexão da irmã (C1-25): consulta 4.3 (`docs/ops/observatorio-c1-consulta-4-3.sql`) tem de mostrar a classe `chatgpt` com o e-mail dela e uma linha `consentimento:chatgpt` com resultado aprovado (P6 do runbook). Sem a linha `chatgpt`: ler o log da Vercel, consertar, e ela usa o Claude.ai enquanto isso"))
+    else out.push(e('chatgpt-d1', chatgpt, 1, "D+1 da 1ª conexão da irmã (C1-25): consulta 4.3 (`docs/ops/observatorio-c1-consulta-4-3.sql`) tem de mostrar a classe `chatgpt` com o e-mail dela e uma linha `consentimento:chatgpt` com `desfecho = aprovado` (`result = ok`), a consulta P6 (`docs/ops/observatorio-c1-consulta-p6.sql`, sem o limite de 200 da 4.3) e o `redirect_uri` real em `obs_ai_oauth_clientes` (H8; consulta no runbook). Sem a linha `chatgpt`: ler o log da Vercel, consertar, e ela usa o Claude.ai enquanto isso"))
   }
   return out
 }
