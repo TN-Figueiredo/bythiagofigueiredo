@@ -69,6 +69,11 @@ describe('consultar: tradutor', () => {
       ordenarPor: 'multiplicador', direcao: 'desc', limite: 20, incluirBaseFraca: false,
     })
   })
+  it('R1b: ordenar por vpd7 sem janela_idade não corta a idade (vídeo antigo que rende entra); com janela_idade explícita vale a pedida; outra ordem mantém o padrão', () => {
+    expect(pedidoDe({ acao: 'consultar', ordenar_por: 'vpd7' }).janelaIdade).toBe('todas')
+    expect(pedidoDe({ acao: 'consultar', ordenar_por: 'vpd7', janela_idade: '0-30' }).janelaIdade).toEqual(['0-30'])
+    expect(pedidoDe({ acao: 'consultar', ordenar_por: 'views' }).janelaIdade).toEqual([...DEFAULT_AGES])
+  })
   it('ordenar_por sempre entra em metricas; janela_idade de uma faixa vira lista; "todas" fica "todas"; canal_ids e filtros passam', () => {
     const p = pedidoDe({ acao: 'consultar', ordenar_por: 'engajamento', metricas: ['views'], janela_idade: '31-90', lugar: 'pais:VN', nicho: 'viagem', canal_ids: [C1], publicado_de: '2026-10-01', publicado_ate: '2026-10-31', direcao: 'asc', formato: 'shorts' })
     expect(p.metricas).toEqual(['views', 'engajamento'])

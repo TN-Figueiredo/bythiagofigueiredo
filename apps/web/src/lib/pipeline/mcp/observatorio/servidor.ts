@@ -13,9 +13,10 @@ import { executarChamada, type Responder } from './executar'
 export const NOME_DA_FERRAMENTA = 'observatorio_leitura'
 
 export const DESCRICAO =
-  'Lê o Observatório do YouTube (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
-  'Só leitura. Escolha uma das onze ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela, sugestoes (as sugestões do nicho: só leitura) ou consultar (lista de vídeos filtrada por lugar, canal, idade e data, ordenada pela medida que você escolher). ' +
-  'Cada ação aceita só os campos que a ela cabem; o resto é recusado. ' +
+  'Use esta ferramenta PRIMEIRO para qualquer pergunta sobre vídeos, canais, views, títulos ou miniaturas do YouTube dos canais acompanhados, inclusive só com código de vídeo de 11 caracteres ou link; não busque na web antes. ' +
+  'Lê o Observatório (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
+  'Só leitura. Escolha uma das onze ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela, sugestoes (do nicho) ou consultar (lista de vídeos filtrada por lugar, canal, idade e data, ordenada pela medida que você escolher). ' +
+  'Cada ação aceita só os seus campos; o resto é recusado. ' +
   'Para gráfico ou planilha, peça saida "tabela" (CSV com número de máquina; célula vazia não é zero; cada tabela traz o gráfico sugerido: linha, barra, pizza ou nenhum). ' +
   // para o cliente que ignora as `instructions` (não se sabe se o conector web do Claude.ai as entrega)
   'Toda resposta termina com "Cobertura" (quanto você viu e as próximas chamadas): diga a cobertura antes de recomendar e ofereça aprofundar. ' +
@@ -25,25 +26,26 @@ export const DESCRICAO =
 
 /** As descrições dos campos de período da `consultar` (C1 R1): a IA escolhe o campo pelo texto, então ele diz qual usar para "semana". */
 export const DESCRICAO_DOS_CAMPOS_DA_CONSULTA = {
-  janela_idade: 'consultar: faixas fixas de idade do vídeo (a menor é 0-30): todas, uma faixa ou lista (0-30, 31-90, 91-180, 181-365, 365+); nunca para período pedido em dias.',
+  janela_idade: 'consultar: faixas fixas de idade do vídeo (a menor é 0-30): todas, uma faixa ou lista (0-30, 31-90, 91-180, 181-365, 365+); nunca para período pedido em dias. Para "mais vistos/populares da semana" use todas: vídeo antigo que rende entra.',
   publicado_nos_ultimos_dias: "consultar: de 1 a 365; para 'desta semana' use 7; 'deste mês' 30; conta hoje, horário de Brasília. Não vem junto de publicado_de/publicado_ate.",
   publicado_de: 'consultar: AAAA-MM-DD, dia de Brasília, para datas fixas.',
   publicado_ate: 'consultar: AAAA-MM-DD, dia de Brasília, para datas fixas.',
 } as const
 
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
-export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
+export type FatiaDeInstrucao = 'R4' | 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (texto de "Próximas chamadas").' },
-  { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
-  { fatia: 'T6', texto: 'Pedido recusado traz formato e exemplo válido: corrija e tente de novo uma vez.' },
-  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas) antes de concluir. Se a lista mudou, refaça da linha 1.' },
-  { fatia: 'T10', texto: 'Para o conjunto, use o "Resumo do todo" do topo: vale para todas as linhas.' },
-  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela" e desenhe o gráfico sugerido; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
-  { fatia: 'A4', texto: 'Na consultar, diga por qual medida ordenou e ofereça outra; a lista não tem janela: estreite o filtro. Período em dias: publicado_nos_ultimos_dias, nunca janela_idade.' },
+  { fatia: 'R4', texto: 'PRIMEIRO esta ferramenta para pergunta sobre vídeos, canais, views, títulos ou miniaturas do YouTube acompanhados, mesmo só com código de 11 caracteres ou link; não busque na web antes.' },
+  { fatia: 'T5', texto: 'Antes de recomendar, comparar ou concluir, diga quanto viu (seção "Cobertura") e, se não viu tudo, pergunte "quer que eu aprofunde em X?" (X: "Próximas chamadas").' },
+  { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média nem ordene.' },
+  { fatia: 'T6', texto: 'Pedido recusado traz exemplo válido: corrija e tente uma vez.' },
+  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas); se a lista mudou, refaça da linha 1.' },
+  { fatia: 'T10', texto: 'Para o conjunto, use o "Resumo do todo" do topo.' },
+  { fatia: 'A5', texto: 'Gráfico ou planilha: saida "tabela" e o gráfico sugerido; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês: coluna Ritmo de listar_canais; diga que mês não é medido.' },
+  { fatia: 'A4', texto: 'Na consultar, diga a medida de ordem e ofereça outra; a lista não tem janela: estreite o filtro. "Mais vistos da semana": views do período, janela_idade todas. "Publicados esta semana": publicado_nos_ultimos_dias.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
-const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5', 'A4'])
+const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['R4', 'T5', 'T6', 'T9', 'T10', 'A5', 'A4'])
 
 export function instrucoesDe(ligadas: ReadonlySet<FatiaDeInstrucao>): string {
   const itens = ITENS_DE_INSTRUCAO.filter((i) => ligadas.has(i.fatia))
