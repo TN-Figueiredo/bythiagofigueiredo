@@ -49,6 +49,10 @@ const CANAL_YT = /^UC[A-Za-z0-9_-]{22}$/
 const VIDEO_YT = /^[A-Za-z0-9_-]{11}$/
 
 const id = z.string().max(64).refine((s) => UUID.test(s) || CANAL_YT.test(s) || VIDEO_YT.test(s), 'id fora de forma: use o uuid ou o id do YouTube')
+// R4: link do YouTube (watch?v=, youtu.be/, /shorts/, /embed/, /live/) vira o código de 11 caracteres antes da validação; o resto passa como veio
+const LINK_DE_VIDEO = /^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/
+export const codigoDoLink = (v: unknown): unknown => (typeof v === 'string' && v.length <= 300 ? (LINK_DE_VIDEO.exec(v.trim())?.[1] ?? v) : v)
+const idDeVideo = z.preprocess(codigoDoLink, id)
 const nicho = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/, 'nicho fora de forma')
 // a IA manda `90` como número com frequência (registro de 09/11): vale como "90"; 45 continua recusado
 const janela = z.preprocess((v) => (typeof v === 'number' ? String(v) : v), z.enum(['7', '30', '90', 'todas']))
@@ -88,10 +92,10 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('definicoes') }).strict(),
   z.object({ acao: z.literal('listar_canais'), formato: formato.optional(), nicho: nicho.optional(), janela: janela.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('canal'), canal_id: id, janela: janela.optional(), formato: formato.optional() }).strict(),
-  z.object({ acao: z.literal('video'), video_id: id }).strict(),
+  z.object({ acao: z.literal('video'), video_id: idDeVideo }).strict(),
   z.object({ acao: z.literal('comparar'), canal_ids: z.array(z.union([z.literal('proprio'), id])).max(100), janela: janela.optional(), formato: formato.optional() }).strict(),
   z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
-  z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), canal_ids: z.array(z.union([z.literal('proprio'), id])).min(1).max(ACESSO_IA_RULES.tetoDeCanaisDaSerie.canais).optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
+  z.object({ acao: z.literal('serie'), video_id: idDeVideo.optional(), canal_id: id.optional(), canal_ids: z.array(z.union([z.literal('proprio'), id])).min(1).max(ACESSO_IA_RULES.tetoDeCanaisDaSerie.canais).optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional(), saida }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional(), a_partir_da_linha: aPartirDaLinha, marca, saida }).strict(),
   z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({
@@ -270,8 +274,8 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
     const ordenarPor = e.ordenar_por ?? 'multiplicador'
     const base: MetricaDaConsulta[] = e.metricas ?? ['views', 'likes', 'comentarios', 'multiplicador', 'engajamento']
     const metricas = base.includes(ordenarPor) ? base : [...base, ordenarPor]
-    // período pedido em dias sem faixa de idade: a faixa padrão (até 90 dias) não pode cortar o período
-    const janelaIdade: string[] | 'todas' = e.janela_idade === undefined ? (ultimosDias !== undefined ? 'todas' : [...DEFAULT_AGES]) : e.janela_idade === 'todas' ? 'todas' : Array.isArray(e.janela_idade) ? e.janela_idade : [e.janela_idade]
+    // período pedido em dias, ou ordem por views/dia dos últimos 7 dias, sem faixa de idade: a faixa padrão (até 90 dias) não pode cortar vídeo antigo que rende
+    const janelaIdade: string[] | 'todas' = e.janela_idade === undefined ? (ultimosDias !== undefined || ordenarPor === 'vpd7' ? 'todas' : [...DEFAULT_AGES]) : e.janela_idade === 'todas' ? 'todas' : Array.isArray(e.janela_idade) ? e.janela_idade : [e.janela_idade]
     const limite = e.limite ?? 20
     const consulta: PedidoDaConsulta = {
       formato: e.formato ?? 'todos', janelaIdade, metricas, ordenarPor, direcao: e.direcao ?? 'desc', limite, incluirBaseFraca: e.incluir_base_fraca ?? false,

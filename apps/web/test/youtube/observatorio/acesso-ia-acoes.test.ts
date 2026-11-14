@@ -116,6 +116,20 @@ describe('os ids', () => {
     expect(ENTRADA.safeParse({ acao: 'canal', canal_id: 'UCabcdefghijklmnopqrstuv' }).success).toBe(true)
     expect(ENTRADA.safeParse({ acao: 'video', video_id: 'dQw4w9WgXcQ' }).success).toBe(true)
   })
+  it.each([
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ&t=5',
+    'https://youtu.be/dQw4w9WgXcQ?si=abc',
+    'youtube.com/shorts/dQw4w9WgXcQ',
+    'https://m.youtube.com/embed/dQw4w9WgXcQ',
+  ])('R4: link do YouTube vira o código de 11 caracteres (video e serie): %s', (link) => {
+    expect(ENTRADA.parse({ acao: 'video', video_id: link })).toMatchObject({ video_id: 'dQw4w9WgXcQ' })
+    expect(ENTRADA.parse({ acao: 'serie', video_id: link, de: '2026-10-01', ate: '2026-10-31' })).toMatchObject({ video_id: 'dQw4w9WgXcQ' })
+  })
+  it('R4: link sem código válido continua recusado', () => {
+    expect(ENTRADA.safeParse({ acao: 'video', video_id: 'https://www.youtube.com/watch?v=curto' }).success).toBe(false)
+    expect(ENTRADA.safeParse({ acao: 'video', video_id: 'https://outro.com/watch?v=dQw4w9WgXcQ' }).success).toBe(false)
+  })
 })
 
 describe('comparar', () => {

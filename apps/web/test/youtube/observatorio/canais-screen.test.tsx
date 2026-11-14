@@ -656,8 +656,8 @@ describe('CanaisScreen — Seus canais', () => {
     expect(dlg.textContent).not.toContain('Seu canal não tem nicho aqui')
     expect(within(dlg).queryByRole('combobox', { name: 'Nicho de tnFigueiredo' })).toBeNull()
   })
-  it('auditorias nos presets 1, 2, 5 e mix, em tabela, cards, Shorts, Todos e com a gaveta de um canal próprio', () => {
-    for (const preset of ['1', '2', '5', 'mix'] as const) for (const p of [{}, { layout: 'cards' }, { fmt: 'short' }, { fmt: 'todos' }, { fmt: 'todos', layout: 'cards' }, { niche: 'viagem' as const }, { channel: 'tnfigueiredo' }]) {
+  it.each(['1', '2', '5', 'mix'] as const)('auditorias no preset %s, em tabela, cards, Shorts, Todos e com a gaveta de um canal próprio', (preset) => {
+    for (const p of [{}, { layout: 'cards' }, { fmt: 'short' }, { fmt: 'todos' }, { fmt: 'todos', layout: 'cards' }, { niche: 'viagem' as const }, { channel: 'tnfigueiredo' }]) {
       const { container, unmount } = mountOwns(preset, {}, p)
       expect(noJunkText(container)).toEqual([])
       expect(oneFilledButton(container)).toEqual([])

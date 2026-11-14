@@ -673,10 +673,13 @@ describe('A3.3 acréscimos da revisão: ordem crescente, texto da célula, empat
 })
 
 describe('A3.2 o motivo nunca é inventado (revisão da Tarefa 4, M-4)', () => {
-  it('todo canal próprio sem posição carrega o motivo: em nenhuma ordenação × formato × escala × direção × nicho o modelo devolve pos nulo com semMedida nulo', () => {
-    const mundos = [BASE, mundoSemMedida(), a3World(ds => { for (const v of ds.videos) semDiario(v) })]
-    let semPosicao = 0
-    for (const w of mundos) for (const niche of ['todos', 'viagem', 'ia'] as const) for (const scale of SCALES) for (const fmt of FMTS) for (const sort of SORTS) for (const dir of ['desc', 'asc'] as const) {
+  const mundosA32 = () => [BASE, mundoSemMedida(), a3World(ds => { for (const v of ds.videos) semDiario(v) })]
+  let mundosMemo: ReturnType<typeof mundosA32> | null = null
+  let semPosicao = 0
+  const casos = [0, 1, 2].flatMap(m => (['todos', 'viagem', 'ia'] as const).map(niche => [m, niche] as const))
+  it.each(casos)('todo canal próprio sem posição carrega o motivo: mundo %i, nicho %s, em toda ordenação × formato × escala × direção o modelo não devolve pos nulo com semMedida nulo', (m, niche) => {
+    const w = (mundosMemo ??= mundosA32())[m]!
+    for (const scale of SCALES) for (const fmt of FMTS) for (const sort of SORTS) for (const dir of ['desc', 'asc'] as const) {
       const v = view({ niche, scale, fmt, sort, dir } as Partial<CanaisParams>, w.obs)
       for (const r of all(v)) {
         if (!r.own || r.pos) continue
@@ -687,8 +690,10 @@ describe('A3.2 o motivo nunca é inventado (revisão da Tarefa 4, M-4)', () => {
       for (const l of v.own.block?.linhas ?? []) if (l.tipo === 'cheia') expect(l.frase.length).toBeGreaterThan(0)
       if (v.pe) expect(v.pe.texto.length).toBeGreaterThan(0)
     }
+  }, 30_000)
+  it('a prova só vale se houve canal próprio sem posição (soma dos nove casos acima)', () => {
     expect(semPosicao, 'a prova só vale se houve canal próprio sem posição').toBeGreaterThan(20)
-  }, 60_000)
+  })
   it('fraseSeuCanal sem posição e sem motivo é vazia: não escolhe um motivo por conta própria', () => {
     expect(fraseSeuCanal(null, { tipo: 'geral' } as never, null)).toBe('')
     expect(fraseSeuCanal(null, { tipo: 'geral' } as never, undefined)).toBe('')
