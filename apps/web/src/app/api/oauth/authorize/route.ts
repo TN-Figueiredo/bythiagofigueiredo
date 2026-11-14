@@ -3,10 +3,14 @@ import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { EMISSOR, LIMITES, PRAZOS, hostDoRecurso, oauthLigado, segredoDeIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
+import { codigoDeErroPg } from '@/lib/youtube/observatorio/acesso-ia/oauth/log'
 import { hashDoIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/ip'
+import { pipelineLog } from '@/lib/pipeline/logger'
 import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 import { validarPedido } from '@/lib/youtube/observatorio/acesso-ia/oauth/pedido'
 import { htmlDeErro, type CodigoErro } from '@/lib/youtube/observatorio/acesso-ia/oauth/textos-erro'
+
+const COOKIE_PEDIDO = '__Host-oauth_pedido'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,8 +20,12 @@ const CAB = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' }
 
 const pagina = (status: number, codigo: CodigoErro): Response =>
   new Response(htmlDeErro(codigo), { status, headers: { ...CAB, 'Content-Type': 'text/html; charset=utf-8' } })
-const indisponivel = (): Response =>
-  new Response('temporarily_unavailable', { status: 503, headers: { ...CAB, 'Content-Type': 'text/plain' } })
+type Etapa = 'rate' | 'cliente' | 'site' | 'pedido'
+/** I1 (portão F3): todo 503 deixa rastro com etapa e código; nunca IP, hash, client_id nem redirect_uri. */
+const indisponivel = (etapa: Etapa, code: string): Response => {
+  pipelineLog('error', 'oauth-authorize', etapa, { code })
+  return pagina(503, 'falha')
+}
 const redirecionar = (url: string): Response => new Response(null, { status: 302, headers: { ...CAB, Location: url } })
 
 const Linha = z.object({ n: z.number(), n_dia: z.number(), estourou: z.boolean() })
@@ -29,7 +37,7 @@ export async function GET(req: Request): Promise<Response> {
   const host = req.headers.get('host') ?? url.host
   if (!hostDoRecurso(host)) return new Response('not_found', { status: 404 })
   const segredo = segredoDeIp()
-  if (!segredo) return indisponivel()
+  if (!segredo) return indisponivel('rate', 'sem_segredo')
 
   const agora = Date.now()
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -42,16 +50,16 @@ export async function GET(req: Request): Promise<Response> {
       p_limite: LIMITES.authorizeHora,
       p_teto_dia: LIMITES.authorizeDia,
     })
-    if (error) return indisponivel()
+    if (error) return indisponivel('rate', codigoDeErroPg(error))
     const linha = Linha.safeParse(Array.isArray(data) ? data[0] : data)
-    if (!linha.success) return indisponivel()
+    if (!linha.success) return indisponivel('rate', 'linha_invalida')
     const { n, n_dia, estourou } = linha.data
     if (n > LIMITES.authorizeHora || n_dia > LIMITES.authorizeDia || estourou) {
       avisarRecusa(estourou || n_dia > LIMITES.authorizeDia ? 'teto_dia' : 'limite_authorize')
       return pagina(429, 'limite')
     }
   } catch {
-    return indisponivel()
+    return indisponivel('rate', 'excecao')
   }
 
   const q = url.searchParams
@@ -64,12 +72,12 @@ export async function GET(req: Request): Promise<Response> {
         .select('redirect_uris')
         .eq('client_id', clientId)
         .maybeSingle()
-      if (error) return indisponivel()
+      if (error) return indisponivel('cliente', codigoDeErroPg(error))
       const c = Cliente.safeParse(data)
       if (!c.success) return pagina(200, 'cliente')
       registrado = c.data
     } catch {
-      return indisponivel()
+      return indisponivel('cliente', 'excecao')
     }
   }
 
@@ -89,7 +97,7 @@ export async function GET(req: Request): Promise<Response> {
   try {
     siteId = (await getSiteContext()).siteId
   } catch {
-    return indisponivel()
+    return indisponivel('site', 'excecao')
   }
 
   const id = randomBytes(32).toString('base64url')
@@ -105,9 +113,12 @@ export async function GET(req: Request): Promise<Response> {
       site_id: siteId,
       expires_at: new Date(agora + PRAZOS.pedidoMin * 60_000).toISOString(),
     })
-    if (error) return indisponivel()
+    if (error) return indisponivel('pedido', codigoDeErroPg(error))
   } catch {
-    return indisponivel()
+    return indisponivel('pedido', 'excecao')
   }
-  return redirecionar(`/oauth/consentimento?authorization_id=${id}`)
+  // A1 (ataque F3): o pedido fica preso ao navegador que o abriu; a tela e as actions exigem este cookie (sem Domain: `__Host-`).
+  const res = redirecionar(`/oauth/consentimento?authorization_id=${id}`)
+  res.headers.append('Set-Cookie', `${COOKIE_PEDIDO}=${id}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${PRAZOS.pedidoMin * 60}`)
+  return res
 }

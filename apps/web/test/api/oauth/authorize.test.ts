@@ -5,10 +5,13 @@ import { createHash } from 'crypto'
 const { captureMessage } = vi.hoisted(() => ({ captureMessage: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
-vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-1' }) }))
+vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn(async () => ({ siteId: 'site-1' })) }))
+vi.mock('@/lib/pipeline/logger', () => ({ pipelineLog: vi.fn() }))
 
 import { GET } from '../../../src/app/api/oauth/authorize/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { pipelineLog } from '@/lib/pipeline/logger'
 import { __zerarAvisos } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 
 const SEGREDO = Buffer.alloc(32, 7).toString('base64')
@@ -20,7 +23,7 @@ function banco(opts: { cliente?: boolean; falhaRpc?: boolean; falhaInsert?: bool
   let dia = opts.diaAtual ?? 0
   const insert = vi.fn(async () => ({ error: opts.falhaInsert ? { message: 'x' } : null }))
   const rpc = vi.fn(async (_f: string, a: { p_grain: string; p_hash: string; p_limite: number; p_teto_dia: number }) => {
-    if (opts.falhaRpc) return { data: null, error: { message: 'x' } }
+    if (opts.falhaRpc) return { data: null, error: { code: 'XX000', message: 'x' } }
     const n = Math.min((porHash.get(a.p_hash) ?? 0) + 1, a.p_limite + 1)
     porHash.set(a.p_hash, n)
     if (n <= a.p_limite) dia = Math.min(dia + 1, a.p_teto_dia + 1)
@@ -44,6 +47,8 @@ beforeEach(() => {
   process.env.OBSERVATORIO_IA_OAUTH = 'on'
   process.env.OBSERVATORIO_IA_IP_SEGREDO = SEGREDO
   captureMessage.mockClear()
+  vi.mocked(pipelineLog).mockClear()
+  vi.mocked(getSiteContext).mockImplementation(async () => ({ siteId: 'site-1' }) as never)
   __zerarAvisos()
 })
 afterEach(() => {
@@ -72,6 +77,21 @@ describe('GET /api/oauth/authorize', () => {
     expect(exp).toBeLessThanOrEqual(10 * 60_000)
   })
 
+  it('A1: o 302 de sucesso prende o pedido ao navegador (__Host-oauth_pedido)', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    const res = await GET(req({ state: 'st' }))
+    const id = new URL(res.headers.get('location')!, 'https://bythiagofigueiredo.com').searchParams.get('authorization_id')!
+    const sc = res.headers.get('set-cookie')!
+    expect(sc.startsWith(`__Host-oauth_pedido=${id};`)).toBe(true)
+    for (const parte of ['path=/', 'secure', 'httponly', 'samesite=lax', 'max-age=600']) expect(sc.toLowerCase()).toContain(parte)
+    expect(sc.toLowerCase()).not.toContain('domain')
+  })
+
+  it('A1: resposta que não é o 302 de sucesso não leva o cookie', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ cliente: false }) as never)
+    expect((await GET(req())).headers.get('set-cookie')).toBeNull()
+  })
+
   it('scope e resource ausentes = aceito; offline_access observatorio:read aceito', async () => {
     const b = banco()
     vi.mocked(getSupabaseServiceClient).mockReturnValue(b as never)
@@ -86,7 +106,7 @@ describe('GET /api/oauth/authorize', () => {
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('location')).toBeNull()
-    expect(await res.text()).toContain('Esta conexão expirou ou não é reconhecida')
+    expect(await res.text()).toContain('Esta conexão precisa ser refeita')
     expect(b.insert).not.toHaveBeenCalled()
   })
 
@@ -177,5 +197,71 @@ describe('GET /api/oauth/authorize', () => {
     }
     vi.mocked(getSupabaseServiceClient).mockImplementation(() => { throw new Error('env') })
     expect((await GET(req())).status).toBe(503)
+  })
+
+  it('503 é página HTML em português com c1-falha, sem texto cru', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    const res = await GET(req())
+    expect(res.status).toBe(503)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const h = await res.text()
+    expect(h).toContain('c1-falha')
+    expect(h).toContain('Não deu para conectar agora.')
+    expect(h).not.toContain('temporarily_unavailable')
+    delete process.env.OBSERVATORIO_IA_IP_SEGREDO
+    const r2 = await GET(req())
+    expect(r2.status).toBe(503)
+    expect(await r2.text()).toContain('c1-falha')
+  })
+
+  it('state com <script> não aparece no HTML de erro', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    const res = await GET(req({ state: '<script>alert(1)</script>' }))
+    expect(res.status).toBe(503)
+    const h = await res.text()
+    expect(h).toContain('c1-falha')
+    expect(h).not.toContain('<script>alert')
+    expect(h).not.toContain('alert(1)')
+  })
+
+  it('I1: 503 loga etapa e code (rate, site, pedido), sem client_id nem IP', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaSelect: true }) as never)
+    expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    vi.mocked(getSiteContext).mockRejectedValue(new Error('sem site'))
+    expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
+    vi.mocked(getSiteContext).mockImplementation(async () => ({ siteId: 'site-1' }) as never)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaInsert: true }) as never)
+    expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
+    const c = vi.mocked(pipelineLog).mock.calls
+    expect(c.map((x) => [x[0], x[1], x[2]])).toEqual([
+      ['error', 'oauth-authorize', 'rate'], ['error', 'oauth-authorize', 'cliente'], ['error', 'oauth-authorize', 'site'], ['error', 'oauth-authorize', 'pedido'],
+    ])
+    expect(c[0][3]).toEqual({ code: 'XX000' })
+    expect(c[1][3]).toEqual({ code: 'sem_codigo' })
+    expect(c[2][3]).toEqual({ code: 'excecao' })
+    const tudo = JSON.stringify(c)
+    expect(tudo).not.toContain('"cid"')
+    expect(tudo).not.toContain('9.8.7.6')
+  })
+
+  it.each([[{ response_type: 'token' }, undefined], [{}, 'response_type']] as const)('A5: response_type %j errado ou ausente = 302 unsupported_response_type com iss', async (p, sem) => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    const res = await GET(req(p, { sem: sem ? [sem] : [] }))
+    expect(res.status).toBe(302)
+    const u = new URL(res.headers.get('location') as string)
+    expect(u.origin + u.pathname).toBe(REDIR)
+    expect(u.searchParams.get('error')).toBe('unsupported_response_type')
+    expect(u.searchParams.get('iss')).toBeTruthy()
+  })
+
+  it('A5: response_type repetido = invalid_request', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    const q = new URLSearchParams({ client_id: 'cid', redirect_uri: REDIR, code_challenge: CH, code_challenge_method: 'S256' })
+    q.append('response_type', 'code'); q.append('response_type', 'code')
+    const res = await GET(new Request(`https://bythiagofigueiredo.com/api/oauth/authorize?${q}`, { headers: { 'x-forwarded-for': '1.2.3.4' } }))
+    expect(new URL(res.headers.get('location') as string).searchParams.get('error')).toBe('invalid_request')
   })
 })

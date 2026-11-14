@@ -6,7 +6,7 @@ const CH = 'a'.repeat(43)
 const REG = { redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] }
 const base = (o: Record<string, string> = {}, tirar: string[] = []) => {
   const q = new URLSearchParams({
-    client_id: 'c1', redirect_uri: REG.redirect_uris[0]!, code_challenge: CH, code_challenge_method: 'S256', ...o,
+    response_type: 'code', client_id: 'c1', redirect_uri: REG.redirect_uris[0]!, code_challenge: CH, code_challenge_method: 'S256', ...o,
   })
   for (const k of tirar) q.delete(k)
   return q
@@ -32,6 +32,10 @@ describe('validarPedido', () => {
       const r = validarPedido(q, REG)
       expect(r.ok === false && 'erro' in r && r.erro).toBe('invalid_request')
     }
+  })
+  it('response_type ausente ou diferente de code = unsupported_response_type', () => {
+    expect(validarPedido(base({}, ['response_type']), REG)).toMatchObject({ ok: false, erro: 'unsupported_response_type' })
+    expect(validarPedido(base({ response_type: 'token' }), REG)).toMatchObject({ ok: false, erro: 'unsupported_response_type' })
   })
   it('state > 512 = invalid_request; 512 ok', () => {
     expect(validarPedido(base({ state: 's'.repeat(513) }), REG)).toMatchObject({ ok: false, erro: 'invalid_request' })

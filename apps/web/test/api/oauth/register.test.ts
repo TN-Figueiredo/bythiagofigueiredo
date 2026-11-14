@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { captureMessage } = vi.hoisted(() => ({ captureMessage: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage }))
+vi.mock('@/lib/pipeline/logger', () => ({ pipelineLog: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 
 import { POST } from '../../../src/app/api/oauth/register/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { pipelineLog } from '@/lib/pipeline/logger'
 import { __zerarAvisos } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 
 const SEGREDO = Buffer.alloc(32, 7).toString('base64')
@@ -15,9 +17,9 @@ type Linha = { n: number; n_dia: number; estourou: boolean }
 function banco(opts: { falhaRpc?: boolean; falhaInsert?: boolean; diaAtual?: number } = {}) {
   const porHash = new Map<string, number>()
   let dia = opts.diaAtual ?? 0
-  const insert = vi.fn(async () => ({ error: opts.falhaInsert ? { message: 'x' } : null }))
+  const insert = vi.fn(async () => ({ error: opts.falhaInsert ? { code: 'XX001', message: 'x' } : null }))
   const rpc = vi.fn(async (_f: string, a: { p_hash: string; p_limite: number; p_teto_dia: number }) => {
-    if (opts.falhaRpc) return { data: null, error: { message: 'x' } }
+    if (opts.falhaRpc) return { data: null, error: { code: 'XX000', message: 'x' } }
     const n = Math.min((porHash.get(a.p_hash) ?? 0) + 1, a.p_limite + 1)
     porHash.set(a.p_hash, n)
     if (n <= a.p_limite) dia = Math.min(dia + 1, a.p_teto_dia + 1)
@@ -41,6 +43,7 @@ beforeEach(() => {
   process.env.OBSERVATORIO_IA_OAUTH = 'on'
   process.env.OBSERVATORIO_IA_IP_SEGREDO = SEGREDO
   captureMessage.mockClear()
+  vi.mocked(pipelineLog).mockClear()
   __zerarAvisos()
 })
 afterEach(() => {
@@ -152,7 +155,7 @@ describe('POST /api/oauth/register', () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue(b as never)
     const grande = JSON.stringify({ ...OK, client_name: 'a'.repeat(9000) })
     expect((await POST(req(grande, '1.2.3.4', true))).status).toBe(413)
-    const semCL = new Request('https://x/api/oauth/register', { method: 'POST', body: grande })
+    const semCL = new Request('https://bythiagofigueiredo.com/api/oauth/register', { method: 'POST', body: grande })
     expect((await POST(semCL)).status).toBe(413)
     expect(b.rpc).not.toHaveBeenCalled()
   })
@@ -164,5 +167,27 @@ describe('POST /api/oauth/register', () => {
       expect(r.status).toBe(400)
       expect((await r.json()).error).toBe('invalid_client_metadata')
     }
+  })
+
+  it('I1: 503 de rpc e de insert logam etapa e code, sem client_id nem IP', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    expect((await POST(req(OK, '9.8.7.6'))).status).toBe(503)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaInsert: true }) as never)
+    expect((await POST(req(OK, '9.8.7.6'))).status).toBe(503)
+    const c = vi.mocked(pipelineLog).mock.calls
+    expect(c).toHaveLength(2)
+    expect(c[0].slice(0, 1).concat(c[0].slice(2))).toEqual(['error', 'rate', { code: 'XX000' }])
+    expect(c[1].slice(0, 1).concat(c[1].slice(2))).toEqual(['error', 'cliente_insert', { code: 'XX001' }])
+    expect(JSON.stringify(c)).not.toContain('9.8.7.6')
+  })
+
+  it('A6: Host fora da lista = 404 sem rpc', async () => {
+    const b = banco()
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(b as never)
+    const r = new Request('https://bythiagofigueiredo.com/api/oauth/register', {
+      method: 'POST', headers: { 'content-type': 'application/json', host: 'x.vercel.app' }, body: JSON.stringify(OK),
+    })
+    expect((await POST(r)).status).toBe(404)
+    expect(b.rpc).not.toHaveBeenCalled()
   })
 })

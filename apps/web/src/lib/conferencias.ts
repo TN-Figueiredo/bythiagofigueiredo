@@ -497,6 +497,37 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
   ]
 }
 
+// C1 (acesso da irmã pelo ChatGPT e Claude.ai, OAuth): três marcos, cada um com a sua constante, todas `null` até o controlador preenchê-las no commit
+// do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `C1`, ids `c1-`. A consulta 4.3 está em `docs/ops/observatorio-c1-consulta-4-3.sql`.
+/** Dia de São Paulo (AAAA-MM-DD) em que o código da C1 foi para `main` e o OAuth foi religado (T25). `null` = ainda não. */
+export const C1_DEPLOY: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) em que saiu o 1º token OAuth real (a conexão do dono, C1-25). `null` = ainda não. */
+export const C1_PRIMEIRO_TOKEN: string | null = null
+/** Dia de São Paulo (AAAA-MM-DD) da 1ª conexão real da irmã pelo ChatGPT (C1-25). `null` = ainda não. */
+export const C1_CHATGPT_CONEXAO: string | null = null
+
+const PLANO_C1 = 'docs/ops/observatorio-acesso-ia.md (seções "Consultas 4.3 e 4.7" e "Conferências datadas da C1"); anotar o resultado em .superpowers/sdd/acesso-irma-ia/c1/progress.md'
+
+/** D+9 do deploy e D+32 do 1º token (a poda roda 1x/dia e o filtro é de 8 e 31 dias; um dia a mais cobre o D0 inteiro, a qualquer hora da conferência: Phil I3) e D+1 da 1ª conexão do ChatGPT. Data malformada vira entrada de 1970 (vermelha). */
+export function conferenciasC1(deploy: string | null, primeiroToken: string | null, chatgpt: string | null): Conferencia[] {
+  const out: Conferencia[] = []
+  const e = (id: string, base: string, mais: number, onde: string): Conferencia => ({ id: `c1-${id}`, etapa: 'C1', data: somaDias(base, mais), responsavel: 'agente', onde: `${PLANO_C1}: ${onde}`, feitaEm: null })
+  const ruim = (id: string, nome: string, v: string): Conferencia => ({ id: `c1-${id}-invalido`, etapa: 'C1', data: '1970-01-01', responsavel: 'agente', onde: `${nome} (apps/web/src/lib/conferencias.ts) está malformada: "${v}". Corrigir para AAAA-MM-DD (dia de São Paulo) ou null`, feitaEm: null })
+  if (deploy !== null) {
+    if (!dataReal(deploy)) out.push(ruim('deploy', 'C1_DEPLOY', deploy))
+    else out.push(e('poda-clientes-d9', deploy, 9, "D+9 do deploy: `select count(*) from public.obs_ai_oauth_clientes c where c.aprovado_em is null and c.created_at < now() - interval '8 days' and not exists (select 1 from public.obs_ai_oauth_tokens t where t.client_id = c.client_id)`. Esperado 0 (a poda roda 1x/dia; 7 dias mais 1; conferido no D+9 para cobrir o D0 inteiro). Diferente de 0: a tarefa `poda_acesso_ia` não está podando os clientes; ver a K7. Se `select count(*) from public.obs_ai_oauth_clientes where aprovado_em is null` = 0 e a K7 nunca teve `clientesApagados` > 0, anotar 'sem sujeito', não 'ok'"))
+  }
+  if (primeiroToken !== null) {
+    if (!dataReal(primeiroToken)) out.push(ruim('primeiro-token', 'C1_PRIMEIRO_TOKEN', primeiroToken))
+    else out.push(e('poda-tokens-d32', primeiroToken, 32, "D+32 do 1º token: `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'`. Esperado 0 (a poda roda 1x/dia; guarda de 30 dias mais 1; conferido no D+32 para cobrir o D0 inteiro) e a K7 com `tokensApagadas` >= 1 em alguma execução desde o D+30 (o código do 1º token venceu em 10 min, então tem de ter sido apagado; 0 = a poda dos tokens não roda). Diferente disso: a poda dos tokens não rodou; ver a K7"))
+  }
+  if (chatgpt !== null) {
+    if (!dataReal(chatgpt)) out.push(ruim('chatgpt', 'C1_CHATGPT_CONEXAO', chatgpt))
+    else out.push(e('chatgpt-d1', chatgpt, 1, "D+1 da 1ª conexão da irmã (C1-25): consulta 4.3 (`docs/ops/observatorio-c1-consulta-4-3.sql`) tem de mostrar a classe `chatgpt` com o e-mail dela e uma linha `consentimento:chatgpt` com `desfecho = aprovado` (`result = ok`), a consulta P6 (`docs/ops/observatorio-c1-consulta-p6.sql`, sem o limite de 200 da 4.3) e o `redirect_uri` real em `obs_ai_oauth_clientes` (H8; consulta no runbook). Sem a linha `chatgpt`: ler o log da Vercel, consertar, e ela usa o Claude.ai enquanto isso"))
+  }
+  return out
+}
+
 // A5 X3 (coleta de playlists e seções dos concorrentes): as datas dependem do dia em que o dono LIGA a coleta (`OBS_X3_PLAYLISTS=on` na Vercel + redeploy,
 // depois da migration aplicada). `X3_LIGADA` é preenchida no commit desse dia; enquanto for `null`, as entradas NÃO existem. A X3 não tem número `E<n>`:
 // a etapa é `E21` só porque o guardião exige o formato (ids `x3-`); `E21` está RESERVADA à X3 e nenhuma etapa da A5 pode usá-la (Yannis M-6). As consultas estão na seção 11 do plano; a C1 ampliada (tamanho) é a da x3-d1.
@@ -698,7 +729,7 @@ const FEITAS: Readonly<Record<string, string>> = {
   'e17d2-d0': '2026-11-02', // K1 0; K6 forja (fila) usada há 9 min, user_id e expires_at nulos; env ausente na Vercel; curl 401 em 27/10
 }
 
-const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...X3_LOTE_27_10, ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasC1(C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...X3_LOTE_27_10, ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
 /**
  * Conferências vencidas sem prova em 22/10 (37; lista em .superpowers/sdd/a5/conferencias-vencidas-22-10.md), reabertas por
  * decisão do dono (23/10, fecho da A5): o vencimento passa a contar de REABERTAS_EM e elas saem do vermelho até lá. Quem as faz

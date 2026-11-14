@@ -124,6 +124,17 @@ export async function provarAcessoPrivadoDaChave(prova: ChaveDoPerfilProvada, op
   return perguntarDireito(prova.userId, siteId, opcoes?.prazoMs ?? PRAZO_MS, avisar)
 }
 
+/** "Esta pessoa vê o privado?" (tela de consentimento, quadros 1b × 1c): o token da leitura nunca sai do módulo. `null` = não deu para conferir (nunca vira `false`). */
+export async function vePrivado(siteId: string): Promise<boolean | null> {
+  try {
+    const a = await provarAcessoPrivado(siteId)
+    if (a.leitura !== null) return true
+    return a.negativa === 'nao_foi_possivel_conferir' ? null : false
+  } catch {
+    return null
+  }
+}
+
 export const provarLeituraPrivada = async (siteId: string): Promise<LeituraPrivadaDoSite | null> => (await provarAcessoPrivado(siteId)).leitura
 
 /** Em execução: o valor nasceu em `provarAcessoPrivado` (brand check do campo privado). */

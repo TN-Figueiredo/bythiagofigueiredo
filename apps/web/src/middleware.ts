@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { createAuthMiddleware } from '@tn-figueiredo/auth-nextjs/middleware'
 import { SupabaseRingContext } from '@tn-figueiredo/cms/ring'
 import { buildCsp, buildLegacyCsp, getCspMode } from '@/lib/security/csp'
+import { renovarSessao, type CookieRenovado } from '@/lib/security/renovar-sessao'
 
 /**
  * Middleware responsibilities:
@@ -444,6 +445,17 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
       const authRes = await cmsAuth(request)
       return mergeSiteHeaders(ctx, authRes, res)
     }
+    if (effectivePathname.startsWith('/oauth/consentimento')) {
+      // K17: renova antes de criar o rewrite (o cookie vai na requisição repassada), sem perder o rewrite do prefixo.
+      const novos = await renovarSessao(request, ctx.requestHeaders)
+      // O `res` criado antes neste ramo é descartado aqui. resolveSite não grava cookie; se passar a gravar, usar `cookies.getAll()` como `mergeSiteHeaders` (o `headers.set` guardaria só o último set-cookie).
+      const reescrita = ctx.rewrite(rewriteUrl)
+      siteRes.response.headers.forEach((value, key) => {
+        if (!key.startsWith('x-middleware-')) reescrita.headers.set(key, value)
+      })
+      reescrita.headers.set('x-locale', detectedLocale)
+      return comCookies(reescrita, novos)
+    }
     return res
   }
 
@@ -459,8 +471,22 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
     const authRes = await cmsAuth(request)
     return mergeSiteHeaders(ctx, authRes, siteRes.response)
   }
+  if (pathname.startsWith('/oauth/consentimento')) {
+    // K17: o cookie renovado vai na requisição repassada (Server Component) e na resposta (navegador).
+    const novos = await renovarSessao(request, ctx.requestHeaders)
+    const res = ctx.next()
+    siteRes.response.headers.forEach((value, key) => {
+      if (!key.startsWith('x-middleware-')) res.headers.set(key, value)
+    })
+    return comCookies(res, novos)
+  }
 
   return siteRes.response
+}
+
+function comCookies(res: NextResponse, novos: CookieRenovado[]): NextResponse {
+  for (const c of novos) res.cookies.set(c.name, c.value, c.options)
+  return res
 }
 
 type SiteResolution =

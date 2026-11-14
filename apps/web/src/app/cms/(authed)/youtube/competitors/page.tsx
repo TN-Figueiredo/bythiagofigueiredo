@@ -14,6 +14,8 @@ import { meuEmailDoSite } from './_canais/meu-email'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { lerPendenciasDaFila } from './_canais/pendencias-da-fila'
 import { forjaVerificouEm } from './_canais/forja-responde'
+import { LinhaConectarIa } from './_chrome/linha-conectar-ia'
+import { mostrarLinhaConectarIa } from './_chrome/mostrar-linha-conectar-ia'
 
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
@@ -34,6 +36,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // O redirecionamento roda logo depois de abrir o conjunto e antes de qualquer leitura privada (montarCanais, aoAbrir).
   // O e-mail da sessão (só para admin) é lido em paralelo com a montagem; o redirecionamento de `aoAbrir` continua antes de qualquer leitura privada.
   const meuEmailP = meuEmailDoSite()
+  const linhaIaP = mostrarLinhaConectarIa()
   const medicao = novaMedicao('canais')
   gravarAoFim(medicao)
   const [{ pagina: { siteId, now, obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await comMedicao(medicao, () => Promise.all([
@@ -45,8 +48,9 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) },
       { verificadorEm: permissoes.podeEditar && process.env.OBS_ARQUIVO === 'on' ? await forjaVerificouEm(siteId) : undefined })
     : null
+  const linhaIa = await linhaIaP
   return (
-    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado} medicao={medicao}
+    <ObservatoryChromeServer tab="canais" sobTitulo={<LinhaConectarIa mostrar={linhaIa} />} searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado} medicao={medicao}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
         view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} onMarcarRodado={marcarRodado} onDesfazerRodado={desfazerRodado} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}

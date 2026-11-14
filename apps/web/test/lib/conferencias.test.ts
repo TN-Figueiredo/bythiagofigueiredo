@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import {
-  ADIADAS, CONFERENCIAS, REABERTAS, REABERTAS_EM, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
+  ADIADAS, CONFERENCIAS, REABERTAS, REABERTAS_EM, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasC1, C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -1085,5 +1085,36 @@ describe('reabertas (fecho da A5)', () => {
       expect(c, id).toBeDefined()
       expect(c?.feitaEm, id).toBe(id === 'e19-15o-dia' ? '2026-10-26' : '2026-10-27')
     }
+  })
+})
+
+describe('C1: conferências datadas do OAuth', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('com as três datas nulas (estado publicado), nenhuma entrada c1- existe', () => {
+    expect([C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO]).toEqual([null, null, null])
+    expect(conferenciasC1(null, null, null)).toEqual([])
+    expect(CONFERENCIAS.filter(x => x.id.startsWith('c1-'))).toEqual([])
+  })
+  it('com data: D+9 do deploy, D+32 do 1º token e D+1 da conexão do ChatGPT, com a consulta e o esperado', () => {
+    const c = conferenciasC1(dia(-10), dia(-10), dia(-10))
+    expect(c.map(x => x.id)).toEqual(['c1-poda-clientes-d9', 'c1-poda-tokens-d32', 'c1-chatgpt-d1'])
+    expect(c.map(x => x.data)).toEqual([dia(-1), dia(22), dia(-9)])
+    for (const x of c) { expect(x.etapa).toBe('C1'); expect(x.feitaEm).toBeNull() }
+    expect(c[0].onde).toContain("interval '8 days'")
+    expect(c[1].onde).toContain("interval '31 days'")
+    expect(c[0].onde).toContain('Esperado 0')
+    expect(c[2].onde).toContain('consentimento:chatgpt')
+    // Phil I3: D+9/D+32 (qualquer hora do dia cobre o D0 inteiro) e prova de que a poda rodou, não só "0"
+    expect(c[1].onde).toContain('tokensApagadas')
+    expect(c[0].onde).toContain('sem sujeito')
+    // Phil M1: o valor gravado é desfecho = aprovado (result = ok)
+    expect(c[2].onde).toContain('desfecho = aprovado')
+  })
+  it('data malformada vira entrada de 1970 por marco', () => {
+    expect(conferenciasC1('x', null, null).map(x => x.id)).toEqual(['c1-deploy-invalido'])
+    expect(conferenciasC1(null, 'x', null).map(x => x.id)).toEqual(['c1-primeiro-token-invalido'])
+    expect(conferenciasC1(null, null, '2026-02-31').map(x => [x.id, x.data])).toEqual([['c1-chatgpt-invalido', '1970-01-01']])
   })
 })

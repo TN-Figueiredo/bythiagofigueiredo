@@ -10,15 +10,15 @@ import {
   UserPen, UsersRound, MessageSquare,
   TrendingUp, Kanban, Bell,
   FlaskConical, Eye, Settings,
-  Gift,
+  Gift, Plug,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
 const STROKE = 1.75
 const icon = (Icon: LucideIcon) => createElement(Icon, { size: ICON_SIZE, strokeWidth: STROKE })
 
-export function buildCmsSections(): SidebarSection[] {
-  return [
+export function buildCmsSections(opcoes: { conectarIa?: boolean } = {}): SidebarSection[] {
+  const secoes: SidebarSection[] = [
     {
       label: 'HUB',
       items: [
@@ -75,6 +75,13 @@ export function buildCmsSections(): SidebarSection[] {
       ],
     },
   ]
+  if (!opcoes.conectarIa) return secoes
+  // C1 T21b: depois de Competitors, sem minRole (quem decide é a liberação da pessoa, lida no layout)
+  const novo: SidebarNavItem = { icon: icon(Plug), label: 'Conectar sua IA', href: '/cms/conectar-ia' }
+  return secoes.map((s) => {
+    const i = s.items.findIndex((it) => it.href === '/cms/youtube/competitors')
+    return i < 0 ? s : { ...s, items: [...s.items.slice(0, i + 1), novo, ...s.items.slice(i + 1)] }
+  })
 }
 
 export const CMS_SETTINGS_ITEM: SidebarNavItem = {

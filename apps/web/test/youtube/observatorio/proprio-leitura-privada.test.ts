@@ -14,7 +14,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: (...a: unknown[]) => { criarCliente(...a); return { rpc: (...b: unknown[]) => { const r = rpc(...b); return { abortSignal: (sg: AbortSignal) => { sinais.push(sg); return typeof r === 'function' ? (r as (x: AbortSignal) => unknown)(sg) : r } } } } } }))
 
-import { provarAcessoPrivado, provarAcessoPrivadoDaChave, provarLeituraPrivada, leituraValida, LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { provarAcessoPrivado, provarAcessoPrivadoDaChave, provarLeituraPrivada, vePrivado, leituraValida, LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { provarEdicao, EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { fabricarProva } from '@/lib/youtube/observatorio/acesso-ia/prova'
 
@@ -284,5 +284,25 @@ describe('provarAcessoPrivadoDaChave: a leitura privada por chave do perfil', ()
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(captureException.mock.calls[0]![1])).not.toContain(USUARIA)
     expect(JSON.stringify(captureException.mock.calls[0]![1])).not.toContain('x ')
+  })
+})
+
+describe('vePrivado: só o booleano (tela de consentimento)', () => {
+  it('quem edita e quem só lê com a função em true: true', async () => {
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: USUARIA } })
+    expect(await vePrivado(SITE)).toBe(true)
+    soLe(); rpc.mockResolvedValue({ data: true, error: null })
+    expect(await vePrivado(SITE)).toBe(true)
+  })
+  it('sem direito (data:false) ou site inválido: false', async () => {
+    soLe(); rpc.mockResolvedValue({ data: false, error: null })
+    expect(await vePrivado(SITE)).toBe(false)
+    expect(await vePrivado('nao-uuid')).toBe(false)
+  })
+  it('não deu para conferir (rpc com error, guarda que lança): null, nunca lança e nunca false', async () => {
+    soLe(); rpc.mockResolvedValue({ data: null, error: { code: 'x' } })
+    expect(await vePrivado(SITE)).toBeNull()
+    requireSiteScope.mockRejectedValue(new Error('fora'))
+    expect(await vePrivado(SITE)).toBeNull()
   })
 })

@@ -12,7 +12,7 @@ export type PedidoValido = {
 export type ResultadoPedido =
   | { ok: true; p: PedidoValido }
   | { ok: false; erro: 'cliente' | 'redirect' }
-  | { ok: false; erro: 'invalid_request' | 'invalid_scope' | 'invalid_target'; descricao: string }
+  | { ok: false; erro: 'invalid_request' | 'invalid_scope' | 'invalid_target' | 'unsupported_response_type'; descricao: string }
 
 const CHALLENGE = /^[A-Za-z0-9_-]{43}$/
 
@@ -24,12 +24,15 @@ export function validarPedido(q: URLSearchParams, registrado: { redirect_uris: s
   if (!redirectUri || q.getAll('redirect_uri').length > 1 || !registrado.redirect_uris.includes(redirectUri)) {
     return { ok: false, erro: 'redirect' }
   }
-  for (const k of ['code_challenge', 'code_challenge_method', 'state', 'scope', 'resource']) {
+  for (const k of ['response_type', 'code_challenge', 'code_challenge_method', 'state', 'scope', 'resource']) {
     if (q.getAll(k).length > 1) {
       return { ok: false, erro: 'invalid_request', descricao: `repeated parameter ${k}` }
     }
   }
 
+  if (q.get('response_type') !== 'code') {
+    return { ok: false, erro: 'unsupported_response_type', descricao: 'response_type must be code' }
+  }
   const codeChallenge = q.get('code_challenge')
   if (!codeChallenge) return { ok: false, erro: 'invalid_request', descricao: 'code_challenge required' }
   if (q.get('code_challenge_method') !== 'S256') {

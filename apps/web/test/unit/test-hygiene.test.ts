@@ -42,6 +42,9 @@ const ALLOWLIST = new Set([
   // C1 (OAuth do Observatório): datas de 2027 são entrada de funções puras de calendário de SP
   // (`diaDeVencimentoSp`, `entradaDeConferencia`) e retorno simulado de rpc; nenhuma compara com o relógio
   'test/youtube/observatorio/acesso-ia-vencimento.test.ts',
+  // C1 T21b: relógio fixo (AGORA 2026-11-12; fake timers na página, `agoraMs` explícito no estado); 2027 é só o vencimento simulado
+  'test/youtube/observatorio/acesso-ia-estado-da-pessoa.test.ts',
+  'test/app/cms-conectar-ia-page.test.tsx',
   'test/youtube/observatorio/acesso-ia-liberacao.test.ts',
   // C1: 2031 é o balde simulado (`p_now` explícito) que o próprio teste cria e apaga na limpeza
   'test/integration/c1-teto-e-taxa.test.ts',

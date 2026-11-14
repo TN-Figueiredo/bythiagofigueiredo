@@ -127,3 +127,107 @@ O que difere de propósito, para ninguém tomar por defeito: limites (a rota `ch
 | `definicoes` | o documento vivo do Cowork | duas fontes, a caminho de uma |
 | (não há) | `GET …/competitors/insights` | só no Cowork; aqui, `pacote_da_tela` com a tela `insights` (e a rota devolve `-1` e `0` onde a tela diz "não medido") |
 | (não há) | ferramentas de escrita e forja | só no Cowork, de propósito |
+
+---
+
+# Acesso por OAuth (C1): a irmã e o dono conectam o ChatGPT ou o Claude.ai sem chave
+
+Plano e ledger da C1: `.superpowers/sdd/acesso-irma-ia/c1/` (`plano.md`, `progress.md`). Spec: `c1/spec.md`. A chave Bearer acima segue valendo para o Claude Code e o Cowork; o OAuth é outro caminho, com o mesmo registro (`obs_ai_access_log`) e a mesma ferramenta.
+
+## Conectar pelo ChatGPT ou Claude.ai
+
+Quem conecta: a pessoa liberada (seção "Liberar, estender e cortar"). URL do servidor, exatamente assim, **sem barra no fim**: `https://bythiagofigueiredo.com/api/mcp`.
+
+- A pessoa abre a página do CMS `https://bythiagofigueiredo.com/cms/conectar-ia` (para o ChatGPT, o link do bilhete é `https://bythiagofigueiredo.com/cms/conectar-ia?ia=chatgpt`; `?ia=claude` abre a aba do Claude). A página mostra os passos por IA, a URL e a validade do acesso dela. Sem login ela manda para o login do CMS e volta.
+- Na IA: adicionar conector personalizado com o nome `Observatório do Thiago` (o da página) e a URL acima; conectar. Abre uma janela no nosso site (endereço começa com `https://bythiagofigueiredo.com/`), login do CMS e a tela "Aprovar" com a frase "Só aprove se você acabou de clicar em Conectar no seu Claude". Um clique em Aprovar.
+- O acesso dura 1 hora e a IA renova sozinha por até 30 dias (nunca além do fim da liberação). Passou disso, ou a liberação foi cortada, pede para conectar de novo.
+- Roteiro completo da prova do dono, passo a passo: `.superpowers/sdd/acesso-irma-ia/c1/roteiro-prova.md`.
+
+**Passo fixo P6: no dia seguinte a TODA aprovação, rodar a consulta P6 (`docs/ops/observatorio-c1-consulta-p6.sql`, só consentimentos, sem o limite de 200 da 4.3, onde a aprovação pode sumir da janela) e conferir que a linha `consentimento:<cliente>` é da pessoa que aprovou** (e-mail e cliente certos). Linha de outra pessoa ou de cliente errado = alguém aprovou no nome de outro: cortar a pessoa (seção abaixo) e chamar o controlador.
+
+## Religar e desligar o OAuth (uma implantação, ~5 min)
+
+A trava é `OBSERVATORIO_IA_OAUTH` (valor exato `on` liga), **só em Production** (ausente em Preview e Development, sempre: mesmo banco). É Secret na Vercel: não se edita, remove e recria.
+
+- **Religar:** `bash .superpowers/sdd/acesso-irma-ia/c1/f5-religar.sh` (troca para `on`, redeploy, confere o metadado e o convite, e faz o `explain` do resolvedor de token; saída em `c1/f5-religar.out`).
+- **Desligar o OAuth:** `bash .superpowers/sdd/acesso-irma-ia/c1/f5-desligar.sh` (troca para `off`, redeploy, e o `curl` do metadado tem de dar 404). **Leva uma implantação, uns 5 minutos:** até ela terminar o OAuth continua ligado. Para cortar uma pessoa já, sem esperar o deploy, use `f6-cortar-pessoa.sh` (abaixo). Com a trava fechada, tokens e conexões ficam no banco, inertes; religar devolve o mesmo token de acesso enquanto não passar da 1 h dele.
+- **Desligar não revoga nada:** religar devolve todas as conexões com refresh válido (até 30 dias). Se o motivo foi um acesso indevido, rode `f6-cortar-pessoa.sh` ANTES de religar.
+- **O `explain` do religar** espera `Index Scan using obs_ai_oauth_tokens_hash_unico` (ou `Bitmap Index Scan` no mesmo índice). Seq Scan com menos de ~100 linhas é aceito (o planejador prefere varrer tabela pequena); refazer o `explain` no D+32. O script antes mostra os índices únicos da tabela (`obs_ai_oauth_tokens_hash_unico | t`, mais a pkey).
+
+## Liberar, estender e cortar
+
+Comandos do dono, no terminal do repo principal, fora do Claude Code. Atrás está `apps/web/scripts/observatorio-acesso.ts`; os `.sh` abaixo só validam o argumento, dizem o que vai acontecer e chamam o `npx tsx`. Teto: duas PESSOAS com liberação ativa (dono + irmã).
+
+| O que | Comando | Aparece |
+|---|---|---|
+| Liberar a pessoa (180 dias) | `bash .superpowers/sdd/acesso-irma-ia/c1/f5-liberar.sh <e-mail>` | `liberação criada: <id>, vence em AAAA-MM-DDTHH:MM…Z` (UTC) e um bloco `e17d2-liberacao-…` (vai para `src/lib/conferencias.ts`, num commit do controlador). Os erros: `recusado: email_ausente` = nenhum usuário do CMS com esse e-mail (erro de digitação?); `email_ambiguo` = mais de um; `sem_acesso_ao_site` = a pessoa não vê o site |
+| Estender a liberação | `cd ~/Workspace/bythiagofigueiredo && npx tsx --tsconfig apps/web/tsconfig.json --require ./apps/web/scripts/_sem-server-only.cjs --env-file apps/web/.env.local apps/web/scripts/observatorio-acesso.ts estender --liberacao <uuid> --dias N` | `liberação estendida: <id>, agora vence em <ISO>` e a entrada nova; o controlador marca `feitaEm` na antiga e cola a nova (a chave Bearer ligada acompanha a validade) |
+| Cortar um cliente da pessoa | `bash …/c1/f6-cortar-cliente.sh <e-mail> <claude\|chatgpt>` | `corte feito (só <cliente>): N linha(s) afetada(s)`, uma linha `obs_ai_liberacoes: <id>` (sempre: é onde grava o bloqueio) e, se havia conexão do cliente, uma linha `obs_ai_conexoes: <id>`. N = 1: só bloqueou; N = 2: bloqueou e cortou a conexão. Sem liberação: `recusado: sem_liberacao` |
+| Devolver o cliente | `bash …/c1/f6-liberar-cliente.sh <e-mail> <cliente>` | `bloqueio de <cliente> apagado; bloqueios que restam: …` |
+| Cortar a pessoa inteira | `bash …/c1/f6-cortar-pessoa.sh <e-mail>` | `corte feito: N linha(s) afetada(s)` e uma linha `tabela: id` para a liberação, cada conexão e cada chave Bearer do Observatório (`pipeline_api_keys`). **Derruba também a chave Bearer do Claude Code e do Cowork da pessoa; `liberar` não a devolve, é preciso `criar --usuario <e-mail>` (linha do controlador).** Rodar duas vezes: a 2ª imprime `recusado: sem_liberacao` (já estava cortado) |
+
+Regras que o dono precisa saber:
+
+- **Contrato do `cortar` sem liberação (Phil F1 M6, re-revisão da emenda, item 2):** a pessoa que só tem chave Bearer, sem liberação, é cortada do mesmo jeito: o comando revoga as chaves do perfil e imprime `corte feito: N chave(s) Bearer; a pessoa não tinha liberação`. Sem liberação e sem chave: `recusado: sem_liberacao` (nada a cortar). Quem consumir a função SQL `obs_ai_cortar` fora do TS: a linha de aviso `sem_liberacao` vem também quando houve chave revogada; ler as linhas de tabela, não só o `motivo`.
+- **Desfazer a C1 (Phil F1 M6):** 1) código da C1 fora do ar (revert + deploy); 2) só então `drop` de gatilhos, funções e tabelas novas; 3) o `check` de `origin` volta ao antigo só depois de `delete from public.obs_ai_access_log where origin = 'oauth'`. Invertido, todo pedido de apagamento da LGPD falha em `obs_ai_revogar_lgpd` (fonte: `c1/spec.md:386`).
+- **Voltar depois de um corte:** o corte revoga nesta ordem liberação, conexões, tokens e chaves; para voltar, a ordem é a inversa e só por comando: `f5-liberar.sh <e-mail>` cria liberação nova e a pessoa conecta de novo (conexão e token cortados nunca ressuscitam). `f6-liberar-cliente.sh` só apaga o bloqueio do cliente; não recria conexão.
+- **Pedido de exclusão cancelado** (a pessoa pediu apagar a conta e desistiu): rodar `f5-liberar.sh <e-mail>` de novo (Phil M7).
+- **Refresh perto do fim da liberação:** um refresh emitido perto do fim da liberação vence junto com ela; mesmo depois de a liberação ser estendida, a pessoa pede login uma vez (Phil M8).
+- **O dia da pessoa vira às 21:00 BRT** (o contador diário é por dia de UTC; Phil M6).
+- **O aviso de Sentry é por instância** da função: com N instâncias quentes podem chegar até N avisos por hora e por tipo (Yannis M12).
+- **Tetos de cadastro: 200 clientes por dia (`/register`) e 2.000 pedidos por dia (`/authorize`) moram em `apps/web/src/lib/youtube/observatorio/acesso-ia/oauth/config.ts` (`LIMITES.registerDia`, `LIMITES.authorizeDia`), não numa migration.** Subir é mudar o arquivo, `build`, commit e deploy (Phil F3 M2, `c1/f2/portao-f3-phil.md`). Esgotar o teto é indisponibilidade aceita por desenho (R13): o dono não conecta até as 21:00 BRT.
+
+## Consultas 4.3 e 4.7 (só leitura, no editor SQL do painel)
+
+**4.3: quem conectou, por qual cliente, últimos 7 dias.** O arquivo é `docs/ops/observatorio-c1-consulta-4-3.sql` (o teste `apps/web/test/integration/c1-consulta-4-3.test.ts` lê este arquivo). Classes devolvidas: `chatgpt`, `claude`, `chave` (Bearer), `botao`, `consentimento:<cliente>` e `sem_chave`. O cliente sai do NOME da chave (`observatorio-oauth-<cliente>-…`), que nunca é apagada; pessoa apagada fica sem e-mail e a chamada segue com o mesmo cliente.
+
+```sql
+select l.at, u.email, l.action, l.result, l.params->>'desfecho' as desfecho,
+       case when l.origin = 'botao' then 'botao'
+            when l.origin = 'oauth' then 'consentimento:' || coalesce(l.params->>'cliente', '?')
+            when l.key_id is null then 'sem_chave'
+            when k.name like 'observatorio-oauth-%' then split_part(k.name, '-', 3)
+            else 'chave' end as cliente
+  from public.obs_ai_access_log l
+  left join public.pipeline_api_keys k on k.id = l.key_id
+  left join auth.users u on u.id = l.user_id
+ where l.at > now() - interval '7 days' order by l.at desc limit 200;
+```
+
+**4.7: fonte única do "pode ler". Devolve ZERO linhas, sempre.** Arquivo: `docs/ops/observatorio-c1-consulta-4-7.sql`. Qualquer linha é uma conexão cujo estado (liberação, conexão, chave, tokens) divergiu: parar, não religar nada, chamar o controlador com as linhas.
+
+```sql
+select c.id from public.obs_ai_conexoes c
+  join public.obs_ai_liberacoes b on b.id = c.liberacao_id
+  join public.pipeline_api_keys k on k.id = c.key_id
+where (k.revoked_at is null and (c.revoked_at is not null or b.revoked_at is not null or k.expires_at <> b.expires_at))
+   or (k.revoked_at is not null and c.revoked_at is null)
+   or exists (select 1 from public.obs_ai_oauth_tokens t
+               where t.conexao_id = c.id and t.revoked_at is null and c.revoked_at is not null and t.tipo <> 'codigo');
+```
+
+## Conferências datadas da C1
+
+Entradas em `apps/web/src/lib/conferencias.ts` (`conferenciasC1`, ids `c1-`), todas **sem existir** enquanto a constante for `null`; o controlador preenche a data no commit do dia.
+
+| Id | Constante | Quando | O que conferir | Esperado |
+|---|---|---|---|---|
+| `c1-poda-clientes-d9` | `C1_DEPLOY` | D+9 do deploy | clientes de cadastro nunca aprovados, sem token, com `created_at < now() - interval '8 days'` | 0 (a poda roda 1×/dia: 7 dias mais 1; D+9 cobre o D0 inteiro a qualquer hora; Phil I3). Se `select count(*) from public.obs_ai_oauth_clientes where aprovado_em is null` = 0 e a K7 nunca teve `clientesApagados` > 0: anotar "sem sujeito", não "ok" |
+| `c1-poda-tokens-d32` | `C1_PRIMEIRO_TOKEN` | D+32 do 1º token | `select count(*) from public.obs_ai_oauth_tokens where expires_at < now() - interval '31 days'` | 0 **e** a K7 com `tokensApagadas` >= 1 em alguma execução desde o D+30 (o código do 1º token venceu em 10 min; 0 = a poda dos tokens não roda) |
+| `c1-chatgpt-d1` | `C1_CHATGPT_CONEXAO` | D+1 da 1ª conexão real da irmã (C1-25) | consulta P6 (`desfecho = aprovado`, `result = ok`, e-mail dela) + 4.3 (classe `chatgpt`) + o `redirect_uri` real (H8): `select client_id, cliente, redirect_uris, created_at, aprovado_em from public.obs_ai_oauth_clientes where cliente = 'chatgpt' order by created_at desc limit 5;` | linhas presentes |
+
+Falhou o ChatGPT: o controlador lê o log da Vercel, conserta, e ela usa o Claude.ai enquanto isso. Falhou a poda: ver a K7 do degrau 2 (a tarefa `poda_acesso_ia`).
+
+## O que a irmã vê quando é cortada (H6)
+
+Preencher na F6 (T26), com o texto exato que o Claude.ai e o ChatGPT mostraram no ensaio do dono ao serem cortados (passos 6 e 7 do roteiro):
+
+- Corte do cliente (`f6-cortar-cliente.sh`): Claude.ai: _(pendente, copiar do ensaio)_. ChatGPT: _(a perna do ChatGPT é só por leitura; sem ensaio)_.
+- Corte da pessoa (`f6-cortar-pessoa.sh`): Claude.ai: _(pendente)_.
+- Ao tentar conectar de novo, a nossa tela diz que o dono cortou este acesso e não deixa aprovar.
+
+## Dívidas conhecidas, com gatilho
+
+- **A4 (ataque F3, `c1/f2/ataque-f3.md`):** os tetos globais por dia (200 clientes, 2.000 pedidos) viram alavanca de DoS barata com IPv6 (rodízio de `/64`): o dono fica sem conectar até as 21:00 BRT. Gatilho: o 1º `teto_dia` no Sentry; a saída é agrupar o IP por `/48` ou subir o teto em `config.ts`.
+- **M4 da F3b (`c1/f4/erro-f3b-yannis.md`):** 503 depois de o banco já ter emitido o token queima o código ou dispara alarme falso de reuso. Hoje o caminho é inalcançável. Gatilho: qualquer migration que mude o `returns table` de `obs_ai_trocar_codigo` ou `obs_ai_girar_refresh`; antes dela, acrescentar o `grant` ao log da etapa `linha` ou decidir o fallback (b). Junto, apagar `PRAZOS.acessoS` (`config.ts`), que ficou sem uso no código (o prazo vive no SQL).
+- **`FRASES_CONECTAR.loginContexto`** (`frases-conectar.ts`, "Entre para ver como conectar o Observatório à sua IA") está sem uso: a página manda ao login sem mostrar contexto. Gatilho: se a irmã se perder no login, mostrar a frase; senão apagar na próxima mexida no arquivo.
