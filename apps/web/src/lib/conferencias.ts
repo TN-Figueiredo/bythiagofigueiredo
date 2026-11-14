@@ -352,7 +352,7 @@ const BASE: readonly Conferencia[] = [
   { id: 'e20-prova-90d', etapa: 'E20', data: '2027-01-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 > 0 (item 205)`, feitaEm: null },
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
   // C1 T25 (14/11): liberações por OAuth de 180 dias (dono e irmã), saída do f5-liberar.sh
-  { id: 'e17d2-liberacao-64d4d984-vence-20270513', etapa: 'E17', data: '2027-04-29', responsavel: 'dono', onde: 'a liberação 64d4d984 do acesso por OAuth vence em 13/05. Decida estender (comando estender --liberacao 64d4d984-564c-493b-9e1c-f6b649e98c87 --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita', feitaEm: null },
+  { id: 'e17d2-liberacao-dono-vence-20270513', etapa: 'E17', data: '2027-04-29', responsavel: 'dono', onde: 'a liberação do dono do acesso por OAuth (a nova, criada no ensaio de 14/11, passo 8.1, depois do corte da 64d4d984) vence em 13/05. Decida estender (comando estender --liberacao <id da liberação do dono, que o f5-liberar mostra> --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita', feitaEm: null },
   { id: 'e17d2-liberacao-b5ddca6f-vence-20270513', etapa: 'E17', data: '2027-04-29', responsavel: 'dono', onde: 'a liberação b5ddca6f do acesso por OAuth vence em 13/05. Decida estender (comando estender --liberacao b5ddca6f-a729-4a48-bf5c-e121a6999548 --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita', feitaEm: null },
 ]
 
@@ -505,7 +505,7 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 /** Dia de São Paulo (AAAA-MM-DD) em que o código da C1 foi para `main` e o OAuth foi religado (T25). `null` = ainda não. */
 export const C1_DEPLOY: string | null = '2026-11-14' // main 4a4d2caf9 em 14/11; OAuth religado (redeploy rltut0324) às 00:23 de São Paulo
 /** Dia de São Paulo (AAAA-MM-DD) em que saiu o 1º token OAuth real (a conexão do dono, C1-25). `null` = ainda não. */
-export const C1_PRIMEIRO_TOKEN: string | null = null
+export const C1_PRIMEIRO_TOKEN: string | null = '2026-11-14' // conexão do dono no ensaio T26 (14/11)
 /** Dia de São Paulo (AAAA-MM-DD) da 1ª conexão real da irmã pelo ChatGPT (C1-25). `null` = ainda não. */
 export const C1_CHATGPT_CONEXAO: string | null = null
 
