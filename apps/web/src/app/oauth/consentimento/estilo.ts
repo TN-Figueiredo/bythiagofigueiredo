@@ -1,7 +1,7 @@
 // Tokens do mockup M1 r2 (hex e rgba; nunca color-mix). Escopo `.c1c`; escuro por `prefers-color-scheme`.
 export const ESTILO = `
 .c1c{--bg:#F7F1E8;--surface:#FBF6EC;--text:#1F1B17;--muted:#6A5F48;--line:#CEBFA0;--accent:#B94210;--on-accent:#FFFFFF;--accent-soft:rgba(185,66,16,.10);--green:#15803D;--green-soft:rgba(21,128,61,.12);--amber:#92400E;--amber-border:#B45309;--amber-soft:rgba(245,158,11,.18);--red:#B91C1C;--red-soft:rgba(185,28,28,.10);--neutral-soft:rgba(128,128,128,.14);--shadow:0 1px 2px rgba(31,27,23,.08),0 8px 24px rgba(31,27,23,.07)}
-@media (prefers-color-scheme:dark){.c1c{--bg:#1A1714;--surface:#221E1A;--text:#F5EFE6;--muted:#958A75;--line:#332D25;--accent:#FF8240;--on-accent:#1A140C;--accent-soft:rgba(255,130,64,.13);--green:#22C55E;--green-soft:rgba(34,197,94,.13);--amber:#F59E0B;--amber-soft:rgba(245,158,11,.14);--red:#EF4444;--red-soft:rgba(239,68,68,.13);--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}}
+@media (prefers-color-scheme:dark){.c1c{--bg:#1A1714;--surface:#221E1A;--text:#F5EFE6;--muted:#958A75;--line:#332D25;--accent:#FF8240;--on-accent:#1A140C;--accent-soft:rgba(255,130,64,.13);--green:#22C55E;--green-soft:rgba(34,197,94,.13);--amber:#F59E0B;--amber-border:#F59E0B;--amber-soft:rgba(245,158,11,.14);--red:#EF4444;--red-soft:rgba(239,68,68,.13);--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}}
 .c1c{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg);color:var(--text);font:14px/20px Inter,ui-sans-serif,system-ui,sans-serif}
 .c1c *{box-sizing:border-box}
 .c1c :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -24,6 +24,7 @@ export const ESTILO = `
 .c1c .who{color:var(--muted);margin-top:8px;overflow-wrap:anywhere}
 .c1c .who b{color:var(--text);font-weight:600}
 .c1c .when{display:flex;gap:8px;color:var(--muted);font-size:13px;margin-top:4px}
+.c1c .when b{color:var(--text);font-weight:600}
 .c1c .when.late{color:var(--amber);font-weight:600}
 .c1c .lists{margin-top:20px;display:grid;gap:16px}
 .c1c ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}

@@ -230,7 +230,7 @@ describe('página /oauth/consentimento', () => {
       expect(h.indexOf('Só aprove se você')).toBeLessThan(h.indexOf('Sim, fui eu. Aprovar'))
       expect(h).toContain('Conectar o ChatGPT')
       expect(h).toContain('irma@exemplo.com')
-      expect(h).toContain('Pedido feito às 11:58 pelo ChatGPT')
+      expect(h).toContain('Pedido feito às <b>11:58</b> pelo ChatGPT')
       expect(h).toContain(FRASES_DA_TELA.risco_vale_ate('11/02/2027'))
       expect(chamadasDe('obs_ai_aprovar_conexao')).toHaveLength(0)
       expect(chamadasDe('obs_ai_negar_pedido')).toHaveLength(0)

@@ -72,6 +72,8 @@ export const FRASES_DA_TELA = {
   voce_entrou: 'Você entrou como',
   nao_e_voce: 'Não é você? Sair',
   pedido_as: (ia: string, hora: string): string => `Pedido feito às ${hora} pelo ${ia}. Este pedido vale por 10 minutos.`,
+  /** Mesma frase de `pedido_as`, em partes: a hora vai em <b> na tela. */
+  pedido_as_partes: (ia: string, hora: string): { antes: string; hora: string; depois: string } => ({ antes: 'Pedido feito às ', hora, depois: ` pelo ${ia}. Este pedido vale por 10 minutos.` }),
   pode: (ia: string): string => `O que o ${ia} poderá fazer`,
   nao_pode: 'O que não poderá fazer',
   pode_concorrentes: 'Ver os canais concorrentes e como estão indo.',

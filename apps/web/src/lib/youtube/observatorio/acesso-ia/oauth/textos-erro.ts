@@ -75,7 +75,8 @@ export const CSS_ERRO =
   '.oe-pg{background:var(--bg);color-scheme:light dark}' +
   '.oe{box-sizing:border-box;width:100%;max-width:480px;margin:0 auto;padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);color:var(--text);font:14px/20px Inter,ui-sans-serif,system-ui,sans-serif;overflow-wrap:anywhere}' +
   '.oe *{box-sizing:border-box}' +
-  '.oe-brand{color:var(--muted);font-size:13px;margin:0 0 12px}' +
+  '.oe-brand{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin:0 0 12px}' +
+  '.oe-brand b{width:22px;height:22px;flex:none;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:12px}' +
   '.oe-hd{display:flex;align-items:center;gap:12px;margin:0 0 8px}' +
   '.oe-badge{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--neutral-soft);color:var(--muted)}' +
   '.oe-amber .oe-badge{background:var(--amber-soft);color:var(--amber)}' +
@@ -95,7 +96,7 @@ export function corpoDeErro(codigo: CodigoErro): string {
   const botao = codigo === 'falha' ? '<a class="oe-btn" href="">Tentar de novo</a>' : ''
   return (
     `<main class="oe oe-${t.tom}" lang="pt-BR">` +
-    '<p class="oe-brand">bythiagofigueiredo.com</p>' +
+    '<p class="oe-brand"><b aria-hidden="true">T</b>bythiagofigueiredo.com</p>' +
     `<div class="oe-hd"><span class="oe-badge">${ICONES[ICONE_POR_CODIGO[codigo]]}</span><h1>${esc(t.titulo)}</h1></div>` +
     `<p>${esc(t.texto)}</p>` +
     `<p class="oe-acao">${esc(t.acao)}</p>` +

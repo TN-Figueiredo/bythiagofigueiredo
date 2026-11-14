@@ -149,6 +149,7 @@ function Estado({ estado, pedido, authorizationId, h1, ocupado, voltar }: { esta
 
 function Pedido({ pedido, authorizationId, h1, ocupado, pronto, formRef, aprovar, negar }: { pedido: DadosDoPedido; authorizationId: string; h1: React.RefObject<HTMLHeadingElement | null>; ocupado: Ocupado; pronto: boolean; formRef: React.RefObject<HTMLFormElement | null>; aprovar: () => void; negar: () => void }): ReactElement {
   const ia = pedido.ia
+  const partesPedido = F.pedido_as_partes(ia, pedido.hora)
   const trava = !pronto || ocupado !== null
   return (
     <article className="card tone tone-accent">
@@ -161,7 +162,7 @@ function Pedido({ pedido, authorizationId, h1, ocupado, pronto, formRef, aprovar
           <form className="sair" method="post" action="/cms/logout"><button type="submit" className="sair-link">{F.nao_e_voce}</button></form>
         </>
       ) : null}
-      <p className={`when${pedido.tarde ? ' late' : ''}`}><Clock {...i16} /><span>{F.pedido_as(ia, pedido.hora)}</span></p>
+      <p className={`when${pedido.tarde ? ' late' : ''}`}><Clock {...i16} /><span>{partesPedido.antes}<b>{partesPedido.hora}</b>{partesPedido.depois}</span></p>
       <div className="lists">
         <div>
           <h2>{F.pode(ia)}</h2>
