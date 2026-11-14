@@ -3,16 +3,16 @@ import { CmsLogin } from '@tn-figueiredo/cms/login'
 import { loadBranding } from '@/lib/auth/auth-branding'
 import { buildAuthTheme } from '@/lib/auth/auth-theme'
 import { LoginSemGoogle } from '@/lib/auth/login-sem-google'
-import { destinoSeguro } from './destino'
+import { destinoDoLogin } from './destino'
 import { signInWithPassword, signInWithGoogle } from './actions'
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams?: Promise<{ next?: string }>
+  searchParams?: Promise<{ next?: string; ia?: string }>
 }) {
-  const { next } = (await searchParams) ?? {}
-  const redirectTo = destinoSeguro(next)
+  const { next, ia } = (await searchParams) ?? {}
+  const redirectTo = destinoDoLogin(next, typeof ia === 'string' ? ia : undefined)
   const branding = await loadBranding()
   const logo = branding?.logo_url ? (
     <img
