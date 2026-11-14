@@ -133,12 +133,26 @@ const dh = (iso: string | null): string => {
 }
 // Nota de código (não vai para a resposta): se niche_signals_gravar falhar depois de gravarLugares, o aviso de lugares desatualizados sai mesmo com os lugares em dia (é conservador).
 
+const dm = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+/** O recorte de publicação em frase (C1 R1): o que de fato foi aplicado, para a IA e o dono lerem sem conta de data. */
+export function recorteDePublicacao(p: PedidoDaConsulta): string {
+  if (p.publicadoDe || p.publicadoAte) {
+    const quando = p.publicadoDe && p.publicadoAte ? `de ${dm(p.publicadoDe)} a ${dm(p.publicadoAte)}` : p.publicadoDe ? `a partir de ${dm(p.publicadoDe)}` : `até ${dm(p.publicadoAte!)}`
+    return `Publicados ${quando} (${p.ultimosDias !== undefined ? `últimos ${p.ultimosDias} ${p.ultimosDias === 1 ? 'dia' : 'dias'}, ` : ''}horário de Brasília)`
+  }
+  if (p.janelaIdade === 'todas') return 'Publicados em qualquer data (janela_idade todas)'
+  if (p.janelaIdade.length === 1 && p.janelaIdade[0] === '0-30') return 'Publicados nos últimos 30 dias (faixa 0-30)'
+  return `Publicados com idade nas faixas ${p.janelaIdade.join(', ')} (idade do vídeo em dias)`
+}
+
 function cabecalho(r: ResultadoDaConsulta): Tabela {
   const p = r.pedido
   const L: Array<[string, string, ('terceiros' | 'base')?]> = []
+  L.push(['Recorte de publicação', recorteDePublicacao(p)])
   const janela = p.janelaIdade === 'todas' ? 'todas' : p.janelaIdade.join(', ')
   const pedido = [`formato ${p.formato}`, `janela_idade ${janela}`, ...(p.canalIds?.length ? [`canais ${p.canalIds.length}`] : []), ...(p.nicho ? [`nicho ${p.nicho}`] : []), ...(p.lugar ? [`lugar ${p.lugar}`] : []),
-    ...(p.publicadoDe ? [`publicado de ${p.publicadoDe}`] : []), ...(p.publicadoAte ? [`publicado até ${p.publicadoAte}`] : []), `métricas ${p.metricas.join(', ')}`, `limite ${p.limite}`, `incluir_base_fraca ${p.incluirBaseFraca ? 'sim' : 'não'}`]
+    ...(p.ultimosDias !== undefined ? [`publicado_nos_ultimos_dias ${p.ultimosDias}`] : []), ...(p.publicadoDe ? [`publicado de ${p.publicadoDe}`] : []), ...(p.publicadoAte ? [`publicado até ${p.publicadoAte}`] : []), `métricas ${p.metricas.join(', ')}`, `limite ${p.limite}`, `incluir_base_fraca ${p.incluirBaseFraca ? 'sim' : 'não'}`]
   L.push(['Pedido', pedido.join('; ')])
   L.push(['Ordenado por', `${p.ordenarPor === 'vpd7' ? 'crescimento de views: views por dia nos últimos 7 dias (vpd7)' : `${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo}${METRICAS_DA_CONSULTA[p.ordenarPor].rotulo === p.ordenarPor ? '' : ` (${p.ordenarPor})`}`}, ${p.direcao === 'desc' ? 'do maior para o menor' : 'do menor para o maior'}`])
   L.push(['Janela usada', `${janela}; idade = dias de 24 h desde a publicação`])

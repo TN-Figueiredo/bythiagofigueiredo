@@ -12,6 +12,8 @@ export interface PedidoDaConsulta {
   lugar?: string
   publicadoDe?: string
   publicadoAte?: string
+  /** Só quando o pedido veio em `publicado_nos_ultimos_dias`: o N (publicadoDe/Ate já vêm calculados pelo servidor). */
+  ultimosDias?: number
   metricas: MetricaDaConsulta[]
   ordenarPor: MetricaDaConsulta
   direcao: 'desc' | 'asc'
