@@ -102,3 +102,32 @@ describe('formulário de consentimento', () => {
     expect((screen.getByRole('link', { name: 'Entrar' }) as HTMLAnchorElement).getAttribute('href')).toBe(`/cms/login?next=%2Foauth%2Fconsentimento%3Fauthorization_id%3D${ID}`)
   })
 })
+
+describe('ícones da tela (T22 emenda): svg do lucide, nunca emoji', () => {
+  it('pedido: selo, listas, risco e alerta usam svg aria-hidden', () => {
+    const { container } = montar()
+    expect(container.querySelectorAll('svg').length).toBeGreaterThanOrEqual(10)
+    expect(container.querySelector('.badge svg')).not.toBeNull()
+    expect(container.querySelectorAll('.lists .ok').length).toBe(2)
+    expect(container.querySelectorAll('.lists .no').length).toBe(2)
+    expect(container.querySelector('.alert svg')).not.toBeNull()
+    for (const svg of Array.from(container.querySelectorAll('svg'))) expect(svg.closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(container.textContent).not.toMatch(/[🔒✋⏻◷⊘✓✕]/u)
+  })
+  it('estado: o selo é svg', () => {
+    const { container } = montar(vi.fn(), vi.fn(), { estado: 'cortado' })
+    expect(container.querySelector('.badge svg')).not.toBeNull()
+    expect(container.querySelector('.badge')?.textContent).toBe('')
+  })
+  it('ja_conectado vem antes de "Você entrou como" e fora do aviso', () => {
+    const { container } = render(<Consentimento authorizationId={ID} inicial={null} pedido={{ ...PEDIDO, jaConectado: true }} aprovar={vi.fn()} negar={vi.fn()} />)
+    const t = container.textContent ?? ''
+    expect(t).toContain('Você já conectou o ChatGPT antes. Se aprovar, a conexão antiga para de funcionar e vale esta.')
+    expect(t.indexOf('já conectou')).toBeLessThan(t.indexOf('Você entrou como'))
+  })
+  it('outro_navegador: título e texto novos', () => {
+    montar(vi.fn(), vi.fn(), { estado: 'outro_navegador' })
+    expect(screen.getByText('Este pedido não vale mais.')).toBeTruthy()
+    expect(screen.getByText('Volte à sua IA e toque em Conectar de novo. Faça tudo neste mesmo navegador, sem abrir outra aba.')).toBeTruthy()
+  })
+})

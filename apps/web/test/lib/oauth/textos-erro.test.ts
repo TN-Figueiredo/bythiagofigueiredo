@@ -53,6 +53,11 @@ describe('codigoDeErro', () => {
 })
 
 describe('CSS_ERRO', () => {
+  it('o código vem dentro de <code class="oe-code"> (não quebra no meio)', () => {
+    expect(corpoDeErro('cliente')).toContain('<code class="oe-code">c1-cliente</code>')
+    expect(CSS_ERRO).toContain('.oe-code{')
+    expect(CSS_ERRO).toContain('white-space:nowrap')
+  })
   it('sem color-mix', () => expect(CSS_ERRO).not.toContain('color-mix'))
   it('protege texto longo', () => expect(CSS_ERRO).toContain('overflow-wrap:anywhere'))
 })

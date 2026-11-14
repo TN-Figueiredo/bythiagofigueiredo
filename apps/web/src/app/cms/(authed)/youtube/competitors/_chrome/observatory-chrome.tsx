@@ -42,6 +42,8 @@ export interface ObservatoryChromeProps {
   readingCopy?: string | null
   /** O botão "Perguntar a uma IA" (E17 degrau 1, Tarefa 11), numa faixa de topo; a ação chega por prop. Sem a prop, ou desligado, não há faixa. */
   perguntarIa?: PropsPerguntarIa
+  /** Slot dentro de `.obs-ch-title`, logo depois do subtítulo (C1: linha "Conectar sua IA"). */
+  sobTitulo?: ReactNode
 }
 
 export function ObservatoryChrome(props: ObservatoryChromeProps) {
@@ -56,7 +58,7 @@ export function ObservatoryChrome(props: ObservatoryChromeProps) {
 
 type Pop = null | 'menu' | 'fresh'
 
-function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy, perguntarIa }: ObservatoryChromeProps) {
+function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy, perguntarIa, sobTitulo }: ObservatoryChromeProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   // "Administrar o site" step: the round over every competitor spends API quota; an editor syncs one channel at a time
@@ -195,7 +197,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
       {perguntarIa && CONTEXTO_IA_RULES.ligado ? <div className="obs-tr-top pi-faixa"><PerguntarIa {...perguntarIa} /></div> : null}
       <div data-obs-chrome="">
         <div className="obs-ch-head">
-          <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>
+          <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p>{sobTitulo}</div>
           <div className="obs-ch-actions">
             {forja ? <ForjaHeaderButtons forja={forja} onOpen={onForjaHeader} onStatus={goToForjaAnchor} /> : null}
             {canAdminSite ? (

@@ -141,9 +141,9 @@ describe('página /oauth/consentimento', () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk() })
       m.cookie.value = undefined
       const h = await html()
-      expect(h).toContain('Este pedido não vale neste navegador.')
-      expect(h).not.toContain('não saiu deste navegador')
-      expect(h).toContain('Volte à sua IA e clique em Conectar de novo.')
+      expect(h).toContain('Este pedido não vale mais.')
+      expect(h).not.toContain('neste navegador.')
+      expect(h).toContain('Volte à sua IA e toque em Conectar de novo. Faça tudo neste mesmo navegador, sem abrir outra aba.')
       expect(m.rpc).not.toHaveBeenCalled()
     })
     it('pedido vivo com cookie de outro pedido: o mesmo', async () => {
@@ -158,15 +158,15 @@ describe('página /oauth/consentimento', () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk({ consumido_em: new Date(AGORA - 1000).toISOString() }) })
       m.cookie.value = undefined
       const h = await html()
-      expect(h).toContain(FRASES_DA_TELA.invalido_titulo)
-      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador_titulo)
+      expect(h).toContain(FRASES_DA_TELA.invalido)
+      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador)
     })
     it('pedido vencido sem cookie: invalido', async () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk({ expires_at: new Date(AGORA).toISOString() }) })
       m.cookie.value = undefined
       const h = await html()
-      expect(h).toContain(FRASES_DA_TELA.invalido_titulo)
-      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador_titulo)
+      expect(h).toContain(FRASES_DA_TELA.invalido)
+      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador)
     })
     it('pedido mais antigo com cookie do mais novo (dois Conectar): o consumido vira invalido', async () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk({ consumido_em: new Date(AGORA - 1000).toISOString() }) })
@@ -264,15 +264,15 @@ describe('página /oauth/consentimento', () => {
       expect(h).toContain(FRASES_DA_TELA.aprovar)
       expect(h).not.toContain('O acesso vale até')
     })
-    it('conexão viva do mesmo cliente: "Aprovar desliga a conexão atual"', async () => {
+    it('conexão viva do mesmo cliente: "já conectou antes"', async () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: libOk, obs_ai_conexoes: { data: { id: 'c1' }, error: null } })
-      expect(await html()).toContain('Você já tem o ChatGPT conectado. Aprovar desliga a conexão atual.')
+      expect(await html()).toContain('Você já conectou o ChatGPT antes. Se aprovar, a conexão antiga para de funcionar e vale esta.')
     })
     it('erro na leitura da conexão: só omite a linha', async () => {
       tabelas({ obs_ai_oauth_pedidos: pedidoOk(), obs_ai_liberacoes: libOk, obs_ai_conexoes: { data: null, error: { code: 'x' } } })
       const h = await html()
       expect(h).toContain(FRASES_DA_TELA.aprovar)
-      expect(h).not.toContain('Aprovar desliga')
+      expect(h).not.toContain('conexão antiga')
     })
   })
 })

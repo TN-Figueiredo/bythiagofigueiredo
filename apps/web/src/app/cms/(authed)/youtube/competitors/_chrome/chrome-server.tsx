@@ -26,12 +26,12 @@ import { lerPendenciasDosCanais } from '../_arquivo/pendencias-dos-canais'
 import { listaDosRemovidos } from '../_arquivo/leituras'
 import { esperaSnapshots, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 
-export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, medicao, acima, children }: {
+export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, medicao, sobTitulo, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
   /** A page that already built the engine passes it to avoid a second load. */
   obs?: Observatory; children: ReactNode
-  /** C1 T21b: linha opcional logo acima do conteúdo da tela (atalho "Conectar sua IA"). */
-  acima?: ReactNode
+  /** C1 T21b: linha opcional sob o título (subtítulo) do Observatório (atalho "Conectar sua IA"). */
+  sobTitulo?: ReactNode
   /** Display-only niche of this screen (e.g. Outliers showing a channel or reading of another niche); never persisted. */
   nicheOverride?: NicheScope
   /** Screen outside the tabs whose "Copiar pedido para o Cowork" text differs from its tab's (Histórico). */
@@ -77,8 +77,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null, arquivoVisivel, avisoBanco })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
-      onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa}>
-      {acima}
+      onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa} sobTitulo={sobTitulo}>
       {children}
     </ObservatoryChrome>
   )

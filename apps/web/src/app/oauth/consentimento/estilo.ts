@@ -30,6 +30,15 @@ export const ESTILO = `
 .c1c .lists li{display:flex;gap:8px}
 .c1c .risk{margin-top:20px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;line-height:18px;color:var(--muted)}
 .c1c .alert{margin-top:20px;padding:12px;border-radius:6px;border:1px solid var(--amber-border);background:var(--amber-soft)}
+.c1c .lists .ok{color:var(--green)}
+.c1c .lists .no{color:var(--muted)}
+.c1c .lists li svg,.c1c .risk svg{flex:none;margin-top:2px}
+.c1c .risk li{display:flex;gap:8px}
+.c1c .alert{display:flex;gap:10px;align-items:flex-start}
+.c1c .alert svg{flex:none;color:var(--amber)}
+.c1c .who svg,.c1c .when svg{flex:none;vertical-align:-3px;margin-right:4px}
+.c1c .when svg{margin-top:2px}
+.c1c .sair-link{display:inline-flex;align-items:center;min-height:44px;margin-left:16px;padding:0 4px;background:transparent;border:0;color:var(--text);font:400 14px/20px Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .c1c .alert strong{display:block;font-weight:600}
 .c1c .alert span{display:block;margin-top:2px;font-size:13px;line-height:18px}
 .c1c .note{margin-top:12px;font-size:13px;line-height:18px}

@@ -50,7 +50,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     : null
   const linhaIa = await linhaIaP
   return (
-    <ObservatoryChromeServer tab="canais" acima={<LinhaConectarIa mostrar={linhaIa} />} searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado} medicao={medicao}
+    <ObservatoryChromeServer tab="canais" sobTitulo={<LinhaConectarIa mostrar={linhaIa} />} searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado} medicao={medicao}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
         view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} onMarcarRodado={marcarRodado} onDesfazerRodado={desfazerRodado} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}

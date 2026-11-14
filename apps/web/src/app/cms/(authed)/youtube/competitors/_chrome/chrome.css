@@ -53,6 +53,7 @@
 [data-obs] .obs-ch-title{min-width:0}
 [data-obs] .obs-ch-title h2{font-family:var(--font-fraunces-var),Georgia,serif;font-weight:600;font-size:30px;line-height:1.15;margin:0;letter-spacing:-.01em;font-variation-settings:"opsz" 72;color:var(--text)}
 [data-obs] .obs-ch-title p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+[data-obs] .obs-ch-title .cia-short{margin:8px 0 12px;max-width:none}
 [data-obs] .obs-ch-actions{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-top:14px;min-height:34px;max-width:100%}
 [data-obs] .obs-ch-menu-wrap{position:relative}
 [data-obs] .obs-ch-fresh-row{margin-top:14px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}

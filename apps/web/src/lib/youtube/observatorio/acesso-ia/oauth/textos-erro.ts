@@ -85,6 +85,7 @@ export const CSS_ERRO =
   '.oe-acao{margin-top:12px!important;font-weight:600}' +
   '.oe-btn{display:flex;align-items:center;justify-content:center;height:48px;margin-top:16px;padding:0 16px;border-radius:6px;border:2px solid var(--accent);background:var(--accent);color:var(--on-accent);font:600 14px/20px Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:none}' +
   '.oe-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
+  '.oe-code{font:12px/16px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap;background:var(--neutral-soft);padding:2px 6px;border-radius:4px}' +
   '.oe-fine{margin-top:16px!important;padding-top:12px;border-top:1px solid var(--line);font-size:13px;line-height:18px;color:var(--muted)}' +
   '.oe-fine+.oe-fine{margin-top:4px!important;padding-top:0;border-top:0}' +
   '@media (max-width:520px){.oe{border-left:0;border-right:0;border-radius:0;box-shadow:none;padding:20px 16px;max-width:none}.oe-pg{display:block;padding:0}}'
@@ -100,7 +101,7 @@ export function corpoDeErro(codigo: CodigoErro): string {
     `<p class="oe-acao">${esc(t.acao)}</p>` +
     botao +
     '<p class="oe-fine">Nada foi criado nem liberado. Pode fechar esta página.</p>' +
-    `<p class="oe-fine">Se acontecer de novo, avise o Thiago e diga o código: c1-${codigo}.</p>` +
+    `<p class="oe-fine">Se acontecer de novo, avise o Thiago e diga o código: <code class="oe-code">c1-${codigo}</code>.</p>` +
     '</main>'
   )
 }

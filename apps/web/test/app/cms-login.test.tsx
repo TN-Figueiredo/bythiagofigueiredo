@@ -56,6 +56,21 @@ describe('cms login pages', () => {
     expect((callProps.turnstile as { siteKey: string }).siteKey).toBe('test-key')
   })
 
+  it('login com next do consentimento mostra a frase de contexto da IA', async () => {
+    const el = await CmsLoginPage({ searchParams: Promise.resolve({ next: '/oauth/consentimento?authorization_id=abc' }) })
+    render(el)
+    expect(screen.getByText('Entre para conectar o Observatório à sua IA.')).toBeTruthy()
+  })
+  it('login com next /cms/conectar-ia mostra loginContexto', async () => {
+    const el = await CmsLoginPage({ searchParams: Promise.resolve({ next: '/cms/conectar-ia' }) })
+    render(el)
+    expect(screen.getByText('Entre para ver como conectar o Observatório à sua IA.')).toBeTruthy()
+  })
+  it('login sem next ou com outro destino não mostra contexto', async () => {
+    render(await CmsLoginPage({}))
+    expect(screen.queryByTestId('login-contexto')).toBeNull()
+  })
+
   it('passes undefined turnstile when NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset', async () => {
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
     mockCmsLogin.mockClear()

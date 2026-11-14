@@ -3,6 +3,8 @@ import { CmsLogin } from '@tn-figueiredo/cms/login'
 import { loadBranding } from '@/lib/auth/auth-branding'
 import { buildAuthTheme } from '@/lib/auth/auth-theme'
 import { LoginSemGoogle } from '@/lib/auth/login-sem-google'
+import { FRASES_DA_TELA } from '@/lib/youtube/observatorio/acesso-ia/frases'
+import { FRASES_CONECTAR } from '@/lib/youtube/observatorio/acesso-ia/frases-conectar'
 import { destinoDoLogin } from './destino'
 import { signInWithPassword, signInWithGoogle } from './actions'
 
@@ -13,6 +15,11 @@ export default async function Page({
 }) {
   const { next, ia } = (await searchParams) ?? {}
   const redirectTo = destinoDoLogin(typeof next === 'string' ? next : undefined, typeof ia === 'string' ? ia : undefined)
+  const contexto = redirectTo.startsWith('/oauth/consentimento')
+    ? FRASES_DA_TELA.login_contexto
+    : redirectTo.startsWith('/cms/conectar-ia')
+      ? `${FRASES_CONECTAR.loginContexto}.`
+      : null
   const branding = await loadBranding()
   const logo = branding?.logo_url ? (
     <img
@@ -33,6 +40,7 @@ export default async function Page({
   return (
     <Suspense fallback={null}>
       <LoginSemGoogle>
+        {contexto ? <p data-testid="login-contexto" style={{ textAlign: 'center', fontSize: 14, lineHeight: '20px', color: 'var(--muted, #6A5F48)', maxWidth: 400, margin: '0 auto 12px', padding: '0 16px' }}>{contexto}</p> : null}
         <CmsLogin
           actions={{ signInWithPassword, signInWithGoogle }}
           redirectTo={redirectTo}
