@@ -1,6 +1,6 @@
 'use server'
 // Aprovar e negar: atômicos (uma função SQL cada), presos ao navegador que abriu o pedido (A1) e à pessoa da sessão.
-// Ordem: origem → forma do id → host e travas → `getUser()` → cookie do pedido → site → função. Nada antes da função toca o banco.
+// Ordem: origem → forma do id → host e travas → `getUser()` → cookie do pedido (sem cookie, lê o pedido só para separar "não vale mais" de "outro navegador") → site → função. Nada antes da função toca o banco.
 // `redirect()` fica FORA dos `try` (lança `NEXT_REDIRECT`).
 import * as Sentry from '@sentry/nextjs'
 import { cookies, headers } from 'next/headers'
@@ -42,7 +42,19 @@ async function preludio(fd: FormData): Promise<{ ok: true; c: Contexto } | { ok:
   } catch {
     cookie = undefined
   }
-  if (!cookieConfere(cookie, bruto)) return { ok: false, estado: { estado: 'outro_navegador' } }
+  if (!cookieConfere(cookie, bruto)) {
+    // o cookie some no consumo: pedido inexistente, usado ou vencido é "não vale mais", não "outro navegador" (igual à página)
+    try {
+      const r = await getSupabaseServiceClient().from('obs_ai_oauth_pedidos').select('expires_at, consumido_em').eq('hash', sha256Hex(bruto)).maybeSingle()
+      if (r.error) return { ok: false, estado: erro(r.error) }
+      const p = r.data as { expires_at?: unknown; consumido_em?: unknown } | null
+      const expira = typeof p?.expires_at === 'string' ? Date.parse(p.expires_at) : NaN
+      if (!p || !Number.isFinite(expira) || expira <= Date.now() || p.consumido_em != null) return { ok: false, estado: { estado: 'invalido' } }
+    } catch (e) {
+      return { ok: false, estado: erro(e) }
+    }
+    return { ok: false, estado: { estado: 'outro_navegador' } }
+  }
   let siteId: string
   try {
     siteId = (await getSiteContext()).siteId

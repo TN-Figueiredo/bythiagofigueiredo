@@ -392,6 +392,37 @@ describe('actions aprovar e negar', () => {
       }
       expect(m.rpc).not.toHaveBeenCalled()
     })
+    describe('sem cookie: a action olha o pedido antes de acusar outro navegador', () => {
+      const casos: Array<[string, Res]> = [
+        ['consumido', pedidoOk({ consumido_em: new Date(AGORA - 60_000).toISOString() })],
+        ['vencido', pedidoOk({ expires_at: new Date(AGORA - 1000).toISOString() })],
+        ['inexistente', { data: null, error: null }],
+      ]
+      for (const [nome, ped] of casos) {
+        it(`pedido ${nome}: invalido nas duas actions, 0 rpc`, async () => {
+          m.cookie.value = undefined
+          tabelas({ obs_ai_oauth_pedidos: ped })
+          expect(await aprovar(form())).toEqual({ estado: 'invalido' })
+          expect(await negar(form())).toEqual({ estado: 'invalido' })
+          expect(m.rpc).not.toHaveBeenCalled()
+        })
+      }
+      it('pedido vivo: outro_navegador nas duas actions', async () => {
+        m.cookie.value = undefined
+        expect(await aprovar(form())).toEqual({ estado: 'outro_navegador' })
+        expect(await negar(form())).toEqual({ estado: 'outro_navegador' })
+        expect(m.rpc).not.toHaveBeenCalled()
+      })
+      it('erro de banco na leitura (retorno ou exceção): estado erro, 0 rpc', async () => {
+        m.cookie.value = undefined
+        for (const r of [{ data: null, error: { code: 'XX000' } } as Res, 'lanca' as Res]) {
+          tabelas({ obs_ai_oauth_pedidos: r })
+          expect((await aprovar(form())).estado).toBe('erro')
+          expect((await negar(form())).estado).toBe('erro')
+        }
+        expect(m.rpc).not.toHaveBeenCalled()
+      })
+    })
     it('cookie certo: obs_ai_aprovar_conexao chamado 1 vez e cookie apagado', async () => {
       m.rpc.mockResolvedValue(aprovado())
       await url(aprovar(form()))
