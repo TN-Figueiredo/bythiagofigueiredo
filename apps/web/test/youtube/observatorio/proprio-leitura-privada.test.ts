@@ -294,13 +294,15 @@ describe('vePrivado: só o booleano (tela de consentimento)', () => {
     soLe(); rpc.mockResolvedValue({ data: true, error: null })
     expect(await vePrivado(SITE)).toBe(true)
   })
-  it('sem direito, banco com erro, guarda que lança ou site inválido: false, nunca lança', async () => {
+  it('sem direito (data:false) ou site inválido: false', async () => {
     soLe(); rpc.mockResolvedValue({ data: false, error: null })
     expect(await vePrivado(SITE)).toBe(false)
-    soLe(); rpc.mockResolvedValue({ data: null, error: { code: 'x' } })
-    expect(await vePrivado(SITE)).toBe(false)
-    requireSiteScope.mockRejectedValue(new Error('fora'))
-    expect(await vePrivado(SITE)).toBe(false)
     expect(await vePrivado('nao-uuid')).toBe(false)
+  })
+  it('não deu para conferir (rpc com error, guarda que lança): null, nunca lança e nunca false', async () => {
+    soLe(); rpc.mockResolvedValue({ data: null, error: { code: 'x' } })
+    expect(await vePrivado(SITE)).toBeNull()
+    requireSiteScope.mockRejectedValue(new Error('fora'))
+    expect(await vePrivado(SITE)).toBeNull()
   })
 })

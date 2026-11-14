@@ -11,6 +11,36 @@ afterEach(cleanup)
 const montar = (aprovar = vi.fn(), negar = vi.fn(), inicial: EstadoDaTela | null = null) =>
   render(<Consentimento authorizationId={ID} inicial={inicial} pedido={PEDIDO} aprovar={aprovar} negar={negar} />)
 
+const redirectDoNext = (): Error => Object.assign(new Error('NEXT_REDIRECT'), { digest: 'NEXT_REDIRECT;replace;https://chatgpt.com/x;303;' })
+
+describe('redirect da action (o Next o entrega ao cliente como exceção)', () => {
+  const semAlerta = (): void => {
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
+  }
+  it('Aprovar com redirect: tela de saída, sem erro, sem recarregar', async () => {
+    montar(vi.fn(async () => { throw redirectDoNext() }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sim, fui eu. Aprovar' })) })
+    semAlerta()
+    expect(screen.getByText('Voltando ao ChatGPT...')).toBeTruthy()
+    expect(screen.getByText('Pronto. O ChatGPT está conectado.')).toBeTruthy()
+    expect(screen.queryByText(/Não deu para conectar/)).toBeNull()
+  })
+  it('Não conectar com redirect: "Conexão negada.", sem erro', async () => {
+    montar(vi.fn(), vi.fn(async () => { throw redirectDoNext() }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Não conectar' })) })
+    semAlerta()
+    expect(screen.getByText('Conexão negada.')).toBeTruthy()
+    expect(screen.queryByText(/Não deu para conectar/)).toBeNull()
+  })
+  it('controle: falha real (rede) continua virando erro c1-sem-resposta', async () => {
+    montar(vi.fn(async () => { throw new Error('rede') }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sim, fui eu. Aprovar' })) })
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(screen.getByText('c1-sem-resposta')).toBeTruthy()
+  })
+})
+
 describe('formulário de consentimento', () => {
   it('leva o authorization_id num input hidden', () => {
     const { container } = montar()

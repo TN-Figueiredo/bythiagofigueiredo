@@ -448,6 +448,7 @@ async function handle(ctx: RequestContext): Promise<NextResponse> {
     if (effectivePathname.startsWith('/oauth/consentimento')) {
       // K17: renova antes de criar o rewrite (o cookie vai na requisição repassada), sem perder o rewrite do prefixo.
       const novos = await renovarSessao(request, ctx.requestHeaders)
+      // O `res` criado antes neste ramo é descartado aqui. resolveSite não grava cookie; se passar a gravar, usar `cookies.getAll()` como `mergeSiteHeaders` (o `headers.set` guardaria só o último set-cookie).
       const reescrita = ctx.rewrite(rewriteUrl)
       siteRes.response.headers.forEach((value, key) => {
         if (!key.startsWith('x-middleware-')) reescrita.headers.set(key, value)

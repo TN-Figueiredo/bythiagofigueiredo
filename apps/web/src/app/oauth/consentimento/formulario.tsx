@@ -1,6 +1,7 @@
 'use client'
 // A tela inteira (pedido e estados). As actions chegam por props (regra Next 16: nada de `next/link` nem de import de action aqui).
 // Botões `disabled` até a hidratação: sem JS o POST + 303 externo esbarraria em `form-action 'self'` (Yannis I7).
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { FRASES_DA_TELA as F } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import { ESTILO } from './estilo'
@@ -15,6 +16,7 @@ interface Props {
 }
 
 type Ocupado = 'aprovando' | 'negando' | null
+type Saindo = 'aprovado' | 'negado' | null
 
 const GLIFO: Record<EstadoDaTela['estado'], string> = {
   sem_login: '→', sem_direito: '⊘', cortado: '✋', desligado: '⏻', invalido: '◷', outro_navegador: '◷', erro: '!',
@@ -27,6 +29,7 @@ export function Consentimento({ authorizationId, inicial, pedido, aprovar, negar
   const [pronto, setPronto] = useState(false)
   const [estado, setEstado] = useState<EstadoDaTela | null>(inicial)
   const [ocupado, setOcupado] = useState<Ocupado>(null)
+  const [saindo, setSaindo] = useState<Saindo>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const h1 = useRef<HTMLHeadingElement>(null)
   const primeira = useRef(true)
@@ -38,7 +41,7 @@ export function Consentimento({ authorizationId, inicial, pedido, aprovar, negar
       return
     }
     h1.current?.focus()
-  }, [estado])
+  }, [estado, saindo])
 
   async function executar(acao: AcaoDaTela, quem: Exclude<Ocupado, null>): Promise<void> {
     if (!pronto || ocupado !== null || !formRef.current) return
@@ -46,14 +49,19 @@ export function Consentimento({ authorizationId, inicial, pedido, aprovar, negar
     setOcupado(quem)
     try {
       setEstado(await acao(fd))
-    } catch {
+      setOcupado(null)
+    } catch (e) {
+      // O Next entrega o redirect externo da action como exceção: a conexão já foi criada (ou negada); a tela fica ocupada até o navegador sair.
+      if (isRedirectError(e)) {
+        setSaindo(quem === 'aprovando' ? 'aprovado' : 'negado')
+        return
+      }
       setEstado({ estado: 'erro', codigo: 'c1-sem-resposta' })
-    } finally {
       setOcupado(null)
     }
   }
 
-  const corpo = estado ? <Estado estado={estado} pedido={pedido} authorizationId={authorizationId} h1={h1} ocupado={ocupado} voltar={() => void executar(negar, 'negando')} /> : pedido ? (
+  const corpo = saindo && pedido ? <Saida saindo={saindo} ia={pedido.ia} h1={h1} /> : estado ? <Estado estado={estado} pedido={pedido} authorizationId={authorizationId} h1={h1} ocupado={ocupado} voltar={() => void executar(negar, 'negando')} /> : pedido ? (
     <Pedido pedido={pedido} authorizationId={authorizationId} h1={h1} ocupado={ocupado} pronto={pronto} formRef={formRef} aprovar={() => void executar(aprovar, 'aprovando')} negar={() => void executar(negar, 'negando')} />
   ) : null
 
@@ -88,6 +96,21 @@ function Cabeca({ glifo, titulo, h1 }: { glifo: string; titulo: string; h1: Reac
         <h1 tabIndex={-1} ref={h1}>{titulo}</h1>
       </div>
     </>
+  )
+}
+
+function Saida({ saindo, ia, h1 }: { saindo: 'aprovado' | 'negado'; ia: string; h1: React.RefObject<HTMLHeadingElement | null> }): ReactElement {
+  return saindo === 'aprovado' ? (
+    <article className="card tone tone-accent" aria-busy="true">
+      <Cabeca glifo="✓" titulo={F.aprovado_titulo(ia)} h1={h1} />
+      <p className="msg" role="status">{F.aprovado_voltando(ia)}</p>
+      <p className="fine">{F.aprovado_manual(ia)}</p>
+    </article>
+  ) : (
+    <article className="card tone" aria-busy="true">
+      <Cabeca glifo="⊘" titulo={F.negado_titulo} h1={h1} />
+      <p className="msg" role="status">{F.negado(ia)}</p>
+    </article>
   )
 }
 

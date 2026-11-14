@@ -15,7 +15,7 @@ const m = vi.hoisted(() => ({
   user: { v: null as { id: string; email: string | null } | null },
   captureMessage: vi.fn(),
   captureException: vi.fn(),
-  privado: { v: true },
+  privado: { v: true as boolean | null },
   rpc: vi.fn(),
   from: vi.fn(),
 }))
@@ -216,6 +216,15 @@ describe('página /oauth/consentimento', () => {
       const h = await html()
       expect(h).toContain(FRASES_DA_TELA.resumo_publico('ChatGPT'))
       expect(h).toContain(FRASES_DA_TELA.nao_privado)
+      expect(h).not.toContain(FRASES_DA_TELA.pode_privado)
+    })
+    it('não deu para conferir o privado (null): estado erro c1-<8 hex>, sem o texto do escopo', async () => {
+      m.privado.v = null
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.erro_titulo)
+      expect(h).toMatch(/c1-[0-9a-f]{8}/)
+      expect(h).not.toContain('sem acesso nesta conta')
+      expect(h).not.toContain(FRASES_DA_TELA.nao_privado)
       expect(h).not.toContain(FRASES_DA_TELA.pode_privado)
     })
     it('com direito ao privado: texto do quadro 1', async () => {

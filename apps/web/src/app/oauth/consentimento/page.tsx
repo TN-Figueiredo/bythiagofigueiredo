@@ -79,12 +79,12 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
   if (!cookieConfere(cookie, id)) return tela(id, { estado: 'outro_navegador' }, null)
 
   let siteId: string
-  let pedido: { client_id?: unknown; redirect_uri?: unknown; expires_at?: unknown; consumido_em?: unknown; site_id?: unknown } | null
+  let pedido: { redirect_uri?: unknown; expires_at?: unknown; consumido_em?: unknown; site_id?: unknown } | null
   try {
     siteId = (await getSiteContext()).siteId
     const r = await getSupabaseServiceClient()
       .from('obs_ai_oauth_pedidos')
-      .select('client_id, redirect_uri, expires_at, consumido_em, site_id')
+      .select('redirect_uri, expires_at, consumido_em, site_id')
       .eq('hash', sha256Hex(id))
       .maybeSingle()
     if (r.error) return erro(id, r.error)
@@ -109,7 +109,9 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
     if (lib.error) return erro(id, lib.error)
     const fim = typeof (lib.data as { expires_at?: unknown } | null)?.expires_at === 'string' ? Date.parse((lib.data as { expires_at: string }).expires_at) : NaN
     if (Number.isFinite(fim) && fim > agora) valeAte = dia(fim)
-    privado = await vePrivado(siteId)
+    const ve = await vePrivado(siteId)
+    if (ve === null) return erro(id) // não deu para conferir: nunca descrever um escopo que pode estar errado
+    privado = ve
     // erro nesta leitura não recusa: só omite a linha
     try {
       const con = await sb.from('obs_ai_conexoes').select('id').eq('site_id', siteId).eq('user_id', user.id).eq('cliente', cliente).is('revoked_at', null).limit(1).maybeSingle()
