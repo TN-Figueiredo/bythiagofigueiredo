@@ -8,6 +8,8 @@ import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 import { validarPedido } from '@/lib/youtube/observatorio/acesso-ia/oauth/pedido'
 import { htmlDeErro, type CodigoErro } from '@/lib/youtube/observatorio/acesso-ia/oauth/textos-erro'
 
+const COOKIE_PEDIDO = '__Host-oauth_pedido'
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const preferredRegion = 'gru1'
@@ -109,5 +111,8 @@ export async function GET(req: Request): Promise<Response> {
   } catch {
     return indisponivel()
   }
-  return redirecionar(`/oauth/consentimento?authorization_id=${id}`)
+  // A1 (ataque F3): o pedido fica preso ao navegador que o abriu; a tela e as actions exigem este cookie (sem Domain: `__Host-`).
+  const res = redirecionar(`/oauth/consentimento?authorization_id=${id}`)
+  res.headers.append('Set-Cookie', `${COOKIE_PEDIDO}=${id}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${PRAZOS.pedidoMin * 60}`)
+  return res
 }

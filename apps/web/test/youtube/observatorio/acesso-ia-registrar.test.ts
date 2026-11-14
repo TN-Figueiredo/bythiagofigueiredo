@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   houveRecusaRecente,
   registrarAcessoDaChave,
+  registrarConsentimento,
   registrarRecusaDaPorta,
   type LinhaDeAcesso,
 } from '@/lib/youtube/observatorio/acesso-ia/registrar'
@@ -400,4 +401,46 @@ describe('A7 F3 I4: campos_invalidos no registro é lista fechada (defesa do pr�
     expect((p.campos_invalidos as string[]).length).toBe(6)
   })
   it('não é lista: a chave some', async () => { expect(await gravar('x')).not.toHaveProperty('campos_invalidos') })
+})
+
+describe('registrarConsentimento (C1 T21)', () => {
+  const base = { siteId: 'site-1', userId: 'user-1', keyId: null, cliente: 'chatgpt' as const, desfecho: 'desligado' as const, agora: AGORA }
+  function rpcSim(resp: Resp | 'lanca') {
+    const rpc = vi.fn(() => (resp === 'lanca' ? Promise.reject(new Error('x')) : Promise.resolve(resp)))
+    return { sb: { rpc } as never, rpc }
+  }
+
+  it('desfecho fora da lista: desfecho_invalido, sem ida ao banco', async () => {
+    const s = rpcSim({ error: null })
+    const r = await registrarConsentimento(s.sb, { ...base, desfecho: 'aprovado' as never })
+    expect(r).toEqual({ ok: false, code: 'desfecho_invalido' })
+    expect(s.rpc).not.toHaveBeenCalled()
+  })
+  it('motivo fora da lista: motivo_invalido', async () => {
+    const s = rpcSim({ error: null })
+    expect(await registrarConsentimento(s.sb, { ...base, motivo: 'x' as never })).toEqual({ ok: false, code: 'motivo_invalido' })
+    expect(s.rpc).not.toHaveBeenCalled()
+  })
+  it('keyId diferente de null: key_invalida', async () => {
+    const s = rpcSim({ error: null })
+    expect(await registrarConsentimento(s.sb, { ...base, keyId: '11111111-1111-1111-1111-111111111111' })).toEqual({ ok: false, code: 'key_invalida' })
+    expect(s.rpc).not.toHaveBeenCalled()
+  })
+  it('erro do banco devolve o código; exceção vira excecao', async () => {
+    expect(await registrarConsentimento(rpcSim({ error: { code: '23514' } }).sb, base)).toEqual({ ok: false, code: '23514' })
+    expect(await registrarConsentimento(rpcSim('lanca').sb, base)).toEqual({ ok: false, code: 'excecao' })
+  })
+  it('sucesso: rpc com p_desfecho, p_cliente e p_motivo nulo', async () => {
+    const s = rpcSim({ error: null })
+    expect(await registrarConsentimento(s.sb, base)).toEqual({ ok: true })
+    expect(s.rpc).toHaveBeenCalledTimes(1)
+    expect(s.rpc).toHaveBeenCalledWith('obs_ai_log_recusa_consentimento', {
+      p_user: 'user-1', p_site: 'site-1', p_cliente: 'chatgpt', p_desfecho: 'desligado', p_motivo: null, p_agora: iso(AGORA),
+    })
+  })
+  it('motivo válido e cliente nulo passam', async () => {
+    const s = rpcSim({ error: null })
+    await registrarConsentimento(s.sb, { ...base, cliente: null, desfecho: 'sem_direito', motivo: 'teto' })
+    expect(s.rpc).toHaveBeenCalledWith('obs_ai_log_recusa_consentimento', expect.objectContaining({ p_cliente: null, p_desfecho: 'sem_direito', p_motivo: 'teto' }))
+  })
 })

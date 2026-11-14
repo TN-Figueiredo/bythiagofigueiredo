@@ -124,6 +124,15 @@ export async function provarAcessoPrivadoDaChave(prova: ChaveDoPerfilProvada, op
   return perguntarDireito(prova.userId, siteId, opcoes?.prazoMs ?? PRAZO_MS, avisar)
 }
 
+/** Só o booleano "esta pessoa vê o privado?" (tela de consentimento, quadros 1b × 1c): o token da leitura nunca sai do módulo. Erro = `false`. */
+export async function vePrivado(siteId: string): Promise<boolean> {
+  try {
+    return (await provarAcessoPrivado(siteId)).leitura !== null
+  } catch {
+    return false
+  }
+}
+
 export const provarLeituraPrivada = async (siteId: string): Promise<LeituraPrivadaDoSite | null> => (await provarAcessoPrivado(siteId)).leitura
 
 /** Em execução: o valor nasceu em `provarAcessoPrivado` (brand check do campo privado). */

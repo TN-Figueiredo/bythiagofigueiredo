@@ -72,6 +72,21 @@ describe('GET /api/oauth/authorize', () => {
     expect(exp).toBeLessThanOrEqual(10 * 60_000)
   })
 
+  it('A1: o 302 de sucesso prende o pedido ao navegador (__Host-oauth_pedido)', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
+    const res = await GET(req({ state: 'st' }))
+    const id = new URL(res.headers.get('location')!, 'https://bythiagofigueiredo.com').searchParams.get('authorization_id')!
+    const sc = res.headers.get('set-cookie')!
+    expect(sc.startsWith(`__Host-oauth_pedido=${id};`)).toBe(true)
+    for (const parte of ['path=/', 'secure', 'httponly', 'samesite=lax', 'max-age=600']) expect(sc.toLowerCase()).toContain(parte)
+    expect(sc.toLowerCase()).not.toContain('domain')
+  })
+
+  it('A1: resposta que não é o 302 de sucesso não leva o cookie', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ cliente: false }) as never)
+    expect((await GET(req())).headers.get('set-cookie')).toBeNull()
+  })
+
   it('scope e resource ausentes = aceito; offline_access observatorio:read aceito', async () => {
     const b = banco()
     vi.mocked(getSupabaseServiceClient).mockReturnValue(b as never)

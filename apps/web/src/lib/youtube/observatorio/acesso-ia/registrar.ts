@@ -14,6 +14,7 @@ import { METRICAS_DA_CONSULTA } from '../consulta/catalogo'
 import { ACESSO_IA_RULES } from './regras'
 import { telaExiste } from '../contexto-ia/telas'
 import type { ChaveDoPerfilProvada } from './prova'
+import type { Cliente } from './liberacao'
 
 type ValorDeParam = string | number | boolean | string[] | Record<string, number>
 
@@ -317,4 +318,39 @@ export async function registrarRecusaDaPorta(
     output_chars: null,
     result: 'recusado',
   }, opcoes)
+}
+
+export type DesfechoDoConsentimento = 'sem_direito' | 'cortado' | 'desligado' | 'invalido'
+export type MotivoDoConsentimento = 'nao_liberada' | 'teto' | 'sem_vinculo' | 'banida' | 'apagamento'
+
+const DESFECHOS_DO_CONSENTIMENTO: ReadonlySet<string> = new Set<DesfechoDoConsentimento>(['sem_direito', 'cortado', 'desligado', 'invalido'])
+const MOTIVOS_DO_CONSENTIMENTO: ReadonlySet<string> = new Set<MotivoDoConsentimento>(['nao_liberada', 'teto', 'sem_vinculo', 'banida', 'apagamento'])
+
+/**
+ * A linha `recusado` do consentimento que nasce NO APP (antes da função SQL): `desligado` e `invalido` da página. Vai por
+ * `obs_ai_log_recusa_consentimento` (mesmo formato de `params` das linhas do SQL e limite de 1/h por pessoa, cliente e desfecho:
+ * recarregar a tela não enche o log). `keyId` fica na assinatura do plano mas só `null` é aceito: estas recusas nunca têm chave.
+ * Nunca lança.
+ */
+export async function registrarConsentimento(
+  sb: SupabaseClient,
+  c: { siteId: string; userId: string; keyId: string | null; cliente: Cliente | null; desfecho: DesfechoDoConsentimento; motivo?: MotivoDoConsentimento; agora: number },
+  opcoes?: { prazoMs?: number },
+): Promise<{ ok: true } | { ok: false; code: string }> {
+  if (!DESFECHOS_DO_CONSENTIMENTO.has(c.desfecho)) return { ok: false, code: 'desfecho_invalido' }
+  if (c.motivo !== undefined && !MOTIVOS_DO_CONSENTIMENTO.has(c.motivo)) return { ok: false, code: 'motivo_invalido' }
+  if (c.keyId !== null) return { ok: false, code: 'key_invalida' }
+  const r = await comPrazo(prazoDe(opcoes), () =>
+    sb.rpc('obs_ai_log_recusa_consentimento', {
+      p_user: c.userId,
+      p_site: c.siteId,
+      p_cliente: c.cliente,
+      p_desfecho: c.desfecho,
+      p_motivo: c.motivo ?? null,
+      p_agora: new Date(c.agora).toISOString(),
+    }),
+  )
+  if (!r.ok) return { ok: false, code: r.code }
+  const { error } = (r.valor ?? {}) as { error?: { code?: unknown } | null }
+  return error ? { ok: false, code: codigoDe(error) } : { ok: true }
 }
