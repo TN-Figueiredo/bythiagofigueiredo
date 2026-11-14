@@ -8,8 +8,8 @@ export const PASSOS_POR_IA = {
     passos: [
       'Abra o ChatGPT no navegador pelo botão abaixo; ele já abre a página “Plugins”. No celular, use o navegador, não o aplicativo.',
       'Toque em “Add”, no canto de cima à direita, e depois em “Add custom MCP server”.',
-      'Em nome, escreva “Observatório do Thiago”. Em endereço (URL), cole o que você copiou. Em autenticação, deixe OAuth.',
-      'Marque que entende o aviso, toque em “Create as a plugin” e salve. O ChatGPT vai abrir uma página do bythiagofigueiredo.com.',
+      'Em nome, escreva “Observatório do Thiago”. Em endereço (URL), cole o que você copiou. Se aparecer autenticação, deixe OAuth.',
+      'Se aparecer um aviso, marque que entende. Toque no botão de criar (“Create”) e salve. O ChatGPT vai abrir uma página do bythiagofigueiredo.com: confira o seu e-mail e toque em “Sim, fui eu. Aprovar”.',
     ],
   },
   claude: {
