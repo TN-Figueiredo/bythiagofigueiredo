@@ -3,10 +3,11 @@ export const PASSOS_POR_IA = {
   chatgpt: {
     nome: 'ChatGPT',
     abrir: 'Abrir o ChatGPT',
-    href: 'https://chatgpt.com',
+    // 14/11 (ensaio do dono, conta Free): Plugins fica na barra da esquerda; o botão abre a página direto e o menu é "Add" no canto de cima
+    href: 'https://chatgpt.com/plugins',
     passos: [
-      'Abra o ChatGPT no navegador (chatgpt.com). No celular, use o navegador, não o aplicativo.',
-      'Toque em “Plugins”, depois em “+”, depois em “Add custom MCP server”.',
+      'Abra o ChatGPT no navegador pelo botão abaixo; ele já abre a página “Plugins”. No celular, use o navegador, não o aplicativo.',
+      'Toque em “Add”, no canto de cima à direita, e depois em “Add custom MCP server”.',
       'Em nome, escreva “Observatório do Thiago”. Em endereço (URL), cole o que você copiou. Em autenticação, deixe OAuth.',
       'Marque que entende o aviso, toque em “Create as a plugin” e salve. O ChatGPT vai abrir uma página do bythiagofigueiredo.com.',
     ],

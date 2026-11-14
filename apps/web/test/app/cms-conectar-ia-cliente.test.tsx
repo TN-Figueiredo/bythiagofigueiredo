@@ -68,7 +68,7 @@ describe('ConectarIa', () => {
   it('links externos e alerta por IA', () => {
     const { container } = render(<ConectarIa ia="chatgpt" bloqueadas={[]} />)
     const g = screen.getByRole('link', { name: 'Abrir o ChatGPT (abre em nova aba)' })
-    expect(g.getAttribute('href')).toBe('https://chatgpt.com')
+    expect(g.getAttribute('href')).toBe('https://chatgpt.com/plugins')
     expect(g.getAttribute('target')).toBe('_blank')
     expect(g.getAttribute('rel')).toBe('noopener noreferrer')
     const c = container.querySelector('a[aria-label="Abrir o Claude (abre em nova aba)"]')
