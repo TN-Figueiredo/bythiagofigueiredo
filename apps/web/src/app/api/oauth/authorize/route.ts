@@ -18,8 +18,7 @@ const CAB = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' }
 
 const pagina = (status: number, codigo: CodigoErro): Response =>
   new Response(htmlDeErro(codigo), { status, headers: { ...CAB, 'Content-Type': 'text/html; charset=utf-8' } })
-const indisponivel = (): Response =>
-  new Response('temporarily_unavailable', { status: 503, headers: { ...CAB, 'Content-Type': 'text/plain' } })
+const indisponivel = (): Response => pagina(503, 'falha')
 const redirecionar = (url: string): Response => new Response(null, { status: 302, headers: { ...CAB, Location: url } })
 
 const Linha = z.object({ n: z.number(), n_dia: z.number(), estourou: z.boolean() })

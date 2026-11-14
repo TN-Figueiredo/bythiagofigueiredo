@@ -101,7 +101,7 @@ describe('GET /api/oauth/authorize', () => {
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('location')).toBeNull()
-    expect(await res.text()).toContain('Esta conexão expirou ou não é reconhecida')
+    expect(await res.text()).toContain('Esta conexão precisa ser refeita')
     expect(b.insert).not.toHaveBeenCalled()
   })
 
@@ -192,5 +192,26 @@ describe('GET /api/oauth/authorize', () => {
     }
     vi.mocked(getSupabaseServiceClient).mockImplementation(() => { throw new Error('env') })
     expect((await GET(req())).status).toBe(503)
+  })
+
+  it('503 é página HTML em português com c1-falha, sem texto cru', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    const res = await GET(req())
+    expect(res.status).toBe(503)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const h = await res.text()
+    expect(h).toContain('c1-falha')
+    expect(h).toContain('Não deu para conectar agora.')
+    expect(h).not.toContain('temporarily_unavailable')
+    delete process.env.OBSERVATORIO_IA_IP_SEGREDO
+    const r2 = await GET(req())
+    expect(r2.status).toBe(503)
+    expect(await r2.text()).toContain('c1-falha')
+  })
+
+  it('state com <script> não aparece no HTML de erro', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ cliente: false }) as never)
+    const res = await GET(req({ state: '<script>alert(1)</script>' }))
+    expect(await res.text()).not.toContain('<script>alert')
   })
 })
