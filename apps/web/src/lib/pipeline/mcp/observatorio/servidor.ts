@@ -23,16 +23,24 @@ export const DESCRICAO =
   ACOES.map((a) => `- ${EXEMPLO_DA_ACAO[a]}`).join('\n') +
   `\n- vários canais na mesma série (até 6; só em tabela): ${EXEMPLO_DA_SERIE_DE_CANAIS}`
 
+/** As descrições dos campos de período da `consultar` (C1 R1): a IA escolhe o campo pelo texto, então ele diz qual usar para "semana". */
+export const DESCRICAO_DOS_CAMPOS_DA_CONSULTA = {
+  janela_idade: 'consultar: faixas fixas de idade do vídeo (a menor é 0-30): todas, uma faixa ou lista (0-30, 31-90, 91-180, 181-365, 365+); nunca para período pedido em dias.',
+  publicado_nos_ultimos_dias: "consultar: de 1 a 365; para 'desta semana' use 7; 'deste mês' 30; conta hoje, horário de Brasília. Não vem junto de publicado_de/publicado_ate.",
+  publicado_de: 'consultar: AAAA-MM-DD, dia de Brasília, para datas fixas.',
+  publicado_ate: 'consultar: AAAA-MM-DD, dia de Brasília, para datas fixas.',
+} as const
+
 /** A fatia (tarefa do plano A7) que liga cada item das `instructions`. Item de fatia desligada não aparece; a numeração sai só dos que aparecem. */
 export type FatiaDeInstrucao = 'T5' | 'T6' | 'T9' | 'T10' | 'A5' | 'A4'
 export const ITENS_DE_INSTRUCAO: ReadonlyArray<{ texto: string; fatia: FatiaDeInstrucao }> = [
-  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu ("vi 31 dos 34 canais") e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (o texto depois de " : " em "Próximas chamadas").' },
+  { fatia: 'T5', texto: 'Toda resposta termina com a seção "Cobertura". Antes de recomendar, comparar ou concluir sobre um conjunto, diga em uma frase quanto viu e, se não viu tudo, pergunte: "quer que eu aprofunde em X?", com X em palavras (texto de "Próximas chamadas").' },
   { fatia: 'T5', texto: '"não medido", "falhou" e "restrito" não são zero: não some, não faça média, não ordene como se fossem.' },
   { fatia: 'T6', texto: 'Pedido recusado traz formato e exemplo válido: corrija e tente de novo uma vez.' },
-  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas) antes de concluir sobre todos. Se a Cobertura disser que a lista mudou, refaça da linha 1.' },
+  { fatia: 'T9', texto: 'Para ler a lista inteira, peça a próxima janela (a_partir_da_linha; listar_canais, destaques, mudancas) antes de concluir. Se a lista mudou, refaça da linha 1.' },
   { fatia: 'T10', texto: 'Para o conjunto, use o "Resumo do todo" do topo: vale para todas as linhas.' },
-  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela". Desenhe o gráfico sugerido de cada tabela; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
-  { fatia: 'A4', texto: 'Na consultar, diga por qual medida ordenou e ofereça outra; a lista não tem janela: estreite o filtro.' },
+  { fatia: 'A5', texto: 'Para gráfico ou planilha use saida "tabela" e desenhe o gráfico sugerido; vazio é buraco, nunca zero; pizza só onde sugerido. Publicações por mês não é medida: use a coluna Ritmo de listar_canais em tabela e diga que mês não é medido.' },
+  { fatia: 'A4', texto: 'Na consultar, diga por qual medida ordenou e ofereça outra; a lista não tem janela: estreite o filtro. Período em dias: publicado_nos_ultimos_dias, nunca janela_idade.' },
 ]
 /** As fatias já entregues; cada fatia nova liga o seu item aqui, na mesma tarefa que o entrega. */
 const FATIAS_LIGADAS: ReadonlySet<FatiaDeInstrucao> = new Set<FatiaDeInstrucao>(['T5', 'T6', 'T9', 'T10', 'A5', 'A4'])
@@ -65,9 +73,10 @@ const FORMA = {
   parametros: z.record(z.string(), z.string()).optional().describe('pacote_da_tela: parâmetros da tela.'),
   entidade: z.string().optional().describe('consultar: video (padrão).'),
   lugar: z.string().optional().describe('consultar: local:<slug> ou pais:<XX>, os de definicoes.'),
-  janela_idade: z.union([z.string(), z.array(z.string())]).optional().describe('consultar: todas, uma faixa ou lista (0-30, 31-90, 91-180, 181-365, 365+).'),
-  publicado_de: z.string().optional().describe('consultar: AAAA-MM-DD.'),
-  publicado_ate: z.string().optional().describe('consultar: AAAA-MM-DD.'),
+  janela_idade: z.union([z.string(), z.array(z.string())]).optional().describe(DESCRICAO_DOS_CAMPOS_DA_CONSULTA.janela_idade),
+  publicado_nos_ultimos_dias: z.union([z.number(), z.string()]).optional().describe(DESCRICAO_DOS_CAMPOS_DA_CONSULTA.publicado_nos_ultimos_dias),
+  publicado_de: z.string().optional().describe(DESCRICAO_DOS_CAMPOS_DA_CONSULTA.publicado_de),
+  publicado_ate: z.string().optional().describe(DESCRICAO_DOS_CAMPOS_DA_CONSULTA.publicado_ate),
   metricas: z.array(z.string()).optional().describe('consultar: views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos.'),
   ordenar_por: z.string().optional().describe('consultar: uma das métricas (padrão multiplicador).'),
   direcao: z.string().optional().describe('consultar: desc (padrão) ou asc.'),

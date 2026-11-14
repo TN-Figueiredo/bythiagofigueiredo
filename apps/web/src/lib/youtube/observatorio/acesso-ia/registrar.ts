@@ -150,6 +150,7 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
   },
   publicado_de: (v) => (dataReal(v) ? v : undefined),
   publicado_ate: (v) => (dataReal(v) ? v : undefined),
+  publicado_nos_ultimos_dias: (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 365 ? v : undefined),
   metricas: (v) => (Array.isArray(v) && v.length > 0 && v.length <= 8 && v.every(daLista(METRICAS_DO_REGISTRO)) ? (v as string[]) : undefined),
   ordenar_por: (v) => (daLista(METRICAS_DO_REGISTRO)(v) ? v : undefined),
   direcao: (v) => (daLista(['desc', 'asc'])(v) ? v : undefined),

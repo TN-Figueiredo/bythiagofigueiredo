@@ -81,7 +81,7 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.lista) {
     const l = c.lista
     const trecho = l.total === 0 ? '0 de 0 linhas' : `linhas ${l.de}–${l.ate} de ${l.total}`
-    L.push(`- Lista principal ("${encurta(l.titulo, n.tituloDaLista)}"): ${trecho}${l.concorrentes ? '; seu canal está na parte do dado privado' : ''}, na ordem ${l.ordem === 'do pedido' ? 'do pedido' : 'da tela'}.${l.semJanela && l.ate < l.total ? ` Esta lista não tem janela: estreite o filtro (lugar, canal_ids, janela_idade)${l.semJanela.limite < 50 ? ' ou peça limite 50' : ''}.` : ''}${c.lidaAs ? ` Lida às ${c.lidaAs}.` : ''}`)
+    L.push(`- Lista principal ("${encurta(l.titulo, n.tituloDaLista)}"): ${trecho}${l.concorrentes ? '; seu canal está na parte do dado privado' : ''}, na ordem ${l.ordem === 'do pedido' ? 'do pedido' : 'da tela'}.${l.semJanela && l.ate < l.total ? ` Esta lista não tem janela: estreite o filtro (lugar, canal_ids, publicado_nos_ultimos_dias, janela_idade)${l.semJanela.limite < 50 ? ' ou peça limite 50' : ''}.` : ''}${c.lidaAs ? ` Lida às ${c.lidaAs}.` : ''}`)
   }
   if (c.serie) {
     const s = c.serie

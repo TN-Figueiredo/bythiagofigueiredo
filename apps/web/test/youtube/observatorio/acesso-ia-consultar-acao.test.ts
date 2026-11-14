@@ -58,14 +58,14 @@ describe('consultar: esquema', () => {
 })
 
 describe('consultar: tradutor', () => {
-  it('os padrões: formato todos, faixas padrão da Outliers, multiplicador desc, 20 linhas, base fraca fora, quatro métricas', () => {
+  it('os padrões: formato todos, faixas padrão da Outliers, multiplicador desc, 20 linhas, base fraca fora, cinco métricas (engajamento entra: C1 R3)', () => {
     const t = ok({ acao: 'consultar' })
     expect(t.ok).toBe(true)
     if (!t.ok) return
     expect(t.pedido.telas).toEqual([{ tela: 'consultar', sp: {} }])
     expect(t.pedido.limite).toEqual({ tipo: 'linhas', n: 20 })
     expect(t.pedido.consulta).toEqual({
-      formato: 'todos', janelaIdade: [...DEFAULT_AGES], metricas: ['views', 'likes', 'comentarios', 'multiplicador'],
+      formato: 'todos', janelaIdade: [...DEFAULT_AGES], metricas: ['views', 'likes', 'comentarios', 'multiplicador', 'engajamento'],
       ordenarPor: 'multiplicador', direcao: 'desc', limite: 20, incluirBaseFraca: false,
     })
   })

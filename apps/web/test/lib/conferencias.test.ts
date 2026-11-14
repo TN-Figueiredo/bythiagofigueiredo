@@ -1092,17 +1092,17 @@ describe('C1: conferências datadas do OAuth', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
 
-  it('estado publicado (14/11): só C1_DEPLOY preenchida; as entradas c1- publicadas são as do deploy, sem inválidas', () => {
-    expect([C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO]).toEqual(['2026-11-14', null, null])
+  it('estado publicado (14/11): C1_DEPLOY e C1_PRIMEIRO_TOKEN preenchidas; as entradas c1- publicadas são as delas, sem inválidas', () => {
+    expect([C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO]).toEqual(['2026-11-14', '2026-11-14', null])
     expect(conferenciasC1(null, null, null)).toEqual([])
     const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('c1-')).map(x => x.id).sort()
-    expect(publicadas).toEqual(conferenciasC1('2026-11-14', null, null).map(x => x.id).sort())
+    expect(publicadas).toEqual(conferenciasC1('2026-11-14', '2026-11-14', null).map(x => x.id).sort())
     expect(publicadas.length).toBeGreaterThan(0)
     expect(publicadas.every(id => !id.includes('invalido'))).toBe(true)
   })
   it('liberações OAuth da T25 publicadas para o dono, 14 dias antes de vencer', () => {
     const l = CONFERENCIAS.filter(x => x.id.startsWith('e17d2-liberacao-'))
-    expect(l.map(x => x.id).sort()).toEqual(['e17d2-liberacao-64d4d984-vence-20270513', 'e17d2-liberacao-b5ddca6f-vence-20270513'])
+    expect(l.map(x => x.id).sort()).toEqual(['e17d2-liberacao-b5ddca6f-vence-20270513', 'e17d2-liberacao-dono-vence-20270513'])
     for (const x of l) { expect(x.responsavel).toBe('dono'); expect(x.data).toBe('2027-04-29') }
   })
   it('com data: D+9 do deploy, D+32 do 1º token e D+1 da conexão do ChatGPT, com a consulta e o esperado', () => {
