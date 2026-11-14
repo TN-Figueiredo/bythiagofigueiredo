@@ -330,6 +330,9 @@ function blocoDeLugares(l: LugaresParaDefinicoes): string {
 const resp = (desfecho: Resposta['desfecho'], texto: string, params: Params = {}, incluiuPrivado = false): Resposta => ({ texto, desfecho, incluiuPrivado, params })
 const NAO_ENCONTRADO = (params: Params): Resposta => resp('nao_encontrado', FRASES_DA_FERRAMENTA.nao_encontrado, params)
 
+/** Código do YouTube (11 caracteres) que não casa nenhum vídeo observado: não é "saiu da lista", é fora do Observatório. */
+const FRASE_VIDEO_FORA = (cod: string): string => `não encontrado: o vídeo ${cod} não está no Observatório (não é de um canal acompanhado). Chame \`consultar\` com o canal para ver os vídeos que existem.`
+
 /** Com a tela como veio (`canal`), ou resolvendo `canal?`/`video?` entre a versão de concorrente e a própria. */
 async function empacotar(t: Pedido['telas'][number], abrir: Abridor, faltou?: FaltouNoPar, opcoes?: OpcoesDoPacote) {
   const chamar = async (tela: TelaId) => {
@@ -665,7 +668,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     if (!tela) return resp('falhou', FRASES_DA_FERRAMENTA.nao_montou, params)
     // a série não usa comentário: o canal é lido sem o leitor de comentários (A5 F2b)
     const montado = await empacotar(tela, abrir, undefined, entrada.acao === 'serie' ? { semComentarios: true } : undefined)
-    if (montado === null) return NAO_ENCONTRADO(params)
+    if (montado === null) return tela.tela === 'video?' && tela.id !== undefined && tela.id.length === 11 ? resp('nao_encontrado', FRASE_VIDEO_FORA(tela.id), params) : NAO_ENCONTRADO(params)
     let modelo = montado.modelo
     const tetoDoTexto = tetoFinal - (topo === '' ? 0 : topo.length + 1)
     let feito: { texto: string; primeira: string | null; degrau: number | null }

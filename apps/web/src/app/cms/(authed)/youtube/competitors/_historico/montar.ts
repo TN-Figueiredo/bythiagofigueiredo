@@ -89,10 +89,12 @@ const quandoSp = (iso: string): { dia: string; hora: string } => {
  * URL; a decisão própria/concorrente é do servidor, a partir do canal resolvido do vídeo. Vídeo desconhecido: `concorrente` com a vista "não encontrado"
  * do Histórico (`view.notFound`). O `siteId` não é parâmetro. Os cartões de período e a origem voltam como funções, para a página os pedir num `Suspense`.
  */
-export async function montarVideo(id: string, sp: Flat, abrir?: () => Promise<Pagina>, opcoes: { trocas?: boolean } = {}, abridor: Abridor = ABRIDOR_DE_SESSAO): Promise<MontarVideo> {
+export async function montarVideo(idPedido: string, sp: Flat, abrir?: () => Promise<Pagina>, opcoes: { trocas?: boolean } = {}, abridor: Abridor = ABRIDOR_DE_SESSAO): Promise<MontarVideo> {
   const pagina = await (abrir ?? (() => abridor.observatorio()))()
   const { siteId, obs, savedNiche, now } = pagina
   const recente = obs.SYNC.last == null ? null : obs.SYNC.title
+  // o código de 11 caracteres do YouTube vira o uuid aqui, uma vez; o uuid segue aceito (C1 R2)
+  const id = obs.video(idPedido) ? idPedido : obs.videoByYt(idPedido)?.id ?? idPedido
   const proprio = canalProprioDoVideo(obs, id)
   if (proprio) {
     // o modelo da página nasce ANTES de qualquer leitura privada: sem ele não há o que ler, e um vídeo próprio nunca cai no Histórico por acidente

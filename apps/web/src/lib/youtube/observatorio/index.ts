@@ -92,6 +92,8 @@ export interface Observatory {
   ONLINE_DESDE?: OnlineDesde
   channels: ObsChannel[]; videos: (ObsVideo & Derived)[]
   channel(id: string): ObsChannel | undefined; video(id: string): (ObsVideo & Derived) | undefined
+  /** O vídeo pelo código de 11 caracteres do YouTube (`ytId`); o uuid segue em `video`. A tradução do código para o uuid mora aqui, num ponto só. */
+  videoByYt(ytId: string): (ObsVideo & Derived) | undefined
   seriesOf(id: string): ObsVideo['series']; viewsAt(id: string, idx: number): number | null; rate(id: string, a: number, b: number): number | null
   periodRate(id: string, fromMs: number, toMs: number): PeriodRate; weeklyRate(id: string, fromMs: number, toMs: number): WeeklyRate; expectedCurve(id: string): ExpectedCurve
   diffLines: typeof diffLines; titleDiff: typeof titleDiff; rewriteGroups: { id: string; label: string }[]
@@ -169,6 +171,8 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   // Derived values live on copies: the input dataset is never mutated.
   const videos: (ObsVideo & Derived)[] = ds.videos.map(v => ({ ...v, vpd: null, vpd7: null, mult: null }))
   const V = new Map(videos.map(v => [v.id, v]))
+  const VY = new Map<string, ObsVideo & Derived>()
+  for (const v of videos) if (v.ytId && !VY.has(v.ytId)) VY.set(v.ytId, v)
   const fmt = createFmt(clock, id => V.get(id))
   const CH = new Map(ds.channels.map(c => [c.id, { ...c, sync: { ...c.sync }, videos: videos.filter(v => v.ch === c.id).sort((a, b) => b.pub - a.pub) }]))
   // The frozen readings by id: since/readingScope/outliers({reading}) read them; scenario readings join it in tests.
@@ -218,7 +222,7 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   const forja = createForja(ctx, ds, clock, CH, V, nx, askable, opts?.testScenarios)
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, ...(ds.onlineDesde ? { ONLINE_DESDE: ds.onlineDesde } : {}), DAY: 864e5, H: 36e5,
-    channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
+    channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id), videoByYt: yt => VY.get(yt),
     seriesOf: id => vid(id).series, viewsAt: (id, idx) => viewsAtIdx(vid(id), idx), rate: (id, a, b) => rate(ctx, vid(id), a, b),
     periodRate: (id, f, t) => periodRate(ctx, id, f, t), weeklyRate: (id, f, t) => weeklyRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),
     diffLines, titleDiff, rewriteGroups: REWRITE_GROUPS.map(g => ({ id: g.id, label: g.label })),
