@@ -137,19 +137,41 @@ describe('página /oauth/consentimento', () => {
   })
 
   describe('A1: o navegador que abriu o pedido', () => {
-    it('sem cookie: outro_navegador, 0 rpc e 0 from', async () => {
+    it('pedido vivo sem cookie: outro_navegador com o título novo, sem rpc', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk() })
       m.cookie.value = undefined
       const h = await html()
-      expect(h).toContain(FRASES_DA_TELA.outro_navegador)
+      expect(h).toContain('Este pedido não vale neste navegador.')
+      expect(h).not.toContain('não saiu deste navegador')
       expect(h).toContain('Volte à sua IA e clique em Conectar de novo.')
       expect(m.rpc).not.toHaveBeenCalled()
-      expect(m.from).not.toHaveBeenCalled()
     })
-    it('cookie de outro pedido: o mesmo', async () => {
+    it('pedido vivo com cookie de outro pedido: o mesmo', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk() })
       m.cookie.value = 'B'.repeat(43)
-      expect(await html()).toContain(FRASES_DA_TELA.outro_navegador)
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.outro_navegador_titulo)
+      expect(h).toContain(FRASES_DA_TELA.outro_navegador)
       expect(m.rpc).not.toHaveBeenCalled()
-      expect(m.from).not.toHaveBeenCalled()
+    })
+    it('pedido consumido sem cookie (reabrir depois de aprovar): invalido, não outro_navegador', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk({ consumido_em: new Date(AGORA - 1000).toISOString() }) })
+      m.cookie.value = undefined
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.invalido_titulo)
+      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador_titulo)
+    })
+    it('pedido vencido sem cookie: invalido', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk({ expires_at: new Date(AGORA).toISOString() }) })
+      m.cookie.value = undefined
+      const h = await html()
+      expect(h).toContain(FRASES_DA_TELA.invalido_titulo)
+      expect(h).not.toContain(FRASES_DA_TELA.outro_navegador_titulo)
+    })
+    it('pedido mais antigo com cookie do mais novo (dois Conectar): o consumido vira invalido', async () => {
+      tabelas({ obs_ai_oauth_pedidos: pedidoOk({ consumido_em: new Date(AGORA - 1000).toISOString() }) })
+      m.cookie.value = 'B'.repeat(43)
+      expect(await html()).toContain(FRASES_DA_TELA.invalido_titulo)
     })
   })
 

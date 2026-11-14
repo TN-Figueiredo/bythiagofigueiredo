@@ -1,5 +1,5 @@
 // Tela de consentimento (spec 4.3/4.4). Só LÊ: quem muda o banco é a action (`aprovar`/`negar`), por uma função SQL atômica.
-// Ordem: host → travas → forma do id → `getUser()` → cookie do navegador (A1) → pedido → cliente → liberação/privado/conexão.
+// Ordem: host → travas → forma do id → `getUser()` → pedido → cliente → cookie do navegador (A1, só com pedido vivo) → liberação/privado/conexão.
 import type { Metadata } from 'next'
 import * as Sentry from '@sentry/nextjs'
 import { headers, cookies } from 'next/headers'
@@ -70,14 +70,6 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
   const user = await usuarioDaSessao()
   if (!user) redirect(caminhoDoLogin(id))
 
-  let cookie: string | undefined
-  try {
-    cookie = (await cookies()).get(COOKIE_PEDIDO)?.value
-  } catch {
-    cookie = undefined
-  }
-  if (!cookieConfere(cookie, id)) return tela(id, { estado: 'outro_navegador' }, null)
-
   let siteId: string
   let pedido: { redirect_uri?: unknown; expires_at?: unknown; consumido_em?: unknown; site_id?: unknown } | null
   try {
@@ -99,6 +91,15 @@ export default async function Consentimento_({ searchParams }: { searchParams: P
     await gravar(siteId, user.id, cliente, 'invalido', agora)
     return tela(id, { estado: 'invalido' }, null)
   }
+
+  // A1: só com o pedido vivo o cookie decide (o cookie some no consumo e guarda só o pedido mais novo)
+  let cookie: string | undefined
+  try {
+    cookie = (await cookies()).get(COOKIE_PEDIDO)?.value
+  } catch {
+    cookie = undefined
+  }
+  if (!cookieConfere(cookie, id)) return tela(id, { estado: 'outro_navegador' }, null)
 
   let valeAte: string | null = null
   let jaConectado = false

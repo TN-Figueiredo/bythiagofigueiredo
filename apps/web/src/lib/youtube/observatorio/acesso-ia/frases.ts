@@ -54,7 +54,7 @@ export const FRASES_DA_TELA = {
   desligado: 'Nada foi criado. Tente de novo mais tarde ou fale com o Thiago.',
   invalido_titulo: 'Este pedido não vale mais.',
   invalido: 'Volte à IA em que você tocou em Conectar e tente de novo.',
-  outro_navegador_titulo: 'Este pedido não saiu deste navegador.',
+  outro_navegador_titulo: 'Este pedido não vale neste navegador.',
   outro_navegador: 'Volte à sua IA e clique em Conectar de novo.',
   sem_login_titulo: 'Entre para continuar.',
   sem_login: 'Sua sessão terminou. Entre de novo para conectar o Observatório à sua IA.',
