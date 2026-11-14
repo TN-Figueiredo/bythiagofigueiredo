@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import React from 'react'
 
@@ -43,15 +43,17 @@ vi.mock('@tn-figueiredo/cms-ui/client', () => ({
   CmsShell: ({
     siteName,
     userDisplayName,
+    sections,
     children,
   }: {
     siteName: string
     userDisplayName: string
+    sections?: unknown
     children: React.ReactNode
   }) =>
     React.createElement(
       'div',
-      { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName },
+      { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName, 'data-sections': JSON.stringify(sections ?? []) },
       children,
     ),
 }))
@@ -127,9 +129,13 @@ vi.mock('@/lib/supabase/service', () => {
   }
 })
 
+const ia = vi.hoisted(() => ({ estado: vi.fn() }))
+vi.mock('@/lib/youtube/observatorio/acesso-ia/estado-da-sessao', () => ({ estadoDaSessao: ia.estado }))
+
 import Layout from '../src/app/cms/(authed)/layout'
 
 describe('cms/layout', () => {
+  beforeEach(() => { ia.estado.mockReset(); ia.estado.mockResolvedValue({ tipo: 'nunca' }) })
   it('renders children wrapped in CmsShell', async () => {
     const el = await Layout({ children: <div>hello-cms</div> })
     const { getByText, getByTestId } = render(el)
@@ -141,5 +147,26 @@ describe('cms/layout', () => {
     const el = await Layout({ children: <div>hello-cms</div> })
     const { getByTestId } = render(el)
     expect(getByTestId('cms-shell').getAttribute('data-user')).toBe('thiago@example.com')
+  })
+
+  const comItem = async () => {
+    const { getByTestId, unmount } = render(await Layout({ children: <div>x</div> }))
+    const achou = (getByTestId('cms-shell').getAttribute('data-sections') ?? '').includes('/cms/conectar-ia')
+    unmount()
+    return achou
+  }
+  it('I1: item "Conectar sua IA" aparece com liberação ativa, vencida ou cortada', async () => {
+    ia.estado.mockResolvedValue({ tipo: 'ativa', ate: null, bloqueadas: [] })
+    expect(await comItem()).toBe(true)
+  })
+  it('I1: item some com nunca e com erro', async () => {
+    ia.estado.mockResolvedValue({ tipo: 'nunca' })
+    expect(await comItem()).toBe(false)
+    ia.estado.mockResolvedValue({ tipo: 'erro' })
+    expect(await comItem()).toBe(false)
+  })
+  it('I1: a leitura usa o id do getUser da sessão e o site do contexto', async () => {
+    await Layout({ children: <div>x</div> })
+    expect(ia.estado).toHaveBeenCalledWith('u1', 'site-1')
   })
 })

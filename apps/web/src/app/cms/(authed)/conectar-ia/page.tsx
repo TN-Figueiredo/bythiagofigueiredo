@@ -5,10 +5,10 @@ import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { Clock, Hand, Lock, Power } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { hostDoRecurso, oauthLigado } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
 import { acessoExternoLigado } from '@/lib/youtube/observatorio/acesso-ia/interruptor'
-import { iaInicial, lerEstadoDaPessoa } from '@/lib/youtube/observatorio/acesso-ia/estado-da-pessoa'
+import { iaInicial } from '@/lib/youtube/observatorio/acesso-ia/estado-da-pessoa'
+import { estadoDaSessao } from '@/lib/youtube/observatorio/acesso-ia/estado-da-sessao'
 import { FRASES_CONECTAR as F } from '@/lib/youtube/observatorio/acesso-ia/frases-conectar'
 import { ConectarIa } from './conectar-ia'
 
@@ -55,10 +55,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
     return <Bloco icone={<Power {...ico} />} titulo={F.desligadoTitulo} />
   }
 
-  // Exceção declarada à regra "service client só após canAdminSite": a RLS de obs_ai_liberacoes só deixa can_admin_site_users ler, então o
-  // cliente da sessão da irmã veria zero linhas ("sem acesso" falso). Só leitura, 5 colunas, filtrada pelo id do getUser() (nunca da URL).
+  // Leitura em estado-da-sessao.ts (único ponto da exceção do service client); o id vem do getUser(), nunca da URL.
   const { siteId } = await getSiteContext()
-  const estado = await lerEstadoDaPessoa(getSupabaseServiceClient(), { userId: user.id, siteId, agoraMs: Date.now() })
+  const estado = await estadoDaSessao(user.id, siteId)
 
   switch (estado.tipo) {
     case 'erro':

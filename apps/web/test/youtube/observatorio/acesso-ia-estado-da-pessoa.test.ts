@@ -20,6 +20,10 @@ describe('classificarLiberacoes', () => {
   it('aberta com expires_at inválido: ativa sem data', () => {
     expect(classificarLiberacoes([L({ expires_at: 'lixo' })], AGORA)).toEqual({ tipo: 'ativa', ate: null, bloqueadas: [] })
   })
+  it('M3: aberta com data inválida e as duas IAs bloqueadas = cortada', () => {
+    expect(classificarLiberacoes([L({ expires_at: 'lixo', bloqueios: ['chatgpt', 'claude'] })], AGORA)).toEqual({ tipo: 'cortada' })
+    expect(classificarLiberacoes([L({ expires_at: 'lixo', bloqueios: ['chatgpt'] })], AGORA)).toEqual({ tipo: 'ativa', ate: null, bloqueadas: ['chatgpt'] })
+  })
   it('bloqueios', () => {
     expect(classificarLiberacoes([L({ bloqueios: ['chatgpt'] })], AGORA)).toMatchObject({ tipo: 'ativa', bloqueadas: ['chatgpt'] })
     expect(classificarLiberacoes([L({ bloqueios: ['chatgpt', 'claude'] })], AGORA)).toEqual({ tipo: 'cortada' })
@@ -45,14 +49,22 @@ describe('classificarLiberacoes', () => {
 function fakeSb(res: () => unknown) {
   const eq = vi.fn()
   const q: Record<string, unknown> = {}
-  q.select = vi.fn(() => q); q.eq = eq.mockImplementation(() => q); q.order = vi.fn(() => q)
-  q.limit = vi.fn(async () => res())
+  const order = vi.fn(() => q)
+  const limit = vi.fn(async () => res())
+  q.select = vi.fn(() => q); q.eq = eq.mockImplementation(() => q); q.order = order
+  q.limit = limit
   const from = vi.fn(() => q)
-  return { sb: { from } as unknown as SupabaseClient, eq, from }
+  return { sb: { from } as unknown as SupabaseClient, eq, from, order, limit }
 }
 
 describe('lerEstadoDaPessoa', () => {
   const q = { userId: 'u1', siteId: 's1', agoraMs: AGORA }
+  it('M2: ordena por created_at desc e limita a 20 (a "mais recente" depende disso)', async () => {
+    const { sb, order, limit } = fakeSb(() => ({ data: [], error: null }))
+    await lerEstadoDaPessoa(sb, q)
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false })
+    expect(limit).toHaveBeenCalledWith(20)
+  })
   it('filtra por user_id e site_id', async () => {
     const { sb, eq, from } = fakeSb(() => ({ data: [L({})], error: null }))
     expect((await lerEstadoDaPessoa(sb, q)).tipo).toBe('ativa')

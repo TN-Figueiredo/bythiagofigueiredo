@@ -15,6 +15,10 @@ describe('destinoDoLogin (Ruling T21b: aba da IA sobrevive ao login)', () => {
   it('outro next não leva ia', () => {
     expect(destinoDoLogin('/cms/outra', 'claude')).toBe('/cms/outra')
   })
+  it('M4: next repetido (array) cai em /cms', () => {
+    expect(destinoDoLogin(['/cms', '//evil.com'], 'claude')).toBe('/cms')
+    expect(destinoDoLogin(['/cms/conectar-ia', '/x'], 'claude')).toBe('/cms')
+  })
   it('open redirect continua recusado', () => {
     expect(destinoDoLogin('//evil.com', 'claude')).toBe('/cms')
   })

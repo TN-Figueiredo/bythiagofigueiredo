@@ -12,7 +12,7 @@ export default async function Page({
   searchParams?: Promise<{ next?: string; ia?: string }>
 }) {
   const { next, ia } = (await searchParams) ?? {}
-  const redirectTo = destinoDoLogin(next, typeof ia === 'string' ? ia : undefined)
+  const redirectTo = destinoDoLogin(typeof next === 'string' ? next : undefined, typeof ia === 'string' ? ia : undefined)
   const branding = await loadBranding()
   const logo = branding?.logo_url ? (
     <img

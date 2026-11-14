@@ -30,11 +30,12 @@ export function classificarLiberacoes(linhas: unknown, agoraMs: number): EstadoD
   const aberta = lista.find((l) => l.revoked_at === null || l.revoked_at === undefined)
   if (aberta) {
     const exp = aberta.expires_at
+    const bloqueadas = bloqueadasDe(aberta.bloqueios)
     if (typeof exp !== 'string' || !instanteValido(exp)) {
-      return { tipo: 'ativa', ate: null, bloqueadas: bloqueadasDe(aberta.bloqueios) }
+      if (bloqueadas.length === IAS.length) return { tipo: 'cortada' }
+      return { tipo: 'ativa', ate: null, bloqueadas }
     }
     if (Date.parse(exp) > agoraMs) {
-      const bloqueadas = bloqueadasDe(aberta.bloqueios)
       if (bloqueadas.length === IAS.length) return { tipo: 'cortada' }
       return { tipo: 'ativa', ate: dataBr(exp), bloqueadas }
     }

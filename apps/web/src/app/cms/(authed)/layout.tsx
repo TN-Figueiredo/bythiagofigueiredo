@@ -24,8 +24,8 @@ import { NotificationProvider } from '@/lib/notifications/notification-context'
 import { CmsTopbar } from './_shared/cms-topbar'
 import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
 import CmsLink from './_shared/cms-link'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { lerEstadoDaPessoa, mostraItemDoMenu } from '@/lib/youtube/observatorio/acesso-ia/estado-da-pessoa'
+import { mostraItemDoMenu } from '@/lib/youtube/observatorio/acesso-ia/estado-da-pessoa'
+import { estadoDaSessao } from '@/lib/youtube/observatorio/acesso-ia/estado-da-sessao'
 
 // Duas listas de módulo (ícones não são recriados por requisição); o item "Conectar sua IA" só entra para quem tem ou já teve liberação.
 const CMS_SECTIONS = buildCmsSections()
@@ -82,9 +82,8 @@ export default async function Layout({ children }: { children: ReactNode }) {
     fetchSidebarBadges(middlewareSiteId, siteTimezone),
     fetchLayoutCounts(middlewareSiteId),
     requireSiteAdminScope(middlewareSiteId),
-    // Leitura com o cliente de serviço (a RLS só deixa o admin ler; ver estado-da-pessoa.ts). Qualquer falha esconde o item (falha fechado).
-    lerEstadoDaPessoa(getSupabaseServiceClient(), { userId: rawUser.id, siteId: middlewareSiteId, agoraMs: Date.now() })
-      .catch(() => ({ tipo: 'erro' as const })),
+    // Leitura em estado-da-sessao.ts (cache por requisição; qualquer falha esconde o item).
+    estadoDaSessao(rawUser.id, middlewareSiteId),
   ])
   const badges: Record<string, number> = {}
   if (layoutCounts.pendingContacts) badges['/cms/contacts'] = layoutCounts.pendingContacts
