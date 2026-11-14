@@ -770,7 +770,7 @@ describe('E17 degrau 2: conferências de envio, abertura e poda', () => {
     expect(E17_D2_DEPLOY).toBe('2026-10-15')
     expect(E17_D2_ABERTURA).toBe('2026-11-09')
     expect(E17_D2_PODA_DEPLOY).toBe('2026-10-15')
-    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e17d2-')).map(x => x.id)
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('e17d2-') && !x.id.startsWith('e17d2-liberacao-')).map(x => x.id) // liberações OAuth (C1 T25) são entradas manuais do f5-liberar
     expect([...publicadas].sort()).toEqual([...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY)].map(x => x.id).sort())
     expect(publicadas.every(id => !id.includes('invalid'))).toBe(true)
     expect(conferenciasE17D2Abertura(E17_D2_ABERTURA).length).toBeGreaterThan(0)
@@ -1092,16 +1092,24 @@ describe('C1: conferências datadas do OAuth', () => {
   beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
   afterEach(() => { vi.useRealTimers() })
 
-  it('com as três datas nulas (estado publicado), nenhuma entrada c1- existe', () => {
-    expect([C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO]).toEqual([null, null, null])
+  it('estado publicado (14/11): só C1_DEPLOY preenchida; as entradas c1- publicadas são as do deploy, sem inválidas', () => {
+    expect([C1_DEPLOY, C1_PRIMEIRO_TOKEN, C1_CHATGPT_CONEXAO]).toEqual(['2026-11-14', null, null])
     expect(conferenciasC1(null, null, null)).toEqual([])
-    expect(CONFERENCIAS.filter(x => x.id.startsWith('c1-'))).toEqual([])
+    const publicadas = CONFERENCIAS.filter(x => x.id.startsWith('c1-')).map(x => x.id).sort()
+    expect(publicadas).toEqual(conferenciasC1('2026-11-14', null, null).map(x => x.id).sort())
+    expect(publicadas.length).toBeGreaterThan(0)
+    expect(publicadas.every(id => !id.includes('invalido'))).toBe(true)
+  })
+  it('liberações OAuth da T25 publicadas para o dono, 14 dias antes de vencer', () => {
+    const l = CONFERENCIAS.filter(x => x.id.startsWith('e17d2-liberacao-'))
+    expect(l.map(x => x.id).sort()).toEqual(['e17d2-liberacao-64d4d984-vence-20270513', 'e17d2-liberacao-b5ddca6f-vence-20270513'])
+    for (const x of l) { expect(x.responsavel).toBe('dono'); expect(x.data).toBe('2027-04-29') }
   })
   it('com data: D+9 do deploy, D+32 do 1º token e D+1 da conexão do ChatGPT, com a consulta e o esperado', () => {
     const c = conferenciasC1(dia(-10), dia(-10), dia(-10))
     expect(c.map(x => x.id)).toEqual(['c1-poda-clientes-d9', 'c1-poda-tokens-d32', 'c1-chatgpt-d1'])
     expect(c.map(x => x.data)).toEqual([dia(-1), dia(22), dia(-9)])
-    for (const x of c) { expect(x.etapa).toBe('C1'); expect(x.feitaEm).toBeNull() }
+    for (const x of c) { expect(x.etapa).toBe('E22'); expect(x.feitaEm).toBeNull() }
     expect(c[0].onde).toContain("interval '8 days'")
     expect(c[1].onde).toContain("interval '31 days'")
     expect(c[0].onde).toContain('Esperado 0')

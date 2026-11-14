@@ -351,6 +351,9 @@ const BASE: readonly Conferencia[] = [
   { id: 'e12-d31', etapa: 'E12', data: '2026-11-13', responsavel: 'agente', onde: `${PLANO_E12}: D+31, depois de a origem apagar o histórico: as consultas do item 95 (0 e 0) e, nas três últimas execuções, ms_baixar ÷ (baixados + vazios) abaixo de 0,90 s (item 97; se passar, baixar MAX_DOWNLOADS)`, feitaEm: null },
   { id: 'e20-prova-90d', etapa: 'E20', data: '2027-01-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 > 0 (item 205)`, feitaEm: null },
   { id: 'e20-prova-180d', etapa: 'E20', data: '2027-04-09', responsavel: 'agente', onde: `${PLANO_E20}: salvos_pela_e20 maior que em janeiro`, feitaEm: null },
+  // C1 T25 (14/11): liberações por OAuth de 180 dias (dono e irmã), saída do f5-liberar.sh
+  { id: 'e17d2-liberacao-64d4d984-vence-20270513', etapa: 'E17', data: '2027-04-29', responsavel: 'dono', onde: 'a liberação 64d4d984 do acesso por OAuth vence em 13/05. Decida estender (comando estender --liberacao 64d4d984-564c-493b-9e1c-f6b649e98c87 --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita', feitaEm: null },
+  { id: 'e17d2-liberacao-b5ddca6f-vence-20270513', etapa: 'E17', data: '2027-04-29', responsavel: 'dono', onde: 'a liberação b5ddca6f do acesso por OAuth vence em 13/05. Decida estender (comando estender --liberacao b5ddca6f-a729-4a48-bf5c-e121a6999548 --dias N) ou deixar vencer; nos dois casos marque esta conferência como feita', feitaEm: null },
 ]
 
 // E5a leva 2 (Referências e Inscritos, R8): as quatro conferências dependem do dia da promoção a `main` (D), que o controlador preenche em
@@ -498,9 +501,9 @@ export function conferenciasE17D2Poda(envio: string | null): Conferencia[] {
 }
 
 // C1 (acesso da irmã pelo ChatGPT e Claude.ai, OAuth): três marcos, cada um com a sua constante, todas `null` até o controlador preenchê-las no commit
-// do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `C1`, ids `c1-`. A consulta 4.3 está em `docs/ops/observatorio-c1-consulta-4-3.sql`.
+// do dia. Enquanto forem `null`, as entradas NÃO existem. Etapa `E22` (o guardião exige E<n>; E22 reservada à C1), ids `c1-`. A consulta 4.3 está em `docs/ops/observatorio-c1-consulta-4-3.sql`.
 /** Dia de São Paulo (AAAA-MM-DD) em que o código da C1 foi para `main` e o OAuth foi religado (T25). `null` = ainda não. */
-export const C1_DEPLOY: string | null = null
+export const C1_DEPLOY: string | null = '2026-11-14' // main 4a4d2caf9 em 14/11; OAuth religado (redeploy rltut0324) às 00:23 de São Paulo
 /** Dia de São Paulo (AAAA-MM-DD) em que saiu o 1º token OAuth real (a conexão do dono, C1-25). `null` = ainda não. */
 export const C1_PRIMEIRO_TOKEN: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) da 1ª conexão real da irmã pelo ChatGPT (C1-25). `null` = ainda não. */
@@ -511,8 +514,8 @@ const PLANO_C1 = 'docs/ops/observatorio-acesso-ia.md (seções "Consultas 4.3 e 
 /** D+9 do deploy e D+32 do 1º token (a poda roda 1x/dia e o filtro é de 8 e 31 dias; um dia a mais cobre o D0 inteiro, a qualquer hora da conferência: Phil I3) e D+1 da 1ª conexão do ChatGPT. Data malformada vira entrada de 1970 (vermelha). */
 export function conferenciasC1(deploy: string | null, primeiroToken: string | null, chatgpt: string | null): Conferencia[] {
   const out: Conferencia[] = []
-  const e = (id: string, base: string, mais: number, onde: string): Conferencia => ({ id: `c1-${id}`, etapa: 'C1', data: somaDias(base, mais), responsavel: 'agente', onde: `${PLANO_C1}: ${onde}`, feitaEm: null })
-  const ruim = (id: string, nome: string, v: string): Conferencia => ({ id: `c1-${id}-invalido`, etapa: 'C1', data: '1970-01-01', responsavel: 'agente', onde: `${nome} (apps/web/src/lib/conferencias.ts) está malformada: "${v}". Corrigir para AAAA-MM-DD (dia de São Paulo) ou null`, feitaEm: null })
+  const e = (id: string, base: string, mais: number, onde: string): Conferencia => ({ id: `c1-${id}`, etapa: 'E22', data: somaDias(base, mais), responsavel: 'agente', onde: `${PLANO_C1}: ${onde}`, feitaEm: null })
+  const ruim = (id: string, nome: string, v: string): Conferencia => ({ id: `c1-${id}-invalido`, etapa: 'E22', data: '1970-01-01', responsavel: 'agente', onde: `${nome} (apps/web/src/lib/conferencias.ts) está malformada: "${v}". Corrigir para AAAA-MM-DD (dia de São Paulo) ou null`, feitaEm: null })
   if (deploy !== null) {
     if (!dataReal(deploy)) out.push(ruim('deploy', 'C1_DEPLOY', deploy))
     else out.push(e('poda-clientes-d9', deploy, 9, "D+9 do deploy: `select count(*) from public.obs_ai_oauth_clientes c where c.aprovado_em is null and c.created_at < now() - interval '8 days' and not exists (select 1 from public.obs_ai_oauth_tokens t where t.client_id = c.client_id)`. Esperado 0 (a poda roda 1x/dia; 7 dias mais 1; conferido no D+9 para cobrir o D0 inteiro). Diferente de 0: a tarefa `poda_acesso_ia` não está podando os clientes; ver a K7. Se `select count(*) from public.obs_ai_oauth_clientes where aprovado_em is null` = 0 e a K7 nunca teve `clientesApagados` > 0, anotar 'sem sujeito', não 'ok'"))
