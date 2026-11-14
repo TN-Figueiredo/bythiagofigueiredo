@@ -14,12 +14,13 @@ export const PASSOS_POR_IA = {
   claude: {
     nome: 'Claude',
     abrir: 'Abrir o Claude',
-    href: 'https://claude.ai/settings/connectors',
+    // 14/11 (ensaio do dono): o Claude.ai levou os conectores de Configurações para Customize; o botão abre direto a lista
+    href: 'https://claude.ai/new#customize/connectors/yours',
     passos: [
-      'Abra o Claude no navegador (claude.ai). No celular, use o navegador.',
-      'Abra “Configurações” e toque em “Conectores”.',
-      'Toque em “Adicionar conector personalizado”. Escreva o nome “Observatório do Thiago” e cole o endereço.',
-      'Toque em “Adicionar”. O Claude vai abrir uma página do bythiagofigueiredo.com.',
+      'Abra o Claude no navegador pelo botão abaixo. No celular, use o navegador.',
+      'O botão abre “Customize” e “Connectors” (em português, “Personalizar” e “Conectores”). Toque em “Add” (Adicionar) e escolha o conector personalizado (“custom connector”).',
+      'Escreva o nome “Observatório do Thiago” e cole o endereço. Nas opções de login, deixe como já vier marcado.',
+      'Toque em “Add” (Adicionar) e depois em “Connect” (Conectar). O Claude vai abrir uma página do bythiagofigueiredo.com.',
     ],
   },
 } as const

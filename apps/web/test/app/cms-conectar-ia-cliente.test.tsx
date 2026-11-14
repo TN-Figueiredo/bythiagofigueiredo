@@ -72,7 +72,7 @@ describe('ConectarIa', () => {
     expect(g.getAttribute('target')).toBe('_blank')
     expect(g.getAttribute('rel')).toBe('noopener noreferrer')
     const c = container.querySelector('a[aria-label="Abrir o Claude (abre em nova aba)"]')
-    expect(c?.getAttribute('href')).toBe('https://claude.ai/settings/connectors')
+    expect(c?.getAttribute('href')).toBe('https://claude.ai/new#customize/connectors/yours')
     const notas = Array.from(container.querySelectorAll('[role="note"]')).map((n) => n.textContent ?? '')
     expect(notas.some((t) => t.includes('no seu ChatGPT.'))).toBe(true)
     expect(notas.some((t) => t.includes('no seu Claude.'))).toBe(true)
