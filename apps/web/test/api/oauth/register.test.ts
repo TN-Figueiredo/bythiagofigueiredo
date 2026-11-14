@@ -184,7 +184,7 @@ describe('POST /api/oauth/register', () => {
   it('A6: Host fora da lista = 404 sem rpc', async () => {
     const b = banco()
     vi.mocked(getSupabaseServiceClient).mockReturnValue(b as never)
-    const r = new Request('https://x.vercel.app/api/oauth/register', {
+    const r = new Request('https://bythiagofigueiredo.com/api/oauth/register', {
       method: 'POST', headers: { 'content-type': 'application/json', host: 'x.vercel.app' }, body: JSON.stringify(OK),
     })
     expect((await POST(r)).status).toBe(404)

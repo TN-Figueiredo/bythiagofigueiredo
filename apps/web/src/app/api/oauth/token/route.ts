@@ -5,6 +5,7 @@ import { pipelineLog } from '@/lib/pipeline/logger'
 import { acessoExternoLigado } from '@/lib/youtube/observatorio/acesso-ia/interruptor'
 import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 import { ESCOPO, RECURSO, hostDoRecurso, oauthLigado } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
+import { codigoDeErroPg } from '@/lib/youtube/observatorio/acesso-ia/oauth/log'
 import { lerForm, novoToken, s256 } from '@/lib/youtube/observatorio/acesso-ia/oauth/tokens'
 
 export const runtime = 'nodejs'
@@ -25,7 +26,6 @@ const indisponivel = (etapa: Etapa, code: string): Response => {
   pipelineLog('error', 'oauth-token', etapa, { code })
   return json(503, { error: 'temporarily_unavailable' })
 }
-const codigoDe = (e: unknown): string => (e as { code?: string } | null)?.code ?? 'desconhecido'
 
 const VERIFIER = /^[A-Za-z0-9._~-]{43,128}$/
 const Obrigatorio = z.string().min(1)
@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
             p_novo_refresh: refresh.hash,
             p_agora: agora,
           })
-    if (r.error) return indisponivel(etapa, codigoDe(r.error))
+    if (r.error) return indisponivel(etapa, codigoDeErroPg(r.error))
     linha = Linha.safeParse(Array.isArray(r.data) ? r.data[0] : r.data)
   } catch {
     return indisponivel(etapa, 'excecao')

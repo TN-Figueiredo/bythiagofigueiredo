@@ -64,7 +64,7 @@ export function codigoDeErro(v: string | null | undefined): CodigoErro {
   return v === 'cliente' || v === 'redirect' || v === 'pedido' || v === 'limite' || v === 'desligado' || v === 'falha' ? v : 'pedido'
 }
 
-const esc = (s: string): string =>
+export const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
 // Tokens do mockup M1 (os mesmos de app/oauth/consentimento/estilo.ts); só hex e rgba, nunca color-mix. Escuro por prefers-color-scheme.

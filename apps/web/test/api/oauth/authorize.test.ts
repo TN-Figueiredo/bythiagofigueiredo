@@ -215,13 +215,19 @@ describe('GET /api/oauth/authorize', () => {
   })
 
   it('state com <script> não aparece no HTML de erro', async () => {
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ cliente: false }) as never)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
     const res = await GET(req({ state: '<script>alert(1)</script>' }))
-    expect(await res.text()).not.toContain('<script>alert')
+    expect(res.status).toBe(503)
+    const h = await res.text()
+    expect(h).toContain('c1-falha')
+    expect(h).not.toContain('<script>alert')
+    expect(h).not.toContain('alert(1)')
   })
 
   it('I1: 503 loga etapa e code (rate, site, pedido), sem client_id nem IP', async () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaRpc: true }) as never)
+    expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(banco({ falhaSelect: true }) as never)
     expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
     vi.mocked(getSupabaseServiceClient).mockReturnValue(banco() as never)
     vi.mocked(getSiteContext).mockRejectedValue(new Error('sem site'))
@@ -231,10 +237,11 @@ describe('GET /api/oauth/authorize', () => {
     expect((await GET(req({}, { ip: '9.8.7.6' }))).status).toBe(503)
     const c = vi.mocked(pipelineLog).mock.calls
     expect(c.map((x) => [x[0], x[1], x[2]])).toEqual([
-      ['error', 'oauth-authorize', 'rate'], ['error', 'oauth-authorize', 'site'], ['error', 'oauth-authorize', 'pedido'],
+      ['error', 'oauth-authorize', 'rate'], ['error', 'oauth-authorize', 'cliente'], ['error', 'oauth-authorize', 'site'], ['error', 'oauth-authorize', 'pedido'],
     ])
     expect(c[0][3]).toEqual({ code: 'XX000' })
-    expect(c[1][3]).toEqual({ code: 'excecao' })
+    expect(c[1][3]).toEqual({ code: 'sem_codigo' })
+    expect(c[2][3]).toEqual({ code: 'excecao' })
     const tudo = JSON.stringify(c)
     expect(tudo).not.toContain('"cid"')
     expect(tudo).not.toContain('9.8.7.6')

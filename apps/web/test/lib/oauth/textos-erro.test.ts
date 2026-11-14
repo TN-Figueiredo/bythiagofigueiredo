@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { TEXTOS_ERRO, CSS_ERRO, codigoDeErro, htmlDeErro, corpoDeErro, type CodigoErro } from '@/lib/youtube/observatorio/acesso-ia/oauth/textos-erro'
+import { TEXTOS_ERRO, CSS_ERRO, codigoDeErro, htmlDeErro, corpoDeErro, esc, type CodigoErro } from '@/lib/youtube/observatorio/acesso-ia/oauth/textos-erro'
 
 const END = 'bythiagofigueiredo.com/api/mcp'
 const LITERAIS: Record<CodigoErro, { titulo: string; texto: string; acao: string; tom: string }> = {
@@ -37,6 +37,9 @@ describe('htmlDeErro', () => {
   })
   it('corpoDeErro não traz documento inteiro e escapa texto', () => {
     expect(corpoDeErro('pedido')).not.toContain('<html')
+  })
+  it('esc escapa & < > " \'', () => {
+    expect(esc('<a href="x">&\'')).toBe('&lt;a href=&quot;x&quot;&gt;&amp;&#39;')
   })
 })
 

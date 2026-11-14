@@ -90,7 +90,7 @@ describe('POST /api/oauth/revoke', () => {
 
   it('A6: Host fora da lista = 404 sem rpc', async () => {
     const rpc = banco()
-    const r = new Request('https://x.vercel.app/api/oauth/revoke', {
+    const r = new Request('https://bythiagofigueiredo.com/api/oauth/revoke', {
       method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', host: 'x.vercel.app' }, body: 'token=ort_a',
     })
     expect((await POST(r)).status).toBe(404)

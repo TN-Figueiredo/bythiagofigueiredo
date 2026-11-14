@@ -249,6 +249,7 @@ describe('POST /api/oauth/token', () => {
   it.each([
     ['erro', { erro: true, codeErro: 'XX000' }, 'XX000'],
     ['lanca', { lanca: true }, 'excecao'],
+    ['code vazio (falha de rede)', { erro: true, codeErro: '' }, 'sem_codigo'],
   ] as const)('I1: 503 (%s) gera pipelineLog com etapa e code, sem segredo', async (_n, o, code) => {
     banco({ ...o })
     expect((await POST(req(REFRESH))).status).toBe(503)
@@ -292,7 +293,7 @@ describe('POST /api/oauth/token', () => {
 
   it('A6: Host fora da lista = 404 sem rpc', async () => {
     const rpc = banco()
-    const r = new Request('https://x.vercel.app/api/oauth/token', {
+    const r = new Request('https://bythiagofigueiredo.com/api/oauth/token', {
       method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', host: 'x.vercel.app' }, body: new URLSearchParams(CODIGO).toString(),
     })
     expect((await POST(r)).status).toBe(404)

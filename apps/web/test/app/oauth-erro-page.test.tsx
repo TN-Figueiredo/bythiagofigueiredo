@@ -23,7 +23,13 @@ describe('/oauth/erro', () => {
     expect(h).toContain('c1-desligado')
   })
   it('state na query não aparece', async () => {
-    const h = await render(undefined)
-    expect(h).toContain('c1-pedido')
+    const el = await ErroOAuth({ searchParams: Promise.resolve({ codigo: 'falha', state: '<img src=x onerror=1>' } as never) })
+    const h = renderToStaticMarkup(el)
+    expect(h).toContain('c1-falha')
+    expect(h).not.toContain('onerror')
+    expect(h).not.toContain('<img')
+  })
+  it('código ausente cai em pedido', async () => {
+    expect(await render(undefined)).toContain('c1-pedido')
   })
 })

@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { pipelineLog } from '@/lib/pipeline/logger'
 import { acessoExternoLigado } from '@/lib/youtube/observatorio/acesso-ia/interruptor'
 import { hostDoRecurso, oauthLigado } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
+import { codigoDeErroPg } from '@/lib/youtube/observatorio/acesso-ia/oauth/log'
 import { lerForm } from '@/lib/youtube/observatorio/acesso-ia/oauth/tokens'
 
 export const runtime = 'nodejs'
@@ -29,7 +30,7 @@ export async function POST(req: Request): Promise<Response> {
       p_agora: new Date().toISOString(),
     })
     if (error) {
-      pipelineLog('error', 'oauth-revoke', 'falha ao revogar', { code: (error as { code?: string }).code ?? 'desconhecido' })
+      pipelineLog('error', 'oauth-revoke', 'falha ao revogar', { code: codigoDeErroPg(error) })
       return indisponivel()
     }
   } catch {

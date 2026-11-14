@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { EMISSOR, LIMITES, PRAZOS, hostDoRecurso, oauthLigado, segredoDeIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
+import { codigoDeErroPg } from '@/lib/youtube/observatorio/acesso-ia/oauth/log'
 import { hashDoIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/ip'
 import { pipelineLog } from '@/lib/pipeline/logger'
 import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
@@ -25,7 +26,6 @@ const indisponivel = (etapa: Etapa, code: string): Response => {
   pipelineLog('error', 'oauth-authorize', etapa, { code })
   return pagina(503, 'falha')
 }
-const codigoDe = (e: unknown): string => (e as { code?: string } | null)?.code ?? 'desconhecido'
 const redirecionar = (url: string): Response => new Response(null, { status: 302, headers: { ...CAB, Location: url } })
 
 const Linha = z.object({ n: z.number(), n_dia: z.number(), estourou: z.boolean() })
@@ -50,7 +50,7 @@ export async function GET(req: Request): Promise<Response> {
       p_limite: LIMITES.authorizeHora,
       p_teto_dia: LIMITES.authorizeDia,
     })
-    if (error) return indisponivel('rate', codigoDe(error))
+    if (error) return indisponivel('rate', codigoDeErroPg(error))
     const linha = Linha.safeParse(Array.isArray(data) ? data[0] : data)
     if (!linha.success) return indisponivel('rate', 'linha_invalida')
     const { n, n_dia, estourou } = linha.data
@@ -72,7 +72,7 @@ export async function GET(req: Request): Promise<Response> {
         .select('redirect_uris')
         .eq('client_id', clientId)
         .maybeSingle()
-      if (error) return indisponivel('cliente', codigoDe(error))
+      if (error) return indisponivel('cliente', codigoDeErroPg(error))
       const c = Cliente.safeParse(data)
       if (!c.success) return pagina(200, 'cliente')
       registrado = c.data
@@ -113,7 +113,7 @@ export async function GET(req: Request): Promise<Response> {
       site_id: siteId,
       expires_at: new Date(agora + PRAZOS.pedidoMin * 60_000).toISOString(),
     })
-    if (error) return indisponivel('pedido', codigoDe(error))
+    if (error) return indisponivel('pedido', codigoDeErroPg(error))
   } catch {
     return indisponivel('pedido', 'excecao')
   }

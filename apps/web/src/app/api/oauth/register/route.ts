@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { pipelineLog } from '@/lib/pipeline/logger'
 import { LIMITES, hostDoRecurso, oauthLigado, segredoDeIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/config'
+import { codigoDeErroPg } from '@/lib/youtube/observatorio/acesso-ia/oauth/log'
 import { hashDoIp } from '@/lib/youtube/observatorio/acesso-ia/oauth/ip'
 import { avisarRecusa } from '@/lib/youtube/observatorio/acesso-ia/oauth/aviso'
 import { lerCorpoLimitado } from '@/lib/youtube/observatorio/acesso-ia/oauth/tokens'
@@ -24,7 +25,6 @@ const indisponivel = (etapa: Etapa, code: string): Response => {
   pipelineLog('error', 'oauth-register', etapa, { code })
   return json(503, { error: 'temporarily_unavailable' })
 }
-const codigoDe = (e: unknown): string => (e as { code?: string } | null)?.code ?? 'desconhecido'
 const metadadosInvalidos = (): Response => json(400, { error: 'invalid_client_metadata' })
 
 const Linha = z.object({ n: z.number(), n_dia: z.number(), estourou: z.boolean() })
@@ -63,7 +63,7 @@ export async function POST(req: Request): Promise<Response> {
       p_limite: LIMITES.registerHora,
       p_teto_dia: LIMITES.registerDia,
     })
-    if (error) return indisponivel('rate', codigoDe(error))
+    if (error) return indisponivel('rate', codigoDeErroPg(error))
     const linha = Linha.safeParse(Array.isArray(data) ? data[0] : data)
     if (!linha.success) return indisponivel('rate', 'linha_invalida')
     const { n, n_dia, estourou } = linha.data
@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
       redirect_uris: r.uris,
       cliente: r.cliente,
     })
-    if (error) return indisponivel('cliente_insert', codigoDe(error))
+    if (error) return indisponivel('cliente_insert', codigoDeErroPg(error))
   } catch {
     return indisponivel('cliente_insert', 'excecao')
   }
