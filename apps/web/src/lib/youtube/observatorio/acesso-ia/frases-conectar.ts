@@ -1,0 +1,60 @@
+// C1 F4 T21b: todos os textos da página "Conectar sua IA" (mockup M2 r2, aprovado em 11/11). Textos literais do mockup; nada de Gemini.
+export const PASSOS_POR_IA = {
+  chatgpt: {
+    nome: 'ChatGPT',
+    abrir: 'Abrir o ChatGPT',
+    href: 'https://chatgpt.com',
+    passos: [
+      'Abra o ChatGPT no navegador (chatgpt.com). No celular, use o navegador, não o aplicativo.',
+      'Toque em “Plugins”, depois em “+”, depois em “Add custom MCP server”.',
+      'Em nome, escreva “Observatório do Thiago”. Em endereço (URL), cole o que você copiou. Em autenticação, deixe OAuth.',
+      'Marque que entende o aviso, toque em “Create as a plugin” e salve. O ChatGPT vai abrir uma página do bythiagofigueiredo.com.',
+    ],
+  },
+  claude: {
+    nome: 'Claude',
+    abrir: 'Abrir o Claude',
+    href: 'https://claude.ai/settings/connectors',
+    passos: [
+      'Abra o Claude no navegador (claude.ai). No celular, use o navegador.',
+      'Abra “Configurações” e toque em “Conectores”.',
+      'Toque em “Adicionar conector personalizado”. Escreva o nome “Observatório do Thiago” e cole o endereço.',
+      'Toque em “Adicionar”. O Claude vai abrir uma página do bythiagofigueiredo.com.',
+    ],
+  },
+} as const
+
+export const FRASES_CONECTAR = {
+  titulo: 'Conectar sua IA',
+  resumo: 'Ligue o seu ChatGPT ou Claude ao Observatório para perguntar sobre os canais.',
+  ate: (data: string) => ` Você tem acesso até ${data}.`,
+  copieEndereco: 'Copie o endereço',
+  copiar: 'Copiar',
+  copiarAria: 'Copiar o endereço',
+  copiado: 'Copiado',
+  copiadoStatus: 'Endereço copiado. Cole no campo de endereço da IA.',
+  copiarFalhou: 'Não deu para copiar. Toque no endereço, segure e escolha Copiar.',
+  naSuaIa: 'Na sua IA',
+  escolhaIa: 'Escolha sua IA',
+  depoisPasso5: 'Depois do passo 5, abre uma página nossa para você aprovar.',
+  avisoAprove: (ia: string) => `Só aprove se você acabou de clicar em Conectar no seu ${ia}.`,
+  avisoLinkAlheio: 'Se alguém lhe mandou o endereço ou um link para aprovar, não aprove.',
+  riscoPergunte: (ia: string) => `Depois de aprovar, volte ao ${ia} e pergunte, por exemplo: “Quais canais concorrentes publicaram mais esta semana?”`,
+  riscoSoLe: 'A IA só lê o Observatório. Não escreve, não muda e não apaga nada.',
+  naoAchou: 'Não achou o botão?',
+  naoAchouTexto: 'Os nomes dos botões mudam de vez em quando. Procure por algo parecido com “conector”, “plugin” ou “MCP”. Se não achar, fale com o Thiago.',
+  nuncaTitulo: 'Você ainda não tem acesso.',
+  nuncaTexto: 'Fale com o Thiago.',
+  vencidaTitulo: (em: string | null) => (em ? `Seu acesso venceu em ${em}.` : 'Seu acesso venceu.'),
+  vencidaTexto: 'Fale com o Thiago para renovar.',
+  pausadoTitulo: 'Acesso pausado pelo Thiago.',
+  pausadoTexto: 'Fale com ele para voltar.',
+  // mesmo literal de FRASES_DA_TELA.desligado_titulo (T21); repetido aqui para não acoplar a página ao arquivo da tela de consentimento
+  desligadoTitulo: 'A conexão está desligada por enquanto.',
+  erroTitulo: 'Não deu para checar o seu acesso agora.',
+  erroTexto: 'Tente de novo em instantes.',
+  tentarDeNovo: 'Tentar de novo',
+  carregando: 'Carregando o seu acesso...',
+  linhaObservatorio: 'Quer perguntar sobre estes canais ao seu ChatGPT ou Claude?',
+  loginContexto: 'Entre para ver como conectar o Observatório à sua IA',
+} as const
