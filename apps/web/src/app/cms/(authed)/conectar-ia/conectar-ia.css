@@ -27,7 +27,7 @@
 .cia .live.bad{color:var(--text)}
 .cia .live.bad svg{color:var(--amber)}
 .cia .live b{font-weight:600}
-@media (min-width:560px){.cia .urlrow{flex-direction:row;align-items:stretch}.cia .url{flex:1;min-width:0}.cia .btn.copy{width:auto;min-width:140px;flex:none}}
+@media (min-width:560px){.cia .urlrow{flex-direction:row;align-items:center}.cia .url{flex:1;min-width:0}.cia .btn.copy{width:auto;min-width:140px;flex:none}}
 .cia .tabs{display:flex;border-bottom:1px solid var(--line)}
 .cia .tab{flex:1;min-height:44px;background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font:600 14px/20px Inter,sans-serif;cursor:pointer;padding:0 16px}
 .cia .tab:hover{color:var(--text)}
@@ -75,5 +75,3 @@
 .cia-short svg{margin-top:1px;color:var(--accent)}
 .cia-short a{grid-column:2;justify-self:start;display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 @media (prefers-reduced-motion:reduce){.cia .btn{transition:none}}
-.cia-short{--accent:#B94210;--muted:#6A5F48}
-[data-theme="dark"] .cia-short{--accent:#FF8240;--muted:#958A75}
