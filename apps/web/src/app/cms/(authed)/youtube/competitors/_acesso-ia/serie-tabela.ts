@@ -494,6 +494,8 @@ export interface RespostaDaSerieMulti extends RespostaDaSerie {
   naoEncontrados: number
   naoLidos: number
   falharam: number
+  /** acessoir-15: canal próprio sem vídeo publicado; não é falha de leitura. */
+  semVideo: number
 }
 
 /**
@@ -629,7 +631,7 @@ export function respostaDaSerieDeCanais(
   return {
     texto: melhor.texto, primeira: primeiraFinal, pontos: melhor.contados, total, de, ate, grao, convertida, cortes, rotulos, semX: semXn,
     numeros: contar(semResumo(melhor.pontos)), incluiuPrivado: lidos.some((c) => c.m.privado.estado === 'incluido'), soNoTexto, nenhumMedido, avisos,
-    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length, falharam: canais.filter((c) => c.tipo === 'falhou').length,
+    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length, falharam: canais.filter((c) => c.tipo === 'falhou').length, semVideo: canais.filter((c) => c.tipo === 'sem_video').length,
   }
 }
 

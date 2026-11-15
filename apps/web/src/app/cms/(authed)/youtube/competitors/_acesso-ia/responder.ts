@@ -649,7 +649,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao } } : {}),
         apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: r.rotulos, numeros: r.numeros, vazio: cortes.serie === undefined,
         ...(r.soNoTexto.length > 0 ? { soNoTexto: r.soNoTexto } : {}),
-        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos, falharam: r.falharam },
+        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos, falharam: r.falharam, semVideo: r.semVideo },
         ...(r.rotulos.some((x) => x.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
         proximas: proximasDe(entrada, null, agora, r.pontos, cortes.serie),
       }

@@ -41,5 +41,7 @@ describe('serie de canal próprio sem vídeo (acessoir-15)', () => {
     expect(r.texto).toContain('sem vídeo publicado')
     expect(r.texto).toContain('canal não encontrado')
     expect(r.texto).toContain('1 não encontrado') // só o inexistente: o sem vídeo fica fora da contagem
+    expect(r.texto).toContain('Canais: 0 de 1 lidos; 1 sem vídeo publicado; 1 não encontrado') // acessoir-15: o sem vídeo não conta como leitura que falhou
+    expect(r.texto).not.toContain('0 de 2 lidos') // só o inexistente conta no "de N"
   })
 })
