@@ -175,6 +175,15 @@ describe('Sugestões: o pacote', () => {
     expect(zero.tabelas.find((t) => t.id === 'sugestoes-itens')!.linhas[0]!.some((c) => c.papel === 'numero' && c.estado === 'zero_medido' && c.origem.endsWith('n_proprios'))).toBe(true)
   })
 
+  it('acessoir-2: cálculo desligado com itens avisa que a lista é a do último cálculo; ligado não avisa; desligado sem itens não duplica', () => {
+    const AVISO = 'O cálculo das sugestões está desligado: a lista é a do último cálculo e não muda.'
+    expect(empacotarSugestoes(modeloDe(lista([item(1)], { calculoLigado: false }))).avisos).toContain(AVISO)
+    expect(empacotarSugestoes(modeloDe(lista([item(1)], { calculoLigado: true }))).avisos).not.toContain(AVISO)
+    const vaz = empacotarSugestoes(modeloDe(vazia('nunca-calculado', {}, { computado_em: null, calculoLigado: false })))
+    expect(vaz.avisos).not.toContain(AVISO)
+    expect(vaz.vazio).toBe('O cálculo das sugestões ainda não foi ligado.')
+  })
+
   it('desatualizado e truncado viram aviso', () => {
     const p = empacotarSugestoes(modeloDe(lista([item(1)], { n: 9, desatualizado: true })))
     expect(p.avisos.join(' ')).toMatch(/1 mais fortes de 9/)

@@ -256,6 +256,35 @@ describe.skipIf(skipIfNoLocalDb())('C1 F1 T4: funções do dono (banco local)', 
     expect((await lib(String(v.rows[0].id))).expires_at).toEqual(v.rows[0].expires_at)
   })
 
+  it('(i) acessoir-21: estender não reabre liberação vencida de pessoa com apagamento pedido (LGPD); devolve o motivo e não mexe', async () => {
+    const { s, u } = await cena()
+    const v = await pg.query(`insert into public.obs_ai_liberacoes (site_id, user_id, expires_at) values ($1, $2, now() - interval '1 day') returning id, expires_at`, [s, u])
+    await pg.query(`insert into public.lgpd_requests (user_id, type, status, phase_1_completed_at) values ($1, 'account_deletion', 'processing', now())`, [u])
+    try {
+      const r = (await pg.query(`select * from public.obs_ai_estender_liberacao($1, 30, now())`, [v.rows[0].id])).rows[0]
+      expect(r.motivo).toBe('apagamento')
+      expect((await lib(String(v.rows[0].id))).expires_at).toEqual(v.rows[0].expires_at)
+    } finally { await pg.query(`delete from public.lgpd_requests where user_id = $1`, [u]) }
+  })
+
+  it('(i) acessoir-21: encurtar a validade de liberação viva continua permitido para pessoa banida e para pessoa com apagamento pedido (a recusa vale só para estender)', async () => {
+    const encurtar = async (liberacao: string) => {
+      const r = (await pg.query(`select * from public.obs_ai_estender_liberacao($1, 5, now())`, [liberacao])).rows[0]
+      expect(r.motivo).toBeNull()
+      const ok = (await pg.query(`select expires_at > now() + interval '4 days' and expires_at < now() + interval '5 days 1 minute' as ok from public.obs_ai_liberacoes where id = $1`, [liberacao])).rows[0].ok
+      expect(ok).toBe(true)
+    }
+    const viva = async (s: string, u: string) => String((await pg.query(`insert into public.obs_ai_liberacoes (site_id, user_id, expires_at) values ($1, $2, now() + interval '30 days') returning id`, [s, u])).rows[0].id)
+    const a = await cena()
+    const la = await viva(a.s, a.u)
+    await pg.query(`update auth.users set banned_until = now() + interval '10 years' where id = $1`, [a.u])
+    await encurtar(la)
+    const b = await cena()
+    const lb = await viva(b.s, b.u)
+    await pg.query(`insert into public.lgpd_requests (user_id, type, status, phase_1_completed_at) values ($1, 'account_deletion', 'processing', now())`, [b.u])
+    try { await encurtar(lb) } finally { await pg.query(`delete from public.lgpd_requests where user_id = $1`, [b.u]) }
+  })
+
   it('(j) Phil M4: cortar com cliente fora da lista devolve cliente e não grava bloqueio', async () => {
     const { s, u } = await cena()
     const l = (await liberar(pg, u, s, 30)).liberacao_id!

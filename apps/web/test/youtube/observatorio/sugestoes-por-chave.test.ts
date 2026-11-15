@@ -121,6 +121,21 @@ describe('sugestões pela chave (M-2)', () => {
     expect(h.chamadas[0]![5]).toMatchObject({ edita: false })
   })
 
+  it('acessoir-1: o registro grava privado_estado, que separa os 3 casos que privado:false juntava', async () => {
+    const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', new Date(Date.now() + 30 * 86_400_000).toISOString())
+    const estado = async (l: ListaDeSinais, acesso: AcessoPrivado) => { h.lista = l; return (await responder({ acao: 'sugestoes' }, abridorDaChave(prova, acesso), Date.now())).params }
+    const com = await estado(lista([item(null)]), COM)
+    expect(com).toMatchObject({ privado: true, privado_estado: 'incluido' })
+    const semItens = await estado(lista([], { n: 0, motivoVazio: 'nunca-calculado', computado_em: null, contagens: {} }), COM)
+    expect(semItens).toMatchObject({ privado: false, privado_estado: 'na' })
+    const semDireito = await estado(lista([item('sem_direito')]), SEM)
+    expect(semDireito).toMatchObject({ privado: false, privado_estado: 'excluido_sem_direito' })
+    const naoConf = item(null); naoConf.trafego_do_terceiro = { ...naoConf.trafego_do_terceiro, estado: 'nao_medido', motivo: 'nao_conferido' }
+    expect((await estado(lista([naoConf]), COM)).privado_estado).toBe('excluido_nao_conferido')
+    const falhou = item(null); falhou.trafego_do_terceiro = { ...falhou.trafego_do_terceiro, estado: 'nao_medido', motivo: 'erro_de_leitura' }
+    expect(await estado(lista([falhou]), COM)).toMatchObject({ privado: false, privado_estado: 'excluido_leitura_falhou' })
+  })
+
   it('M-A: a leitura das sugestões falhar dá falhou (nunca verde nem nao_encontrado)', async () => {
     h.falha = new Error('x')
     const prova = fabricarProva(SITE, 'pessoa-1', 'chave-1', new Date(Date.now() + 30 * 86_400_000).toISOString())
