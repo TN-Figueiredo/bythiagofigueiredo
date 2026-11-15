@@ -458,7 +458,8 @@ describe('(11) pizza (D2): só onde a soma das partes medidas é o todo da tela'
     const alvo = mod.tabelas.find((t) => t.id === 'canais-resumo-direcao')!
     const antes = blocos(r.texto).get(alvo.titulo)!.antes
     expect(antes).toContain('Gráfico sugerido: pizza')
-    expect(antes).toContain('toda parte foi medida')
+    expect(antes).not.toContain('toda parte foi medida') // acessoir-16: a direção tem frase própria
+    expect(antes).toContain('direção não medida')
     expect(antes).not.toContain('{k}')
     expect(antes).not.toContain('0 sem medida')
     const ruim: PacoteModelo = { ...mod, tabelas: mod.tabelas.map((t) => (t === alvo ? { ...t, linhas: t.linhas.map((l, i) => (i === 1 ? [l[0]!, { papel: 'numero', estado: 'nao_medido', motivo: 'sem leitura', origem: 'o' } as Celula] : l)) } : t)) }

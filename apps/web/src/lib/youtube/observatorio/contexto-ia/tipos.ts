@@ -33,6 +33,12 @@ export interface Tabela {
   chaves?: string[]
   /** A5: gráfico sugerido. Ausente = padrão pelo tipo da tabela (D1). */
   grafico?: 'linha' | 'barra' | 'pizza' | 'nenhum'
+  /** acessoir-16: pizza com uma parte que é "não medida" (canais sem medida, não parados): índice da linha. O gerador escolhe a frase própria do gráfico e, sem nenhuma parte medida, não sugere gráfico. */
+  parteNaoMedida?: number
+  /** acessoir-16: a frase que o bloco leva logo abaixo do `## título` (a leitura certa da tabela, que o gráfico sozinho não carrega). */
+  resumo?: string
+  /** acessoir-16: linhas a mais no dicionário, depois das colunas (`- <chave>: <texto>`). */
+  dicionarioExtra?: string[]
   /** A5: só `dia_a_dia` com data; ISO `AAAA-MM-DD`, paralelo a `linhas`. */
   dias?: string[]
   /** A5: fuso do dia da série. */
