@@ -3,6 +3,7 @@
 // O `siteId` nunca é parâmetro: vem da guarda, dentro de cada `montar…`. Tela que não existe devolve `null` ("não encontrado").
 import { telaExiste } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { EstadoDoPrivado, PacoteModelo, TelaId } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { montarCanais } from '../_canais/montar'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type MontarCanal } from '../_canal/montar'
 import { montarVideo } from '../_historico/montar'
@@ -115,6 +116,17 @@ async function pacoteDoConcorrente(m: CanalConcorrente, opcoes?: OpcoesDoPacote)
   return { modelo: sem(empacotarCanal(modeloDeCanal(m.view, m.leituraMv, medidas)), m.obs), recente: m.recente, estado: textoDe(m.estado) }
 }
 
+type CanalProprioSemVideo = Extract<MontarCanal, { tipo: 'proprio_sem_videos' }>
+
+/** acessoir-15: próprio cadastrado e coletado, sem vídeo publicado: pacote vazio com a frase (resposta `ok` vazia), nunca "não encontrado". Sem tabela, sem dado privado. */
+function pacoteDoProprioSemVideo(m: CanalProprioSemVideo): PacoteMontado {
+  const modelo: PacoteModelo = {
+    tela: 'canal-proprio', janela: '', foco: [{ nome: m.proprio.name, oQueE: 'seu canal', detalhe: '' }], tabelas: [], citados: [], definicoes: [],
+    avisos: [F.SERIE_PROPRIO_SEM_VIDEO], naoMede: [], privado: { estado: 'na' }, comentarios: { estado: 'na' }, vazio: F.SERIE_PROPRIO_SEM_VIDEO, motivoDoMagro: null, listasCompletas: false,
+  }
+  return { modelo: sem(modelo, m.obs), recente: m.recente, estado: {} }
+}
+
 async function pacoteDoProprio(m: CanalProprio): Promise<PacoteMontado> {
   const [periodos, origem] = await Promise.all([m.periodosProps ? assistidoDoCanal(m.periodosProps) : Promise.resolve(null), origemDoCanal(m.origemProps)])
   const modelo = modeloDeCanalProprio(m.pv, m.comoEsta, { periodos, origem })
@@ -131,6 +143,7 @@ export async function empacotarCanalOuProprio(pedido: PedidoMontado, abrir: Abri
   const m = await montarCanal(alvo, pedido.sp, { iniciarMedidas: lerMedidasDoCanal }, abrir)
   if (m.tipo === 'concorrente') return pacoteDoConcorrente(m, pedido.opcoes)
   if (m.tipo === 'proprio') return pacoteDoProprio(m)
+  if (m.tipo === 'proprio_sem_videos') return pacoteDoProprioSemVideo(m)
   return null
 }
 
@@ -159,6 +172,7 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } & { 'canal?': Empacotado
     const alvo = EXIGE_ID(id)
     if (alvo === null) return null
     const m = await montarCanal(alvo, sp, {}, abrir)
+    if (m.tipo === 'proprio_sem_videos') return pacoteDoProprioSemVideo(m)
     return m.tipo === 'proprio' ? pacoteDoProprio(m) : null
   },
   video: async ({ id, sp }, abrir = ABRIDOR_DE_SESSAO) => {

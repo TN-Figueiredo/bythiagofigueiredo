@@ -471,14 +471,14 @@ export function respostaDaSerieEmTabela(
 
 /* ------------------------------------------------------------------ A5 F2b: vários canais */
 
-/** Um canal do pedido: lido (modelo reduzido à série), não encontrado, não lido (o prazo acabou) ou `falhou` (a leitura lançou: só esse canal). `apelido` é `c1`, `c2`, … na ordem do pedido. */
+/** Um canal do pedido: lido (modelo reduzido à série), `sem_video` (próprio cadastrado e coletado, sem vídeo publicado: acessoir-15), não encontrado, não lido (o prazo acabou) ou `falhou` (a leitura lançou: só esse canal). `apelido` é `c1`, `c2`, … na ordem do pedido. */
 export type CanalDaSerieMulti =
   | { tipo: 'lido'; apelido: string; canalId: string; m: PacoteModelo }
-  | { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou'; apelido: string; canalId: string }
+  | { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' | 'sem_video'; apelido: string; canalId: string }
 
 /** As linhas de um canal que não foi lido: uma `nao_medido` por data pedida até hoje (no máximo `n`, as mais recentes), com o motivo. Nunca o dado de outro canal. */
-function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
-  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : c.tipo === 'falhou' ? F.SERIE_CANAL_FALHOU : F.SERIE_CANAL_NAO_LIDO
+function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' | 'sem_video' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
+  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : c.tipo === 'sem_video' ? F.SERIE_PROPRIO_SEM_VIDEO : c.tipo === 'falhou' ? F.SERIE_CANAL_FALHOU : F.SERIE_CANAL_NAO_LIDO
   const estado = c.tipo === 'falhou' ? 'falhou' : 'nao_medido'
   const ate = menor(p.ate, hoje)
   const sem = p.grao === 'semana' ? { diasMedidos: 0 } : {}

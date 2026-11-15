@@ -186,6 +186,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const motivos = m.tabelas.filter((t) => t.linhas.some((l) => l.some((c) => c.papel === 'numero' && (c.estado === 'falhou' || c.estado === 'restrito' || c.estado === 'nao_medido'))))
     tabelas.push(...motivos)
     if (m.privado.estado === 'excluido') avisos.push('a série dia a dia deste canal é dado privado e não foi incluída; o motivo está na parte do dado privado')
+    else if (m.vazio === F.SERIE_PROPRIO_SEM_VIDEO) { /* acessoir-15: o aviso do pacote já diz sem vídeo publicado */ }
     else if (m.tela === 'canal' || m.tela === 'canal-proprio') {
       avisos.push(`a série dia a dia não veio nesta leitura; ${motivos.length ? 'o motivo está nas tabelas abaixo' : 'a tela não registrou o motivo'}`)
     } else avisos.push('esta tela não traz série dia a dia; nenhuma tabela de série foi montada')
@@ -626,6 +627,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (r.valor === 'falhou') { canais.push({ tipo: 'falhou', apelido, canalId: idPedido }); continue }
         if (r.valor === null) { canais.push({ tipo: 'nao_encontrado', apelido, canalId: idPedido }); continue }
         recente = recente ?? r.valor.recente
+        if (r.valor.modelo.vazio === F.SERIE_PROPRIO_SEM_VIDEO) { canais.push({ tipo: 'sem_video', apelido, canalId: r.valor.id }); continue }
         canais.push({ tipo: 'lido', apelido, canalId: r.valor.id, m: recortarSerie(r.valor.modelo, pedido, agora, cortes, true) })
       }
       const n_canais = canais.length

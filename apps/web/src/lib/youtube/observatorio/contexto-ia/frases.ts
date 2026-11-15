@@ -214,6 +214,8 @@ export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto med
 /** A5 F2b: a `serie` de vários canais. */
 export const SERIE_NENHUM_PONTO_CANAIS = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para os canais pedidos`
 export const SERIE_CANAL_NAO_ENCONTRADO = 'canal não encontrado'
+/** acessoir-15: canal próprio cadastrado e coletado que ainda não publicou vídeo: resposta vazia, nunca nao_encontrado. */
+export const SERIE_PROPRIO_SEM_VIDEO = 'canal próprio cadastrado e coletado, ainda sem vídeo publicado; não há série a mostrar'
 export const SERIE_CANAL_FALHOU = 'a leitura deste canal falhou; tente de novo'
 export const SERIE_CANAL_NAO_LIDO = 'não lido: o prazo da chamada acabou'
 export const SERIE_BASES_DIFERENTES = 'Bases diferentes nesta tabela: o seu canal soma só vídeos longos acompanhados, no dia do YouTube (Pacífico); os concorrentes, o canal inteiro com Shorts, no dia de São Paulo. Não compare sem citar as duas.'
