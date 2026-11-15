@@ -13,7 +13,7 @@ import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import { buildOutliersView, type OutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 import { OutliersScreen } from '@/app/cms/(authed)/youtube/competitors/_outliers/outliers-screen'
 import {
-  empacotarOutliers, INVENTARIO_OUTLIERS, modeloDeOutliers, SEM_FOLHA_NA_MATRIZ_OUTLIERS, SEM_PROVA_POR_IGUALDADE_DIRETA_OUTLIERS, type ModeloOutliers,
+  empacotarOutliers, MULTIPLO_COM_UNIDADE, INVENTARIO_OUTLIERS, modeloDeOutliers, SEM_FOLHA_NA_MATRIZ_OUTLIERS, SEM_PROVA_POR_IGUALDADE_DIRETA_OUTLIERS, type ModeloOutliers,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-outliers'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -63,7 +63,7 @@ const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   grupos: { Grupo: '.label', Outliers: ['.count', '.onlyWeakText'] },
   'grupos-notas': { Grupo: '.label', Nota: ['.why', '.countText', '.pageNote'] },
   outliers: {
-    Grupo: '.label', Vídeo: '.title', Id: '.id', Canal: '.channel', Nicho: '.nicheLabel', Múltiplo: '.mult', 'Base do múltiplo': '.multLabel', Views: '.views',
+    Grupo: '.label', Vídeo: '.title', Id: '.id', Canal: '.channel', Nicho: '.nicheLabel', [MULTIPLO_COM_UNIDADE]: '.mult', 'Base do múltiplo': '.multLabel', Views: '.views',
     'Views/dia (7 dias)': '.vpdShort', Publicado: '.age', Duração: '.dur',
   },
   'outliers-avisos': { Vídeo: '.title', Aviso: ['.vpdShortNote', '.phaseWhy', '.why', ...FLAGS] },

@@ -2,7 +2,7 @@
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 11|8|4
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....... ||||||
 trocas/Id: ....... ||||||
@@ -14,14 +14,14 @@ trocas/Visto: ....... ||||||
 trocas-efeito/Vídeo: .... |||
 trocas-efeito/Tipo: .... |||
 trocas-efeito/Veredito: .... |||
-trocas-efeito/Observado: MMMM −49%|−49%|−50%|−50%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMMM −49%|−49%|−50%|−50%
 trocas-efeito/Antes (views/dia): MMMM 15,7 mil|15,7 mil|16,7 mil|18,9 mil
 trocas-efeito/Depois (views/dia): MMMM 8 mil|8 mil|8,4 mil|9,4 mil
 trocas-esperado/Vídeo: .... |||
-trocas-esperado/Esperado sem a troca: MMMM −54%|−54%|−54%|−53%
-trocas-esperado/Efeito: MMMM +5 pp|+5 pp|+4 pp|+3 pp
+trocas-esperado/Esperado sem a troca (%): MMMM −54%|−54%|−54%|−53%
+trocas-esperado/Efeito (pontos percentuais): MMMM +5 pp|+5 pp|+4 pp|+3 pp
 trocas-faixa/Vídeo: ........ |||||||
-trocas-faixa/Limite da faixa: MMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%
+trocas-faixa/Limite da faixa (%): MMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%
 trocas-base/Vídeo: .... |||
 trocas-base/Vídeos na base (n): MMMM 5|5|5|5
 trocas-base/Faixa de idade: .... |||
@@ -45,7 +45,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MZZ 2|0|0
 quadro-de-efeito/Com veredito (n): ZZZ 0|0|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .. |
 trocas/Id: .. |
@@ -57,14 +57,14 @@ trocas/Visto: .. |
 trocas-efeito/Vídeo:  
 trocas-efeito/Tipo:  
 trocas-efeito/Veredito:  
-trocas-efeito/Observado:  
+trocas-efeito/Observado (% de views/dia, depois contra antes):  
 trocas-efeito/Antes (views/dia):  
 trocas-efeito/Depois (views/dia):  
 trocas-esperado/Vídeo:  
-trocas-esperado/Esperado sem a troca:  
-trocas-esperado/Efeito:  
+trocas-esperado/Esperado sem a troca (%):  
+trocas-esperado/Efeito (pontos percentuais):  
 trocas-faixa/Vídeo:  
-trocas-faixa/Limite da faixa:  
+trocas-faixa/Limite da faixa (%):  
 trocas-base/Vídeo:  
 trocas-base/Vídeos na base (n):  
 trocas-base/Faixa de idade:  
@@ -81,7 +81,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 9|8|4
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: . 
 trocas/Id: . 
@@ -93,14 +93,14 @@ trocas/Visto: .
 trocas-efeito/Vídeo:  
 trocas-efeito/Tipo:  
 trocas-efeito/Veredito:  
-trocas-efeito/Observado:  
+trocas-efeito/Observado (% de views/dia, depois contra antes):  
 trocas-efeito/Antes (views/dia):  
 trocas-efeito/Depois (views/dia):  
 trocas-esperado/Vídeo:  
-trocas-esperado/Esperado sem a troca:  
-trocas-esperado/Efeito:  
+trocas-esperado/Esperado sem a troca (%):  
+trocas-esperado/Efeito (pontos percentuais):  
 trocas-faixa/Vídeo:  
-trocas-faixa/Limite da faixa:  
+trocas-faixa/Limite da faixa (%):  
 trocas-base/Vídeo:  
 trocas-base/Vídeos na base (n):  
 trocas-base/Faixa de idade:  
@@ -117,7 +117,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 7|8|3
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .................. |||||||||||||||||
 trocas/Id: .................. |||||||||||||||||
@@ -129,14 +129,14 @@ trocas/Visto: .................. |||||||||||||||||
 trocas-efeito/Vídeo: ............ |||||||||||
 trocas-efeito/Tipo: ............ |||||||||||
 trocas-efeito/Veredito: ............ |||||||||||
-trocas-efeito/Observado: MMMMMMMMMMMM −49%|−49%|−50%|−50%|−11%|−28%|+1%|+15%|−55%|−54%|+20%|+3%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMMMMMMMMMMM −49%|−49%|−50%|−50%|−11%|−28%|+1%|+15%|−55%|−54%|+20%|+3%
 trocas-efeito/Antes (views/dia): MMMMMMMMMMMM 15,7 mil|15,7 mil|16,7 mil|18,9 mil|2 mil|2,9 mil|14,7 mil|435|40,7 mil|43,3 mil|11,1 mil|729
 trocas-efeito/Depois (views/dia): MMMMMMMMMMMM 8 mil|8 mil|8,4 mil|9,4 mil|1,8 mil|2,1 mil|14,8 mil|502|18,5 mil|19,9 mil|13,3 mil|748
 trocas-esperado/Vídeo: ........... ||||||||||
-trocas-esperado/Esperado sem a troca: MMMMMMMMMMM −54%|−54%|−54%|−53%|−13%|−8%|0%|−13%|−25%|−11%|−9%
-trocas-esperado/Efeito: MMMMMMMMMMM +5 pp|+5 pp|+4 pp|+3 pp|+2 pp|−20 pp|+1 pp|+29 pp|−30 pp|+31 pp|+12 pp
+trocas-esperado/Esperado sem a troca (%): MMMMMMMMMMM −54%|−54%|−54%|−53%|−13%|−8%|0%|−13%|−25%|−11%|−9%
+trocas-esperado/Efeito (pontos percentuais): MMMMMMMMMMM +5 pp|+5 pp|+4 pp|+3 pp|+2 pp|−20 pp|+1 pp|+29 pp|−30 pp|+31 pp|+12 pp
 trocas-faixa/Vídeo: ...................... |||||||||||||||||||||
-trocas-faixa/Limite da faixa: MMMMMMMMMMMMMMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−9%|−11%|−5%|−2%|+2%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
+trocas-faixa/Limite da faixa (%): MMMMMMMMMMMMMMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−9%|−11%|−5%|−2%|+2%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
 trocas-base/Vídeo: ........... ||||||||||
 trocas-base/Vídeos na base (n): MMMMMMMMMMM 5|5|5|5|10|11|42|18|4|14|9
 trocas-base/Faixa de idade: ........... ||||||||||
@@ -160,7 +160,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 11|8|4
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....................... ||||||||||||||||||||||
 trocas/Id: ....................... ||||||||||||||||||||||
@@ -172,14 +172,14 @@ trocas/Visto: ....................... ||||||||||||||||||||||
 trocas-efeito/Vídeo: ............ |||||||||||
 trocas-efeito/Tipo: ............ |||||||||||
 trocas-efeito/Veredito: ............ |||||||||||
-trocas-efeito/Observado: MMMMMMMMMMMM −49%|−49%|−50%|−50%|−11%|−28%|+1%|+15%|−55%|−54%|+20%|+3%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMMMMMMMMMMM −49%|−49%|−50%|−50%|−11%|−28%|+1%|+15%|−55%|−54%|+20%|+3%
 trocas-efeito/Antes (views/dia): MMMMMMMMMMMM 15,7 mil|15,7 mil|16,7 mil|18,9 mil|2 mil|2,9 mil|14,7 mil|435|40,7 mil|43,3 mil|11,1 mil|729
 trocas-efeito/Depois (views/dia): MMMMMMMMMMMM 8 mil|8 mil|8,4 mil|9,4 mil|1,8 mil|2,1 mil|14,8 mil|502|18,5 mil|19,9 mil|13,3 mil|748
 trocas-esperado/Vídeo: ........... ||||||||||
-trocas-esperado/Esperado sem a troca: MMMMMMMMMMM −54%|−54%|−54%|−53%|−13%|−8%|0%|−13%|−25%|−11%|−9%
-trocas-esperado/Efeito: MMMMMMMMMMM +5 pp|+5 pp|+4 pp|+3 pp|+2 pp|−20 pp|+1 pp|+29 pp|−30 pp|+31 pp|+12 pp
+trocas-esperado/Esperado sem a troca (%): MMMMMMMMMMM −54%|−54%|−54%|−53%|−13%|−8%|0%|−13%|−25%|−11%|−9%
+trocas-esperado/Efeito (pontos percentuais): MMMMMMMMMMM +5 pp|+5 pp|+4 pp|+3 pp|+2 pp|−20 pp|+1 pp|+29 pp|−30 pp|+31 pp|+12 pp
 trocas-faixa/Vídeo: ...................... |||||||||||||||||||||
-trocas-faixa/Limite da faixa: MMMMMMMMMMMMMMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−9%|−11%|−5%|−2%|+2%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
+trocas-faixa/Limite da faixa (%): MMMMMMMMMMMMMMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−9%|−11%|−5%|−2%|+2%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
 trocas-base/Vídeo: ........... ||||||||||
 trocas-base/Vídeos na base (n): MMMMMMMMMMM 5|5|5|5|10|11|42|18|4|14|9
 trocas-base/Faixa de idade: ........... ||||||||||
@@ -203,7 +203,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 4|1|1
 quadro-de-efeito/Com veredito (n): ZZZ 0|0|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ...... |||||
 trocas/Id: ...... |||||
@@ -215,14 +215,14 @@ trocas/Visto: ...... |||||
 trocas-efeito/Vídeo:  
 trocas-efeito/Tipo:  
 trocas-efeito/Veredito:  
-trocas-efeito/Observado:  
+trocas-efeito/Observado (% de views/dia, depois contra antes):  
 trocas-efeito/Antes (views/dia):  
 trocas-efeito/Depois (views/dia):  
 trocas-esperado/Vídeo:  
-trocas-esperado/Esperado sem a troca:  
-trocas-esperado/Efeito:  
+trocas-esperado/Esperado sem a troca (%):  
+trocas-esperado/Efeito (pontos percentuais):  
 trocas-faixa/Vídeo:  
-trocas-faixa/Limite da faixa:  
+trocas-faixa/Limite da faixa (%):  
 trocas-base/Vídeo:  
 trocas-base/Vídeos na base (n):  
 trocas-base/Faixa de idade:  
@@ -246,7 +246,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 7|8|3
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ....... ||||||
 trocas/Id: ....... ||||||
@@ -258,14 +258,14 @@ trocas/Visto: ....... ||||||
 trocas-efeito/Vídeo: ... ||
 trocas-efeito/Tipo: ... ||
 trocas-efeito/Veredito: ... ||
-trocas-efeito/Observado: MMM −50%|−55%|+3%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMM −50%|−55%|+3%
 trocas-efeito/Antes (views/dia): MMM 18,9 mil|40,7 mil|729
 trocas-efeito/Depois (views/dia): MMM 9,4 mil|18,5 mil|748
 trocas-esperado/Vídeo: ... ||
-trocas-esperado/Esperado sem a troca: MMM −53%|−25%|−9%
-trocas-esperado/Efeito: MMM +3 pp|−30 pp|+12 pp
+trocas-esperado/Esperado sem a troca (%): MMM −53%|−25%|−9%
+trocas-esperado/Efeito (pontos percentuais): MMM +3 pp|−30 pp|+12 pp
 trocas-faixa/Vídeo: ...... |||||
-trocas-faixa/Limite da faixa: MMMMMM −54%|−53%|−33%|−23%|−11%|−1%
+trocas-faixa/Limite da faixa (%): MMMMMM −54%|−53%|−33%|−23%|−11%|−1%
 trocas-base/Vídeo: ... ||
 trocas-base/Vídeos na base (n): MMM 5|4|9
 trocas-base/Faixa de idade: ... ||
@@ -282,7 +282,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 11|8|4
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: .... |||
 trocas/Id: .... |||
@@ -294,14 +294,14 @@ trocas/Visto: .... |||
 trocas-efeito/Vídeo: .. |
 trocas-efeito/Tipo: .. |
 trocas-efeito/Veredito: .. |
-trocas-efeito/Observado: MM −49%|−54%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MM −49%|−54%
 trocas-efeito/Antes (views/dia): MM 15,7 mil|43,3 mil
 trocas-efeito/Depois (views/dia): MM 8 mil|19,9 mil
 trocas-esperado/Vídeo: . 
-trocas-esperado/Esperado sem a troca: M −54%
-trocas-esperado/Efeito: M +5 pp
+trocas-esperado/Esperado sem a troca (%): M −54%
+trocas-esperado/Efeito (pontos percentuais): M +5 pp
 trocas-faixa/Vídeo: .. |
-trocas-faixa/Limite da faixa: MM −54%|−53%
+trocas-faixa/Limite da faixa (%): MM −54%|−53%
 trocas-base/Vídeo: . 
 trocas-base/Vídeos na base (n): M 5
 trocas-base/Faixa de idade: . 
@@ -319,7 +319,7 @@ forja-do-site/Do site: ........ |||||||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 5|4|2
 quadro-de-efeito/Com veredito (n): ZMZ 0|1|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ........... ||||||||||
 trocas/Id: ........... ||||||||||
@@ -331,14 +331,14 @@ trocas/Visto: ........... ||||||||||
 trocas-efeito/Vídeo: ..... ||||
 trocas-efeito/Tipo: ..... ||||
 trocas-efeito/Veredito: ..... ||||
-trocas-efeito/Observado: MMMMM −49%|−49%|−50%|−50%|+15%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMMMM −49%|−49%|−50%|−50%|+15%
 trocas-efeito/Antes (views/dia): MMMMM 15,7 mil|15,7 mil|16,7 mil|18,9 mil|435
 trocas-efeito/Depois (views/dia): MMMMM 8 mil|8 mil|8,4 mil|9,4 mil|502
 trocas-esperado/Vídeo: ..... ||||
-trocas-esperado/Esperado sem a troca: MMMMM −54%|−54%|−54%|−53%|−13%
-trocas-esperado/Efeito: MMMMM +5 pp|+5 pp|+4 pp|+3 pp|+29 pp
+trocas-esperado/Esperado sem a troca (%): MMMMM −54%|−54%|−54%|−53%|−13%
+trocas-esperado/Efeito (pontos percentuais): MMMMM +5 pp|+5 pp|+4 pp|+3 pp|+29 pp
 trocas-faixa/Vídeo: .......... |||||||||
-trocas-faixa/Limite da faixa: MMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−10%
+trocas-faixa/Limite da faixa (%): MMMMMMMMMM −54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−10%
 trocas-base/Vídeo: ..... ||||
 trocas-base/Vídeos na base (n): MMMMM 5|5|5|5|18
 trocas-base/Faixa de idade: ..... ||||
@@ -362,7 +362,7 @@ forja-do-site/Do site: .... |||
 quadro-de-efeito/Tipo: ... ||
 quadro-de-efeito/Trocas do nicho na janela: MMM 11|8|4
 quadro-de-efeito/Com veredito (n): ZMZ 0|4|0
-quadro-de-efeito/Mediana do efeito: nnn ||
+quadro-de-efeito/Mediana do efeito (pontos percentuais): nnn ||
 quadro-de-efeito/Resultado: ... ||
 trocas/Vídeo: ............ |||||||||||
 trocas/Id: ............ |||||||||||
@@ -374,14 +374,14 @@ trocas/Visto: ............ |||||||||||
 trocas-efeito/Vídeo: ............ |||||||||||
 trocas-efeito/Tipo: ............ |||||||||||
 trocas-efeito/Veredito: ............ |||||||||||
-trocas-efeito/Observado: MMMMMMMMMMMM −11%|−28%|+1%|−49%|−49%|−50%|−50%|+15%|−55%|−54%|+20%|+3%
+trocas-efeito/Observado (% de views/dia, depois contra antes): MMMMMMMMMMMM −11%|−28%|+1%|−49%|−49%|−50%|−50%|+15%|−55%|−54%|+20%|+3%
 trocas-efeito/Antes (views/dia): MMMMMMMMMMMM 2 mil|2,9 mil|14,7 mil|15,7 mil|15,7 mil|16,7 mil|18,9 mil|435|40,7 mil|43,3 mil|11,1 mil|729
 trocas-efeito/Depois (views/dia): MMMMMMMMMMMM 1,8 mil|2,1 mil|14,8 mil|8 mil|8 mil|8,4 mil|9,4 mil|502|18,5 mil|19,9 mil|13,3 mil|748
 trocas-esperado/Vídeo: ........... ||||||||||
-trocas-esperado/Esperado sem a troca: MMMMMMMMMMM −13%|−8%|0%|−54%|−54%|−54%|−53%|−13%|−25%|−11%|−9%
-trocas-esperado/Efeito: MMMMMMMMMMM +2 pp|−20 pp|+1 pp|+5 pp|+5 pp|+4 pp|+3 pp|+29 pp|−30 pp|+31 pp|+12 pp
+trocas-esperado/Esperado sem a troca (%): MMMMMMMMMMM −13%|−8%|0%|−54%|−54%|−54%|−53%|−13%|−25%|−11%|−9%
+trocas-esperado/Efeito (pontos percentuais): MMMMMMMMMMM +2 pp|−20 pp|+1 pp|+5 pp|+5 pp|+4 pp|+3 pp|+29 pp|−30 pp|+31 pp|+12 pp
 trocas-faixa/Vídeo: ...................... |||||||||||||||||||||
-trocas-faixa/Limite da faixa: MMMMMMMMMMMMMMMMMMMMMM −16%|−9%|−11%|−5%|−2%|+2%|−54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
+trocas-faixa/Limite da faixa (%): MMMMMMMMMMMMMMMMMMMMMM −16%|−9%|−11%|−5%|−2%|+2%|−54%|−53%|−54%|−53%|−54%|−52%|−54%|−53%|−16%|−10%|−33%|−23%|−17%|−9%|−11%|−1%
 trocas-base/Vídeo: ........... ||||||||||
 trocas-base/Vídeos na base (n): MMMMMMMMMMM 10|11|42|5|5|5|5|18|4|14|9
 trocas-base/Faixa de idade: ........... ||||||||||

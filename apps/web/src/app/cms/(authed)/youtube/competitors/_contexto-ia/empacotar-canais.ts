@@ -16,6 +16,7 @@ import type { CanaisRow, CanaisView } from '../_canais/view-model'
 import type { RiView, RiPilula, RiLinhaRef, RiLinhaIns } from '../_canais/ri-tipos'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
+import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
@@ -392,7 +393,14 @@ function celulasDaLinha(l: Linha): Celula[] {
 export const VPD_POR_MIL = 'Views/dia por mil inscritos'
 export const VPD_MEDIANA = 'Views/dia, mediana dos vídeos'
 export const RITMO_COM_UNIDADE = 'Ritmo (uploads por semana, 13 semanas)'
-const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Id', 'Inscritos', 'Direção', RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
+/** acessoir-6 (Yannis, 15/11): a unidade no título; a chave do CSV (`direcao_pct`, `maior_outlier_mult`, `crescimento_pct`) não muda. */
+export const DIRECAO_COM_UNIDADE = 'Direção (% das views, 28 dias contra 28 anteriores)'
+export const CRESCIMENTO_COM_UNIDADE = 'Crescimento (% de inscritos em 30 dias)'
+export const GANHO_28_COM_UNIDADE = 'Ganho em 28 dias (% de inscritos)'
+export const RITMO_SHORTS_COM_UNIDADE = 'Ritmo dos Shorts (uploads por semana, 13 semanas)'
+export const MAIOR_OUTLIER_COM_UNIDADE = 'Maior outlier (× a mediana do canal)'
+export const MAIOR_OUTLIER_SHORTS_COM_UNIDADE = 'Maior outlier dos Shorts (× a mediana do canal)'
+const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Id', 'Inscritos', DIRECAO_COM_UNIDADE, RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, MAIOR_OUTLIER_COM_UNIDADE, 'Trocas', CRESCIMENTO_COM_UNIDADE, 'Sincronização']
 
 function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): Tabela[] {
   if (!ls.length) return []
@@ -419,7 +427,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 
   if (modelo.fmt === 'todos') {
     const sh = ls.filter(({ r }) => r.cells.cadence2 && r.cells.vpd2 && r.cells.out2)
-    out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', 'Ritmo dos Shorts', 'Views por dia dos Shorts', 'Outliers dos Shorts'],
+    out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', RITMO_SHORTS_COM_UNIDADE, 'Views por dia dos Shorts', MAIOR_OUTLIER_SHORTS_COM_UNIDADE],
       sh.map(({ r, p }) => {
         const k = r.cells.cadence2!, v = r.cells.vpd2!, o = r.cells.out2!
         return [terceiros(r.name, `${p}.name`),
@@ -468,12 +476,39 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 }
 
 // ───────────────────────── resumo, Referências e Inscritos
+/**
+ * acessoir-16 (dono aprovou o mockup em 15/11): a pizza da direção diz quantos canais foram medidos e pinta a parte "direção não medida" à parte.
+ * As chaves do CSV não mudam; o rótulo da linha só no CSV (`maquina`), a nota em `motivos`, a frase-resumo abaixo do título, a falha de leitura na frase.
+ */
+function tabelaDaDirecao(m: ModeloCanais, casas: ModeloCanais['resumo']['casas'], num: (n: number | null, origem: string) => Celula): Tabela {
+  const n = (chave: string): number => casas.find((c) => c.chave === chave)?.n ?? 0
+  const sobe = n('sobe'), estavel = n('estavel'), desce = n('desce'), naoM = n('nao-medido')
+  const medidos = sobe + estavel + desce, canais = medidos + naoM
+  const todasFalharam = casas.every((c) => c.n === null)
+  const falhou = m.resumo.direcao.naoCarregou
+  const titulo = F.DIRECAO_TITULO(JANELA, medidos, canais, todasFalharam)
+  const frases = todasFalharam ? (falhou > 0 ? [F.DIRECAO_LEITURA_FALHOU(falhou)] : []) : F.DIRECAO_FRASES(sobe, estavel, desce, naoM, falhou)
+  const primeira = casas.find((c) => c.chave === 'nao-medido')?.data?.match(/\d\d\/\d\d/)?.[0]
+  const nota = F.DIRECAO_NOTA_NAO_MEDIDA(primeira)
+  const idx = casas.findIndex((c) => c.chave === 'nao-medido')
+  const linhas = casas.map((c, i): Celula[] => {
+    const origem = `modelo.resumo.casas[${i}]`
+    if (c.chave !== 'nao-medido') return [rotulo(c.palavra, `${origem}.palavra`), num(c.n, `${origem}.n`)]
+    const cel = num(c.n, `${origem}.n`)
+    return [{ papel: 'rotulo', texto: c.palavra, origem: `${origem}.palavra`, maquina: F.DIRECAO_ROTULO_NAO_MEDIDA }, cel.papel === 'numero' && cel.estado !== 'nao_medido' && cel.estado !== 'falhou' && cel.estado !== 'restrito' && cel.x !== undefined && cel.x !== null ? { ...cel, nota } : cel]
+  })
+  const t = tabelaFixa('canais-resumo-direcao', titulo, 'tabela do resumo da direção', ['Direção', 'Canais'], linhas)
+  return {
+    ...t, ...(idx >= 0 ? { parteNaoMedida: idx } : {}), ...(frases.length ? { resumo: frases.join(' ') } : {}),
+    dicionarioExtra: [F.DIRECAO_DICIONARIO_NAO_MEDIDA],
+  }
+}
+
 function tabelasDoResumo(m: ModeloCanais): Tabela[] {
   const out: Tabela[] = []
   const { casas, filtros } = m.resumo
   const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem, n))
-  if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem, sem o seu canal', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
-    casas.map((c, i) => [rotulo(c.palavra, `modelo.resumo.casas[${i}].palavra`), num(c.n, `modelo.resumo.casas[${i}].n`)])))
+  if (casas.length) out.push(tabelaDaDirecao(m, casas, num))
   if (filtros.length) out.push(tabelaFixa('canais-resumo-estado', 'Quantos canais em cada estado', nome0('tabela do resumo do estado'), ['Estado', 'Canais'],
     filtros.map((f, i) => {
       const o = `modelo.resumo.filtros[${i}]`
@@ -514,7 +549,7 @@ function tabelasDeReferenciasEInscritos(m: ModeloCanais): Tabela[] {
   if (I.estado === 'ok') {
     const ordem = naOrdem<RiLinhaIns>(I.linhas, I.ordens[ri.ordem.ins].ids)
     const medida = (l: RiLinhaIns) => l.classe != null && l.barra != null
-    out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', 'Ganho em 28 dias'],
+    out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', GANHO_28_COM_UNIDADE],
       ordem.map(({ l, k }) => [terceiros(l.nome, `modelo.ri.inscritos.linhas[${k}].nome`),
         medida(l) && l.pct !== null ? (l.classe === 'eq' && l.pctN === null ? medidoSemX(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, 'sem percentual: o canal não tinha inscritos') : medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, l.pctN)) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
     const notas: Celula[][] = []

@@ -11,7 +11,7 @@ export interface Cobertura {
   /** Comparar: pares cujo canal não foi encontrado (`de` = pares pedidos). Nunca é completo. */
   naoEncontrados?: { quantos: number; de: number }
   /** A5 F2b: a `serie` de vários canais: pedidos, lidos, não encontrados e não lidos (prazo). */
-  canais?: { pedidos: number; lidos: number; naoEncontrados: number; naoLidos: number; falharam?: number }
+  canais?: { pedidos: number; lidos: number; naoEncontrados: number; naoLidos: number; falharam?: number; semVideo?: number }
   /** Os números foram somados antes do corte do fim do texto. */
   numerosAntesDoCorte?: boolean
   /** Pediu série e ela não veio: a frase do vazio fala de série, não de lista. */
@@ -114,7 +114,8 @@ function montar(c: Cobertura, n: Nivel): string {
   if (c.foraDoPacote) L.push(`- A tela mostra ${c.foraDoPacote.mostrados} de ${c.foraDoPacote.total} outliers (cada grupo é paginado na tela); os outros não estão neste pacote.`)
   if (c.canais && c.canais.lidos < c.canais.pedidos) {
     const k = c.canais
-    L.push(`- Canais: ${k.lidos} de ${k.pedidos} lidos${k.naoEncontrados > 0 ? `; ${k.naoEncontrados} não encontrado${k.naoEncontrados === 1 ? '' : 's'}` : ''}${k.naoLidos > 0 ? `; ${k.naoLidos} não lido${k.naoLidos === 1 ? '' : 's'} (o prazo da chamada acabou)` : ''}${(k.falharam ?? 0) > 0 ? `; ${k.falharam} falhou (tente de novo)` : ''}; as linhas desses canais saem ${(k.falharam ?? 0) > 0 ? '"não medido" ou "falhou"' : '"não medido"'}.`)
+    const semVideo = k.semVideo ?? 0 // acessoir-15: o canal sem vídeo publicado não é falha de leitura; sai do "de N" e ganha frase própria
+    L.push(`- Canais: ${k.lidos} de ${k.pedidos - semVideo} lidos${semVideo > 0 ? `; ${semVideo} sem vídeo publicado` : ''}${k.naoEncontrados > 0 ? `; ${k.naoEncontrados} não encontrado${k.naoEncontrados === 1 ? '' : 's'}` : ''}${k.naoLidos > 0 ? `; ${k.naoLidos} não lido${k.naoLidos === 1 ? '' : 's'} (o prazo da chamada acabou)` : ''}${(k.falharam ?? 0) > 0 ? `; ${k.falharam} falhou (tente de novo)` : ''}; as linhas desses canais saem ${(k.falharam ?? 0) > 0 ? '"não medido" ou "falhou"' : '"não medido"'}.`)
   }
   if (c.naoEncontrados && c.naoEncontrados.quantos > 0) L.push(`- Pares sem dado: ${c.naoEncontrados.quantos} de ${c.naoEncontrados.de} (canal não encontrado); a comparação não cobre esses canais.`)
   if (c.cortesDeTamanho.length > 0) {

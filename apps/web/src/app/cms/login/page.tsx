@@ -30,13 +30,13 @@ export default async function Page({
   ) : undefined
   const theme = buildAuthTheme(branding?.primary_color)
 
-  // CmsLogin internally calls useSearchParams (reads `?redirect=`, which this page does not use: the destination comes from `next`, validated by destinoSeguro). In Next 15
-  // App Router, components that read searchParams during prerender must be
-  // wrapped in a Suspense boundary — otherwise the build errors with
-  // "missing-suspense-with-csr-bailout". Before the T10a split this page
-  // inherited an implicit Suspense from `/cms/layout.tsx` (async server
-  // layout); moving the authed layout under `(authed)/` removed that, so we
-  // wrap explicitly here.
+  // CmsLogin (@tn-figueiredo/cms 0.2.0) does NOT read searchParams: it navigates
+  // only through the `redirectTo` prop (window.location.href). The destination
+  // comes from `next`, validated by destinoSeguro; LoginSemGoogle does not read
+  // searchParams either. The Suspense boundary dates from the T10a split, when
+  // CmsLogin still called useSearchParams (Next would fail the build with
+  // "missing-suspense-with-csr-bailout" without it). It is harmless now; remove
+  // it only together with a `next build` check.
   return (
     <Suspense fallback={null}>
       <LoginSemGoogle>

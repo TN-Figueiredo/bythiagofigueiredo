@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest'
 import { casosDeOutliers, OBS_DAS_TELAS as OBS } from './contexto-ia-x-telas-fixture'
 import { medidas, semX } from './contexto-ia-x-fixture'
-import { empacotarOutliers } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-outliers'
+import { empacotarOutliers, MULTIPLO_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-outliers'
 
 const CASOS = casosDeOutliers()
 const F = OBS.fmt
@@ -24,7 +24,7 @@ describe('outliers: o formatador da unidade da coluna aplicado a x dá o texto (
   const FORMATADOR: Record<string, (x: number) => string> = {
     'idades/Outliers': (x) => String(x),
     'grupos/Outliers': (x) => String(x),
-    'outliers/Múltiplo': (x) => F.mult(x),
+    [`outliers/${MULTIPLO_COM_UNIDADE}`]: (x) => F.mult(x),
     'outliers/Views': (x) => F.num(x),
     'outliers/Views/dia (7 dias)': (x) => F.num(x),
     'outliers-reuso/Views/dia (7 dias)': (x) => F.num(x),
@@ -44,7 +44,7 @@ describe('outliers: o formatador da unidade da coluna aplicado a x dá o texto (
   })
   it('o teste não passa vazio: a matriz confere centenas de células de Múltiplo, Views e Views/dia', () => {
     const n = (col: string) => CASOS.reduce((s, c) => s + medidas(c.pacote).filter((m) => `${m.tabela}/${m.coluna}` === col && typeof (m.c as Cel).x === 'number').length, 0)
-    expect(n('outliers/Múltiplo')).toBeGreaterThan(100)
+    expect(n(`outliers/${MULTIPLO_COM_UNIDADE}`)).toBeGreaterThan(100)
     expect(n('outliers/Views')).toBeGreaterThan(100)
     expect(n('outliers/Views/dia (7 dias)')).toBeGreaterThan(50)
     expect(n('outliers-reuso/Views/dia (7 dias)')).toBeGreaterThan(0)

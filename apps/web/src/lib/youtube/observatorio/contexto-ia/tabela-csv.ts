@@ -71,6 +71,8 @@ export interface CsvDaTabela {
   linhas: string[]
   semX: number
   grafico: Grafico
+  /** acessoir-16: a frase abaixo do `## título`, quando a tabela declara uma. */
+  resumo: string | null
   privada: boolean
   /** Os `chave:mN` de cada linha (paralelo a `linhas`). */
   motivosNovos: string[][]
@@ -89,6 +91,12 @@ function graficoDaTabela(t: Tabela, avisos: string[]): { grafico: Grafico; frase
     const largura = Math.max(0, ...t.linhas.map((l) => l.filter(ehNumero).length))
     k = t.linhas.reduce((s, l) => s + l.filter(vazioNoCsv).length + (l.filter(ehNumero).length < largura ? 1 : 0), 0)
     if (!PIZZA_PERMITIDA.has(t.id) || k > 0) { g = 'barra'; avisos.push('pizza_nao_fecha') }
+  }
+  if (g === 'pizza' && t.parteNaoMedida !== undefined) {
+    // acessoir-16: sem nenhuma parte medida a pizza seria um disco só; com alguma, a frase própria (a genérica diria "toda parte foi medida")
+    const medidas = t.linhas.reduce((s, l, i) => s + (i === t.parteNaoMedida ? 0 : l.reduce((a, c) => a + (c.papel === 'numero' && 'x' in c && typeof c.x === 'number' ? c.x : 0), 0)), 0)
+    if (medidas === 0) return { grafico: 'nenhum', frase: F.FRASE_DO_GRAFICO_SEM_PARTE_MEDIDA }
+    return { grafico: g, frase: F.FRASE_DA_PIZZA_COM_NAO_MEDIDO }
   }
   return { grafico: g, frase: F.FRASE_DO_GRAFICO[g] }
 }
@@ -110,6 +118,7 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
     ...extras.map((e) => F.dicionarioLinha(e.chave, linhaDoBloco(e.titulo))),
     ...chaves.map((k, i) => F.dicionarioLinha(k, linhaDoBloco(t.colunas[i]!))),
     ...(temMotivos ? [] : [F.dicionarioLinha('motivos', F.COLUNA_MOTIVOS)]),
+    ...(t.dicionarioExtra ?? []),
   ]
   let semX = 0
   const linhas: string[] = []
@@ -145,10 +154,10 @@ export function csvDaTabela(t: Tabela, legenda: Legenda, extras: readonly Coluna
     linhas.push(campos.join(','))
     motivosNovos.push(refs)
   })
-  return { titulo: linhaDoBloco(t.titulo), dicionario: [...dic, F.graficoSugerido(frase)].join('\n'), cabecalho: cabecalhoChaves.map(campoCsv).join(','), linhas, semX, grafico, privada: t.privada, motivosNovos, avisos }
+  return { titulo: linhaDoBloco(t.titulo), dicionario: [...dic, F.graficoSugerido(frase)].join('\n'), cabecalho: cabecalhoChaves.map(campoCsv).join(','), linhas, semX, grafico, resumo: t.resumo ?? null, privada: t.privada, motivosNovos, avisos }
 }
 
 /** `## título`, privado, dicionário (já com a linha do gráfico), e o CSV cercado. `linhas` pode ser um recorte (o corte da A7). */
 export function blocoDaTabela(c: CsvDaTabela, linhas: readonly string[]): string {
-  return [`## ${c.titulo}`, ...(c.privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []), c.dicionario, '```csv', c.cabecalho, ...linhas, '```'].join('\n')
+  return [`## ${c.titulo}`, ...(c.privada ? [F.TABELA_PRIVADA, F.TABELA_PRIVADA_LGPD] : []), ...(c.resumo ? [c.resumo] : []), c.dicionario, '```csv', c.cabecalho, ...linhas, '```'].join('\n')
 }

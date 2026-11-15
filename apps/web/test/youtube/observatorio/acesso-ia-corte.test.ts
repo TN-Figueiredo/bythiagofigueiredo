@@ -80,9 +80,9 @@ const sintetico = (tela: TelaId, tabelas: Tabela[]): PacoteModelo => ({ ...model
 describe('A7a T2 passo 1: o medido (34, 60 e 75 canais, empacotador real; ia, 200 por janela)', () => {
   // Medido em 09/11 com `console.info('medido'…)` neste arquivo. Por canal: principal ~160 caracteres, colunas ~205 (5 tabelas), texto (notas + dicas) 1.100 a 1.130.
   const MEDIDO = {
-    34: { fixoMaisFixas: 5_191, principal: 5_542, coluna: 6_948, texto: 38_042, por_nome: 6_300, escolha: { estagio: 'E1', chars: 55_648, degrau: 200 } },
-    60: { fixoMaisFixas: 5_193, principal: 9_639, coluna: 12_263, texto: 67_591, por_nome: 11_246, escolha: { estagio: 'E1', chars: 55_875, degrau: 100 } },
-    75: { fixoMaisFixas: 5_194, principal: 11_929, coluna: 15_392, texto: 84_768, por_nome: 14_083, escolha: { estagio: 'E1', chars: 55_877, degrau: 50 } },
+    34: { fixoMaisFixas: 5_192, principal: 5_642, coluna: 6_948, texto: 38_042, por_nome: 6_317, escolha: { estagio: 'E1', chars: 55_766, degrau: 200 } },
+    60: { fixoMaisFixas: 5_194, principal: 9_739, coluna: 12_263, texto: 67_591, por_nome: 11_263, escolha: { estagio: 'E1', chars: 55_993, degrau: 100 } },
+    75: { fixoMaisFixas: 5_195, principal: 12_029, coluna: 15_392, texto: 84_768, por_nome: 14_100, escolha: { estagio: 'E1', chars: 55_995, degrau: 50 } },
   } as const
   it.each([34, 60, 75] as const)('%i canais: os tamanhos por classe e a escolha, com e sem reserva', (n) => {
     const mod = modeloDe(n)
@@ -432,7 +432,7 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
 
   // A7c2: a tabela de mediana e quartis (~2.000 caracteres a mais na janela 1) leva k a 65 (75: 65,10; 200: 65,67,65,3; medido).
   // A7c1: o resumo do todo (~2.200 caracteres) fica no topo de toda janela; k cai 1 a 3 linhas (75: 69 -> 68; 200: 69,68,63 -> 68,66,64,2). A7c1 rodada 2: o resumo completo só na janela 1, nas outras uma linha que aponta para ele (200: 68,67,65; 75: 68,7).
-  it.each([[34, [34]], [60, [60]], [75, [65, 10]], [200, [65, 67, 65, 3]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
+  it.each([[34, [34]], [60, [60]], [75, [64, 11]], [200, [64, 67, 65, 4]]] as const)('k medido: %i canais (empacotador real, ia, sem notas e dicas) => %j', async (n, esperado) => {
     dobra('canais', modeloDe(n))
     const rs = await lerTudo({ acao: 'listar_canais' })
     expect(ks(rs)).toEqual(esperado)
@@ -656,8 +656,8 @@ describe('A7b T9: a janela da lista, pelo responder com o empacotador real', () 
     const a = await responder({ acao: 'listar_canais' }, abrir, AGORA)
     dobra('canais', com)
     const b = await responder({ acao: 'listar_canais' }, abrir, AGORA)
-    expect(a.params.linhas).toBe(65)
-    expect(b.params.linhas).toBe(65)
+    expect(a.params.linhas).toBe(64)
+    expect(b.params.linhas).toBe(64)
     expect(a.texto).not.toContain('### A dica de cada medida')
     expect(b.texto).not.toContain('### A dica de cada medida')
     expect(secaoDe(a.texto)).not.toContain('Notas e dicas')

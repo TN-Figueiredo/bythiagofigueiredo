@@ -13,12 +13,12 @@ const mapa = (casos: Array<{ nome: string; pacote: PacoteModelo }>) => casos.map
 describe('Destaques e Mudanças: estados iguais (rede da F0.5a)', () => {
   it('Destaques: o mapa tabela/coluna/linha → estado e texto é o de antes do conserto', async () => {
     const saida = mapa(casosDeOutliers())
-    expect(saida, 'a rede tem células medidas').toMatch(/outliers\/Múltiplo: M+ /)
+    expect(saida, 'a rede tem células medidas').toMatch(/outliers\/Múltiplo \(× a mediana do canal\): M+ /)
     await expect(saida).toMatchFileSnapshot('__snapshots__/contexto-ia-x-estados-outliers.txt')
   })
   it('Mudanças: o mapa tabela/coluna/linha → estado e texto é o de antes do conserto', async () => {
     const saida = mapa(casosDeMudancas())
-    expect(saida, 'a rede tem células medidas').toMatch(/trocas-efeito\/Observado: M+ /)
+    expect(saida, 'a rede tem células medidas').toMatch(/trocas-efeito\/Observado \(% de views\/dia, depois contra antes\): M+ /)
     expect(saida, 'a rede tem o quadro').toMatch(/quadro-de-efeito\/Com veredito \(n\): /)
     await expect(saida).toMatchFileSnapshot('__snapshots__/contexto-ia-x-estados-mudancas.txt')
   })

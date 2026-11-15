@@ -26,7 +26,7 @@ import { montarConsulta, type RecusaDaConsulta } from '../_consultar/montar'
 import { respostaDaConsulta } from './consultar'
 import { lugaresParaDefinicoes, type LugaresParaDefinicoes } from '../_consultar/dados'
 import type { CanalDaSerieMulti } from './serie-tabela'
-import { diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
+import { diaAbertoDe, diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -186,6 +186,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const motivos = m.tabelas.filter((t) => t.linhas.some((l) => l.some((c) => c.papel === 'numero' && (c.estado === 'falhou' || c.estado === 'restrito' || c.estado === 'nao_medido'))))
     tabelas.push(...motivos)
     if (m.privado.estado === 'excluido') avisos.push('a série dia a dia deste canal é dado privado e não foi incluída; o motivo está na parte do dado privado')
+    else if (m.vazio === F.SERIE_PROPRIO_SEM_VIDEO) { /* acessoir-15: o aviso do pacote já diz sem vídeo publicado */ }
     else if (m.tela === 'canal' || m.tela === 'canal-proprio') {
       avisos.push(`a série dia a dia não veio nesta leitura; ${motivos.length ? 'o motivo está nas tabelas abaixo' : 'a tela não registrou o motivo'}`)
     } else avisos.push('esta tela não traz série dia a dia; nenhuma tabela de série foi montada')
@@ -198,6 +199,9 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const semData = lidas.filter((x) => x.dia === null).length
     const comData = lidas.filter((x): x is typeof x & { dia: string } => x.dia !== null)
     let dentro = comData.filter((x) => x.dia >= de && x.dia <= ate)
+    // acessoir-11: o dia em curso (fuso da tabela) sai "não medido", como no CSV; a linha fica (sumir seria o acessoir-14)
+    const aberto = diaAbertoDe(t, agora)
+    dentro = dentro.map((x) => (x.dia !== aberto ? x : { ...x, linha: x.linha.map((c): Celula => (c.papel === 'numero' ? { papel: 'numero', estado: 'nao_medido', motivo: t.fuso === 'pacifico' ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO, origem: c.origem } : c)) }))
     if (semData > 0) avisos.push(`série "${t.titulo}": ${semData} linha${semData === 1 ? '' : 's'} sem data reconhecível ficaram fora do intervalo`)
     if (dentro.length === 0) {
       const dts = comData.map((x) => x.dia).sort()
@@ -208,7 +212,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     }
     // acessoir-14: o último dia com dado fica antes do dia pedido (até hoje): o dado do próprio chega com 2 a 3 dias de atraso
     const ultimoComDado = dentro.reduce((a, x) => (x.dia > a ? x.dia : a), '')
-    const pedidoAte = ate < hojeSp(agora) ? ate : hojeSp(agora)
+    const pedidoAte = ate < diaAbertoDe(t, agora) ? ate : diaAbertoDe(t, agora)
     const faltaDado = ultimoComDado < pedidoAte ? { de: somaDias(ultimoComDado, 1), ate: pedidoAte } : null
     let grao = p.grao ?? 'dia'
     let totalDaSerie = dentro.length
@@ -231,7 +235,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
           // acumulado (total no fim do dia): a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
           return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
         }
-        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord, regra, hojeSp(agora)), dia: ord[0]!.dia }
+        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord, regra, diaAbertoDe(t, agora)), dia: ord[0]!.dia }
       })
       dentro = escolhidas
       if (!convertida) totalDaSerie = escolhidas.length // pediu semana: o total é de semanas
@@ -623,6 +627,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         if (r.valor === 'falhou') { canais.push({ tipo: 'falhou', apelido, canalId: idPedido }); continue }
         if (r.valor === null) { canais.push({ tipo: 'nao_encontrado', apelido, canalId: idPedido }); continue }
         recente = recente ?? r.valor.recente
+        if (r.valor.modelo.vazio === F.SERIE_PROPRIO_SEM_VIDEO) { canais.push({ tipo: 'sem_video', apelido, canalId: r.valor.id }); continue }
         canais.push({ tipo: 'lido', apelido, canalId: r.valor.id, m: recortarSerie(r.valor.modelo, pedido, agora, cortes, true) })
       }
       const n_canais = canais.length
@@ -644,7 +649,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
         ...(cortes.serie ? { serie: { pontos: cortes.serie.pontos, total: cortes.serie.total, de: cortes.serie.de, ate: cortes.serie.ate, grao: cortes.serie.grao } } : {}),
         apoio: { inteiras: 0, total: 0, cortadas: [] }, cortesDeTamanho: r.rotulos, numeros: r.numeros, vazio: cortes.serie === undefined,
         ...(r.soNoTexto.length > 0 ? { soNoTexto: r.soNoTexto } : {}),
-        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos, falharam: r.falharam },
+        canais: { pedidos: n_canais, lidos: r.canaisLidos, naoEncontrados: r.naoEncontrados, naoLidos: r.naoLidos, falharam: r.falharam, semVideo: r.semVideo },
         ...(r.rotulos.some((x) => x.endsWith('o fim do texto')) ? { numerosAntesDoCorte: true } : {}),
         proximas: proximasDe(entrada, null, agora, r.pontos, cortes.serie),
       }

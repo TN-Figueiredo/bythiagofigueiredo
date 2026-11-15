@@ -30,7 +30,7 @@ import { medidasDoOraculo } from './canais-e5a-fixture'
 import { casosDeMudancas, casosDeOutliers } from './contexto-ia-x-telas-fixture'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { buildRiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-model'
-import { empacotarCanais, modeloDeCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
+import { empacotarCanais, modeloDeCanais, DIRECAO_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { responder } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/responder'
 import { classeDa, CLASSES_NA_IA } from '@/app/cms/(authed)/youtube/competitors/_acesso-ia/corte-da-ia'
 import { SEM_CSV_LISTA_VAZIA, SEM_CSV_SEM_CHAVES } from '@/lib/youtube/observatorio/acesso-ia/frases'
@@ -85,10 +85,10 @@ function mundoCom(n: number, nomeLongo = 0) {
     if (nomeLongo > 0) for (const c of ds.channels) { c.name = `${c.name} ${'n'.repeat(nomeLongo)}`.slice(0, nomeLongo); c.fullName = c.name }
   })
 }
-function modeloDe(n: number, nomeLongo = 0): PacoteModelo {
+function modeloDe(n: number, nomeLongo = 0, fmt: 'longos' | 'todos' = 'longos'): PacoteModelo {
   const { obs } = mundoCom(n, nomeLongo)
-  const view = buildCanaisView(obs, { niche: 'todos', limit: 200, fmt: 'longos', medidas: medidasDoOraculo(obs) }, undefined)
-  const ri = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
+  const view = buildCanaisView(obs, { niche: 'todos', limit: 200, fmt, medidas: medidasDoOraculo(obs) }, undefined)
+  const ri = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: fmt === 'todos' ? 'all' : 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
   return empacotarCanais(modeloDeCanais(view, ri), { acessoPorCanal: {}, negativa: null })
 }
 const uuid = (i: number): string => `c0000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`
@@ -347,6 +347,8 @@ describe('(10) inventário das tabelas expostas', () => {
     ...casosDeOutliers().map((c) => [`outliers: ${c.nome}`, c.pacote] as [string, PacoteModelo]),
     ...casosDeMudancas().map((c) => [`mudancas: ${c.nome}`, c.pacote] as [string, PacoteModelo]),
   ]
+  // acessoir-6 (Yannis I1): o inventário também passa pelas colunas dos Shorts (só existem com fmt 'todos')
+  const todosComShorts: Array<[string, PacoteModelo]> = [...todos, ['canais (todos)', modeloDe(34, 0, 'todos')]]
   it.each(todos)('%s: toda tabela de classe exposta declara chaves válidas', (_n, mod) => {
     const sem: string[] = []
     for (const t of mod.tabelas) {
@@ -360,9 +362,8 @@ describe('(10) inventário das tabelas expostas', () => {
   // I2: toda coluna com célula numérica traz a unidade no título (ou está na lista das que a declaram pelo nome); sem isso o gráfico sai 100× errado
   const TEM_UNIDADE = /%|×|\(|views|inscritos|dias|vídeos/i
   // medido nas três telas (10/11/2026): contagens e posições (a unidade é "quantos") não precisam de unidade no título
-  const E_CONTAGEM = new Set(['Posição', 'Outliers', 'Trocas', 'Trocas do nicho na janela'])
-  // DÍVIDA DECLARADA: colunas de %, pp ou × cujo título não traz a unidade (só o texto da célula, que o CSV não leva). Consertar o título muda o modo texto: decisão do dono (ver relatório F1b).
-  const SEM_UNIDADE_NO_TITULO_CONHECIDA = new Set(['Direção', 'Crescimento', 'Múltiplo', 'Mediana do efeito', 'Observado', 'Esperado sem a troca', 'Efeito', 'Limite da faixa'])
+  // acessoir-6 (Yannis I1): por `${id}/${título}`; antes era só por título e escondia canais/Outliers, que é um múltiplo (×)
+  const E_CONTAGEM = new Set(['canais/Posição', 'canais/Trocas', 'grupos/Outliers', 'idades/Outliers', 'quadro-de-efeito/Trocas do nicho na janela'])
   const semUnidade = (mod: PacoteModelo): string[] => {
     const out: string[] = []
     for (const t of mod.tabelas) {
@@ -370,18 +371,30 @@ describe('(10) inventário das tabelas expostas', () => {
       if (classeDa(mod.tela, { id: base, tipo: t.tipo }) === 'texto' || t.tipo === 'dia_a_dia') continue
       t.colunas.forEach((titulo, i) => {
         if (!t.linhas.some((l) => l[i]?.papel === 'numero')) return
-        if (!UNIDADE_JA_DECLARADA.has(titulo) && !E_CONTAGEM.has(titulo) && !SEM_UNIDADE_NO_TITULO_CONHECIDA.has(titulo) && !TEM_UNIDADE.test(titulo)) out.push(`${t.id}/${titulo}`)
+        if (!UNIDADE_JA_DECLARADA.has(titulo) && !E_CONTAGEM.has(`${t.id}/${titulo}`) && !TEM_UNIDADE.test(titulo)) out.push(`${t.id}/${titulo}`)
       })
     }
     return out
   }
-  it.each(todos)('%s: toda coluna numérica tem a unidade no título', (_n, mod) => {
+  it.each(todosComShorts)('%s: toda coluna numérica tem a unidade no título', (_n, mod) => {
     expect(semUnidade(mod)).toEqual([])
   })
-  it('a dívida declarada não apodrece: toda coluna da lista ainda existe numérica e sem unidade em alguma tela', () => {
-    const vistas = new Set<string>()
-    for (const [, mod] of todos) for (const t of mod.tabelas) t.colunas.forEach((c, i) => { if (t.linhas.some((l) => l[i]?.papel === 'numero') && !TEM_UNIDADE.test(c)) vistas.add(c) })
-    expect([...SEM_UNIDADE_NO_TITULO_CONHECIDA].filter((c) => !vistas.has(c))).toEqual([])
+  // acessoir-6: a unidade que a CHAVE promete (_pct, _pp, _mult) tem de estar no título; título e chave concordam
+  const UNIDADE_DA_CHAVE = (k: string): RegExp | null => (k.endsWith('_pct') ? /%/ : k.endsWith('_pp') ? /pontos percentuais/ : /_mult$|^multiplicador$|^outliers_shorts$/.test(k) ? /×/ : null)
+  it.each(todosComShorts)('%s: sufixo _pct/_pp/_mult da chave exige a unidade no título', (_n, mod) => {
+    const faltam: string[] = []
+    for (const t of mod.tabelas) t.chaves?.forEach((k, i) => { const u = UNIDADE_DA_CHAVE(k); if (u && !u.test(t.colunas[i] ?? '')) faltam.push(`${t.id}/${k}: ${t.colunas[i]}`) })
+    expect(faltam).toEqual([])
+  })
+  it('as chaves do CSV não mudam com os títulos novos (lista literal, escrita à mão)', () => {
+    const chavesDe = (id: string): string[] | undefined => todosComShorts.flatMap(([, mod]) => mod.tabelas).find((t) => t.id === id)?.chaves
+    expect(chavesDe('canais')).toEqual(['posicao', 'canal', 'id', 'inscritos', 'direcao_pct', 'ritmo_por_semana', 'views_dia_por_mil', 'maior_outlier_mult', 'trocas', 'crescimento_pct', 'sincronizacao'])
+    expect(chavesDe('canais-shorts')).toEqual(['canal', 'ritmo_shorts', 'views_dia_shorts', 'outliers_shorts'])
+    expect(chavesDe('outliers')).toEqual(['grupo', 'video', 'id', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'])
+    expect(chavesDe('trocas-efeito')).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'])
+    expect(chavesDe('trocas-esperado')).toEqual(['video', 'esperado_sem_a_troca_pct', 'efeito_pp'])
+    expect(chavesDe('trocas-faixa')).toEqual(['video', 'limite_da_faixa_pct'])
+    expect(chavesDe('quadro-de-efeito')).toEqual(['tipo', 'trocas_do_nicho_na_janela', 'com_veredito_n', 'mediana_do_efeito_pp', 'resultado'])
   })
   it('caso negativo: a coluna numérica "Ritmo" sem unidade é apontada', () => {
     const mod = todos.find(([n]) => n.startsWith('outliers'))![1]
@@ -410,7 +423,7 @@ describe('(11) pizza (D2): só onde a soma das partes medidas é o todo da tela'
       const mod = empacotarCanais(modeloDeCanais(view, ri), { acessoPorCanal: {}, negativa: null })
       const resumo = mod.tabelas.find((t) => t.id === 'canais-resumo-direcao')!
       const p = principalDe(mod)
-      const di = p.colunas.indexOf('Direção')
+      const di = p.colunas.indexOf(DIRECAO_COM_UNIDADE)
       const comDirecao = p.linhas.filter((l) => { const c = l[di]!; return c.papel === 'numero' && c.estado === 'medido' && typeof c.x === 'number' }).length
       // as três primeiras casas são as direções medidas; a 4ª é "não medido"
       const partes = resumo.linhas.slice(0, 3)
@@ -445,7 +458,8 @@ describe('(11) pizza (D2): só onde a soma das partes medidas é o todo da tela'
     const alvo = mod.tabelas.find((t) => t.id === 'canais-resumo-direcao')!
     const antes = blocos(r.texto).get(alvo.titulo)!.antes
     expect(antes).toContain('Gráfico sugerido: pizza')
-    expect(antes).toContain('toda parte foi medida')
+    expect(antes).not.toContain('toda parte foi medida') // acessoir-16: a direção tem frase própria
+    expect(antes).toContain('direção não medida')
     expect(antes).not.toContain('{k}')
     expect(antes).not.toContain('0 sem medida')
     const ruim: PacoteModelo = { ...mod, tabelas: mod.tabelas.map((t) => (t === alvo ? { ...t, linhas: t.linhas.map((l, i) => (i === 1 ? [l[0]!, { papel: 'numero', estado: 'nao_medido', motivo: 'sem leitura', origem: 'o' } as Celula] : l)) } : t)) }

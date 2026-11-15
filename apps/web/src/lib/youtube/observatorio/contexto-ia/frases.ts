@@ -180,6 +180,11 @@ export const FRASE_DO_GRAFICO = {
   pizza: 'pizza (as partes somam o todo da tela; toda parte foi medida nesta resposta)',
   nenhum: 'nenhum (tabela de apoio)',
 } as const // novo
+/** acessoir-16 (Logan e Naksu, re-revisão 15/11): a pizza que tem uma parte "não medida"; enxuta, com forma, cor, símbolo, ordem e título. */
+export const FRASE_DA_PIZZA_COM_NAO_MEDIDO =
+  'pizza em fundo branco, nesta ordem de linhas, a partir das 12 h em sentido horário: subindo ▲ #11692F, sem mudança ＝ #5E5240, descendo ▼ #8A5A00; por último "direção não medida" (canais sem medida, não parados), com listras diagonais #A85585 sobre #F7E1EC e borda #A85585, nunca cinza; borda branca de 2 px entre as partes; rótulo fora com símbolo, palavra e número; parte com 0 não é desenhada; título do gráfico = título desta tabela'
+/** acessoir-16: quando nenhum canal tem direção medida, a pizza seria um disco de uma parte só. */
+export const FRASE_DO_GRAFICO_SEM_PARTE_MEDIDA = 'nenhum (nenhum canal tem direção medida ainda; não desenhe gráfico)'
 
 // ───────────────────────── A5 F2a: série em CSV longo (um canal)
 export const SEMANA_ABERTA = (fim: string) => `semana ainda aberta (termina em ${fim})` // novo
@@ -214,6 +219,8 @@ export const SERIE_NENHUM_PONTO = (de: string, ate: string) => `Nenhum ponto med
 /** A5 F2b: a `serie` de vários canais. */
 export const SERIE_NENHUM_PONTO_CANAIS = (de: string, ate: string) => `Nenhum ponto medido entre ${de} e ${ate} para os canais pedidos`
 export const SERIE_CANAL_NAO_ENCONTRADO = 'canal não encontrado'
+/** acessoir-15: canal próprio cadastrado e coletado que ainda não publicou vídeo: resposta vazia, nunca nao_encontrado. */
+export const SERIE_PROPRIO_SEM_VIDEO = 'canal próprio cadastrado e coletado, ainda sem vídeo publicado; não há série a mostrar'
 export const SERIE_CANAL_FALHOU = 'a leitura deste canal falhou; tente de novo'
 export const SERIE_CANAL_NAO_LIDO = 'não lido: o prazo da chamada acabou'
 export const SERIE_BASES_DIFERENTES = 'Bases diferentes nesta tabela: o seu canal soma só vídeos longos acompanhados, no dia do YouTube (Pacífico); os concorrentes, o canal inteiro com Shorts, no dia de São Paulo. Não compare sem citar as duas.'
@@ -242,3 +249,25 @@ export const SERIE_DICIONARIO_COLUNAS: Record<'dia' | 'semana_inicio' | 'canal' 
   dias_medidos: 'quantos dos 7 dias da semana foram medidos',
   motivo_id: 'id da legenda de motivos, só quando o valor está vazio',
 } // novo
+
+// ───────────────────────── acessoir-16: o resumo da direção (a pizza que diz quantos canais foram medidos)
+const pluralDe = (k: number, um: string, varios: string): string => `${k} ${k === 1 ? um : varios}`
+export const DIRECAO_TITULO = (janela: number, medidos: number, canais: number, falhou: boolean) =>
+  falhou ? `Direção dos canais em ${janela} dias: a leitura falhou, sem o seu canal`
+    : medidos > 0 ? `Direção dos canais em ${janela} dias: medida em ${medidos} de ${canais}, sem o seu canal`
+    : `Direção dos canais em ${janela} dias: ainda não medida em nenhum dos ${canais}, sem o seu canal`
+export const DIRECAO_FRASES = (sobe: number, estavel: number, desce: number, naoMedido: number, falhou: number): string[] => {
+  const medidos = sobe + estavel + desce, canais = medidos + naoMedido
+  const fr: string[] = []
+  if (medidos > 0) {
+    fr.push(`Dos ${canais} canais, ${medidos} têm direção medida: ${sobe} subindo, ${estavel} sem mudança, ${desce} descendo.`)
+    if (naoMedido > 0) fr.push(`Os outros ${naoMedido} ainda não têm leitura suficiente; isso não quer dizer que estão parados.`)
+  } else fr.push(`Nenhum dos ${canais} canais tem direção medida ainda; isso não quer dizer que estão parados.`)
+  if (falhou > 0) fr.push(DIRECAO_LEITURA_FALHOU(falhou))
+  return fr
+}
+export const DIRECAO_LEITURA_FALHOU = (k: number) => `A leitura falhou em ${pluralDe(k, 'canal', 'canais')}, fora desta conta.`
+export const DIRECAO_ROTULO_NAO_MEDIDA = 'direção não medida'
+export const DIRECAO_NOTA_NAO_MEDIDA = (primeira: string | undefined) =>
+  `canais cuja direção o painel não calculou (poucos dias de leitura, sem views no período anterior ou fora do YouTube); não quer dizer parado nem sem mudança${primeira ? `; a primeira medida sai em ${primeira}` : ''}`
+export const DIRECAO_DICIONARIO_NAO_MEDIDA = `- ${DIRECAO_ROTULO_NAO_MEDIDA}: canais sem leitura de direção; não é "parado" nem "sem mudança"`

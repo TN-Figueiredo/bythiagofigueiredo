@@ -154,6 +154,9 @@ function celulaDoNumero(texto: string | number | null, origem: string, motivo: s
 const medidoSemX = (texto: string, origem: string, motivo: string): Celula => ({ papel: 'numero', estado: 'medido', texto, origem, semXMotivo: motivo })
 const baseOuNaoMedido = (texto: string | null, origem: string): Celula => (texto === null ? celulaDoNumero(null, origem) : base(texto, origem))
 
+/** acessoir-6: a unidade no título; a chave `multiplicador` não muda. */
+export const MULTIPLO_COM_UNIDADE = 'Múltiplo (× a mediana do canal)'
+
 /** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
 const CHAVES: Record<string, string[]> = {
   'idades': ['faixa_de_idade', 'outliers'],
@@ -219,7 +222,7 @@ function tabelaDeOutliers(m: ModeloOutliers): Tabela[] {
   if (todos.length === 0) return []
   const o = 'modelo.groups'
   const saida: Tabela[] = [tabelaLista('outliers', 'Os outliers da tela, na ordem da tela', 'tabela de outliers',
-    ['Grupo', 'Vídeo', 'Id', 'Canal', 'Nicho', 'Múltiplo', 'Base do múltiplo', 'Views', 'Views/dia (7 dias)', 'Publicado', 'Duração'],
+    ['Grupo', 'Vídeo', 'Id', 'Canal', 'Nicho', MULTIPLO_COM_UNIDADE, 'Base do múltiplo', 'Views', 'Views/dia (7 dias)', 'Publicado', 'Duração'],
     todos.map(({ g, i, c, grupo }) => {
       const p = `${o}[${g}].cards[${i}]`
       return [

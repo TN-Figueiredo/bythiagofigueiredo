@@ -28,7 +28,7 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { dmDia, type ExtrasProprio } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import {
-  empacotarCanais, INVENTARIO_CANAIS, modeloDeCanais, NAO_COBERTO, SEM_FOLHA_NA_MATRIZ_CANAIS, SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA, type ModeloCanais, VPD_POR_MIL, VPD_MEDIANA, RITMO_COM_UNIDADE,
+  empacotarCanais, INVENTARIO_CANAIS, modeloDeCanais, NAO_COBERTO, SEM_FOLHA_NA_MATRIZ_CANAIS, SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA, type ModeloCanais, VPD_POR_MIL, VPD_MEDIANA, RITMO_COM_UNIDADE, DIRECAO_COM_UNIDADE, CRESCIMENTO_COM_UNIDADE, MAIOR_OUTLIER_COM_UNIDADE, MAIOR_OUTLIER_SHORTS_COM_UNIDADE, RITMO_SHORTS_COM_UNIDADE, GANHO_28_COM_UNIDADE,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -107,9 +107,9 @@ const LINHA = (r: string) => r
 void LINHA
 const TAB = (pre: string): Record<string, Record<string, string | readonly string[]>> => ({
   [`${pre}canais`]: {
-    Posição: ['.posicao', '.semPosicao'], Canal: '.name', Id: '.id', Inscritos: ['.subs', '.subsOcultos'], Direção: ['.direcao.texto', '.direcaoNaoCarregou', '.direcao.longa'],
-    [RITMO_COM_UNIDADE]: ['.cells.cadence.pw', '.cells.cadence.text'], [VPD_POR_MIL]: ['.cells.vpd.big', '.cells.vpd.text'], [VPD_MEDIANA]: ['.cells.vpd.big', '.cells.vpd.text'], Outliers: ['.cells.out.mult', '.cells.out.text'],
-    Trocas: ['.cells.swap.n', '.cells.swap.text'], Crescimento: ['.cells.growth.big', '.cells.growth.text'], Sincronização: '.cells.sync.label',
+    Posição: ['.posicao', '.semPosicao'], Canal: '.name', Id: '.id', Inscritos: ['.subs', '.subsOcultos'], [DIRECAO_COM_UNIDADE]: ['.direcao.texto', '.direcaoNaoCarregou', '.direcao.longa'],
+    [RITMO_COM_UNIDADE]: ['.cells.cadence.pw', '.cells.cadence.text'], [VPD_POR_MIL]: ['.cells.vpd.big', '.cells.vpd.text'], [VPD_MEDIANA]: ['.cells.vpd.big', '.cells.vpd.text'], [MAIOR_OUTLIER_COM_UNIDADE]: ['.cells.out.mult', '.cells.out.text'],
+    Trocas: ['.cells.swap.n', '.cells.swap.text'], [CRESCIMENTO_COM_UNIDADE]: ['.cells.growth.big', '.cells.growth.text'], Sincronização: '.cells.sync.label',
   },
   [`${pre}canais-nicho`]: { Canal: '.name', Nicho: '.nicho' },
   [`${pre}canais-direcao-numeros`]: { Canal: '.name', 'Views nos últimos 28 dias': '.direcaoNumeros.recente', 'Views nos 28 dias anteriores': '.direcaoNumeros.anterior' },
@@ -117,7 +117,7 @@ const TAB = (pre: string): Record<string, Record<string, string | readonly strin
   [`${pre}canais-maior-outlier`]: { Canal: '.name', Vídeo: '.cells.out.videoTitle', 'Vídeos comparados': '.cells.out.n', Publicado: '.cells.out.published', Contagem: '.cells.out.count' },
   [`${pre}canais-outliers-contagem`]: { Canal: '.name', Contagem: '.cells.out.count' },
   [`${pre}canais-shorts-views-por-dia`]: { Canal: '.name', 'Views por dia dos Shorts, valor absoluto': '.cells.vpd2.abs', 'Vídeos na base dos Shorts': '.cells.vpd2.n' },
-  [`${pre}canais-shorts`]: { Canal: '.name', 'Ritmo dos Shorts': ['.cells.cadence2.pw', '.cells.cadence2.text'], 'Views por dia dos Shorts': ['.cells.vpd2.big', '.cells.vpd2.text'], 'Outliers dos Shorts': ['.cells.out2.mult', '.cells.out2.text'] },
+  [`${pre}canais-shorts`]: { Canal: '.name', [RITMO_SHORTS_COM_UNIDADE]: ['.cells.cadence2.pw', '.cells.cadence2.text'], 'Views por dia dos Shorts': ['.cells.vpd2.big', '.cells.vpd2.text'], [MAIOR_OUTLIER_SHORTS_COM_UNIDADE]: ['.cells.out2.mult', '.cells.out2.text'] },
   [`${pre}canais-estado`]: { Canal: '.name', Estado: ['.estado.linha', '.estado.apoio', '.estado.quedaLinha'] },
   [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.cadence.nota.sufixo', '.cells.cadence.nota.causa', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip', '.agendado'] },
   [`${pre}canais-dicas`]: { Canal: '.name', Dica: ['.dicas.subs', '.dicas.vpd', '.dicas.cadence', '.dicas.out', '.dicas.swap', '.dicas.growth', '.dicas.direcao', '.dicas.sync', '.dicas.vpd2', '.dicas.cadence2', '.dicas.out2'] },
@@ -129,7 +129,7 @@ const COLUNAS = {
   'canais-resumo-base': { Estado: '.rotulo', Base: '.base' },
   'canais-referencias': { Canal: '.nome', 'Views do vídeo típico': ['.valor', '.motivo'] },
   'canais-referencias-notas': { Canal: '.nome', Nota: ['.sub', '.situacao'] },
-  'canais-inscritos': { Canal: '.nome', 'Ganho em 28 dias': ['.pct', '.motivo'] },
+  'canais-inscritos': { Canal: '.nome', [GANHO_28_COM_UNIDADE]: ['.pct', '.motivo'] },
   'canais-inscritos-notas': { Canal: '.nome', Nota: ['.sub', '.nota', '.situacao'] },
 }
 const paridade = (m: Montado) => provarParidade({
@@ -263,7 +263,7 @@ describe('Canais: o que acontece quando o dado não existe', () => {
   it('medidas não carregaram: toda direção diz "falhou" como não medido, nunca zero', async () => {
     const m = await montar(lido({ medidas: null }), false)
     const t = m.pacote.tabelas.find((x) => x.id === 'canais')!
-    const col = t.colunas.indexOf('Direção')
+    const col = t.colunas.indexOf(DIRECAO_COM_UNIDADE)
     expect(t.linhas.some((l) => l[col]!.papel === 'numero' && l[col]!.estado === 'falhou' && (l[col] as { motivo: string }).motivo === 'falhou')).toBe(true)
     expect(t.linhas.every((l) => !(l[col]!.papel === 'numero' && l[col]!.estado === 'zero_medido'))).toBe(true)
   })

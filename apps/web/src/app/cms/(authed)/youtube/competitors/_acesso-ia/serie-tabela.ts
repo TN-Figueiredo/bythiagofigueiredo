@@ -38,6 +38,8 @@ export const hojeSp = (agora: number): string => isoDe(agora - SP_MS)
 /** O dia de hoje no Pacífico (o dia do YouTube; com horário de verão). `en-CA` formata `aaaa-mm-dd`. */
 const FMT_PACIFICO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
 export const hojePacifico = (agora: number): string => FMT_PACIFICO.format(new Date(agora))
+/** acessoir-11: o dia em curso no fuso da tabela (Pacífico nas privadas do próprio; São Paulo no resto); esse dia nunca sai como medido. */
+export const diaAbertoDe = (t: { fuso?: string }, agora: number): string => (t.fuso === 'pacifico' ? hojePacifico(agora) : hojeSp(agora))
 const ms = (d: string): number => Date.parse(`${d}T00:00:00Z`)
 export const somaDias = (d: string, n: number): string => isoDe(ms(d) + n * DIA_MS)
 /** Segunda-feira da semana (segunda a domingo) do dia `AAAA-MM-DD`. */
@@ -214,7 +216,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
   if (p.grao === 'dia') {
     // I2: o dia em curso (São Paulo no concorrente, Pacífico no canal próprio) sai vazio, como a semana aberta
     const pacifico = t.fuso === 'pacifico'
-    const diaAberto = pacifico ? hojePacifico(agora) : hoje
+    const diaAberto = diaAbertoDe(t, agora)
     return [...fora, ...datasDoPedido(deDentro, ateDentro, 'dia').map((d): PontoCsv => {
       const c = celulas.get(d)
       if (d === diaAberto) return ponto(d, null, 'nao_medido', pacifico ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO)
@@ -469,14 +471,14 @@ export function respostaDaSerieEmTabela(
 
 /* ------------------------------------------------------------------ A5 F2b: vários canais */
 
-/** Um canal do pedido: lido (modelo reduzido à série), não encontrado, não lido (o prazo acabou) ou `falhou` (a leitura lançou: só esse canal). `apelido` é `c1`, `c2`, … na ordem do pedido. */
+/** Um canal do pedido: lido (modelo reduzido à série), `sem_video` (próprio cadastrado e coletado, sem vídeo publicado: acessoir-15), não encontrado, não lido (o prazo acabou) ou `falhou` (a leitura lançou: só esse canal). `apelido` é `c1`, `c2`, … na ordem do pedido. */
 export type CanalDaSerieMulti =
   | { tipo: 'lido'; apelido: string; canalId: string; m: PacoteModelo }
-  | { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou'; apelido: string; canalId: string }
+  | { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' | 'sem_video'; apelido: string; canalId: string }
 
 /** As linhas de um canal que não foi lido: uma `nao_medido` por data pedida até hoje (no máximo `n`, as mais recentes), com o motivo. Nunca o dado de outro canal. */
-function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
-  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : c.tipo === 'falhou' ? F.SERIE_CANAL_FALHOU : F.SERIE_CANAL_NAO_LIDO
+function pontosDoCanalAusente(c: Extract<CanalDaSerieMulti, { tipo: 'nao_encontrado' | 'nao_lido' | 'falhou' | 'sem_video' }>, p: { de: string; ate: string; grao: 'dia' | 'semana' }, hoje: string, n: number): PontoCsv[] {
+  const motivo = c.tipo === 'nao_encontrado' ? F.SERIE_CANAL_NAO_ENCONTRADO : c.tipo === 'sem_video' ? F.SERIE_PROPRIO_SEM_VIDEO : c.tipo === 'falhou' ? F.SERIE_CANAL_FALHOU : F.SERIE_CANAL_NAO_LIDO
   const estado = c.tipo === 'falhou' ? 'falhou' : 'nao_medido'
   const ate = menor(p.ate, hoje)
   const sem = p.grao === 'semana' ? { diasMedidos: 0 } : {}
@@ -492,6 +494,8 @@ export interface RespostaDaSerieMulti extends RespostaDaSerie {
   naoEncontrados: number
   naoLidos: number
   falharam: number
+  /** acessoir-15: canal próprio sem vídeo publicado; não é falha de leitura. */
+  semVideo: number
 }
 
 /**
@@ -627,7 +631,7 @@ export function respostaDaSerieDeCanais(
   return {
     texto: melhor.texto, primeira: primeiraFinal, pontos: melhor.contados, total, de, ate, grao, convertida, cortes, rotulos, semX: semXn,
     numeros: contar(semResumo(melhor.pontos)), incluiuPrivado: lidos.some((c) => c.m.privado.estado === 'incluido'), soNoTexto, nenhumMedido, avisos,
-    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length, falharam: canais.filter((c) => c.tipo === 'falhou').length,
+    canaisLidos: lidos.length, naoEncontrados: canais.filter((c) => c.tipo === 'nao_encontrado').length, naoLidos: canais.filter((c) => c.tipo === 'nao_lido').length, falharam: canais.filter((c) => c.tipo === 'falhou').length, semVideo: canais.filter((c) => c.tipo === 'sem_video').length,
   }
 }
 
