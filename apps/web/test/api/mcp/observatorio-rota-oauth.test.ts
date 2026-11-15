@@ -197,6 +197,19 @@ describe('C1-2: trava fechada', () => {
     await POST(req({ Authorization: 'Bearer oat_bom' }))
     expect(banco.inserts).toHaveLength(1)
   })
+  it('acessoir-24 M1: o MESMO oat_ é 503 com a trava fechada e atendido com a trava aberta (a trava, e não o token, decide)', async () => {
+    const chamada = () => POST(req({ Authorization: 'Bearer oat_igual' }))
+    try {
+      delete process.env.OBSERVATORIO_IA_OAUTH
+      const fechada = await chamada()
+      expect(fechada.status).toBe(503)
+      expect(await msg(fechada)).toBe('temporarily_unavailable')
+      process.env.OBSERVATORIO_IA_OAUTH = 'on'
+      const aberta = await chamada()
+      expect(aberta.status).toBe(200)
+      expect(await marca(aberta)).toBe('OBSERVATORIO')
+    } finally { delete process.env.OBSERVATORIO_IA_OAUTH }
+  })
   it('oat_ que não resolve: 503 sem registro', async () => {
     banco.rpcLinhas = []
     const r = await POST(req({ Authorization: 'Bearer oat_morto' }))
