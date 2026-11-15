@@ -26,7 +26,7 @@ import { montarConsulta, type RecusaDaConsulta } from '../_consultar/montar'
 import { respostaDaConsulta } from './consultar'
 import { lugaresParaDefinicoes, type LugaresParaDefinicoes } from '../_consultar/dados'
 import type { CanalDaSerieMulti } from './serie-tabela'
-import { diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
+import { diaAbertoDe, diaDaLinha, diaValido, dmy, fimDoDado, hojeSp, respostaDaSerieDeCanais, respostaDaSerieEmTabela, segundaDe, somaDaSemana, somaDias } from './serie-tabela'
 
 type Entrada = z.infer<typeof ENTRADA>
 type Params = Resposta['params']
@@ -198,6 +198,9 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const semData = lidas.filter((x) => x.dia === null).length
     const comData = lidas.filter((x): x is typeof x & { dia: string } => x.dia !== null)
     let dentro = comData.filter((x) => x.dia >= de && x.dia <= ate)
+    // acessoir-11: o dia em curso (fuso da tabela) sai "não medido", como no CSV; a linha fica (sumir seria o acessoir-14)
+    const aberto = diaAbertoDe(t, agora)
+    dentro = dentro.map((x) => (x.dia !== aberto ? x : { ...x, linha: x.linha.map((c): Celula => (c.papel === 'numero' ? { papel: 'numero', estado: 'nao_medido', motivo: t.fuso === 'pacifico' ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO, origem: c.origem } : c)) }))
     if (semData > 0) avisos.push(`série "${t.titulo}": ${semData} linha${semData === 1 ? '' : 's'} sem data reconhecível ficaram fora do intervalo`)
     if (dentro.length === 0) {
       const dts = comData.map((x) => x.dia).sort()
@@ -208,7 +211,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     }
     // acessoir-14: o último dia com dado fica antes do dia pedido (até hoje): o dado do próprio chega com 2 a 3 dias de atraso
     const ultimoComDado = dentro.reduce((a, x) => (x.dia > a ? x.dia : a), '')
-    const pedidoAte = ate < hojeSp(agora) ? ate : hojeSp(agora)
+    const pedidoAte = ate < diaAbertoDe(t, agora) ? ate : diaAbertoDe(t, agora)
     const faltaDado = ultimoComDado < pedidoAte ? { de: somaDias(ultimoComDado, 1), ate: pedidoAte } : null
     let grao = p.grao ?? 'dia'
     let totalDaSerie = dentro.length
@@ -231,7 +234,7 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
           // acumulado (total no fim do dia): a última linha MEDIDA; semana sem nenhuma medida fica com a última linha, "não medido" com o motivo (nunca some)
           return ord.find((x) => medidaNaLinha(x.linha)) ?? ord[0]!
         }
-        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord, regra, hojeSp(agora)), dia: ord[0]!.dia }
+        return { ...ord[0]!, linha: linhaDaSemana(segunda, ord, regra, diaAbertoDe(t, agora)), dia: ord[0]!.dia }
       })
       dentro = escolhidas
       if (!convertida) totalDaSerie = escolhidas.length // pediu semana: o total é de semanas

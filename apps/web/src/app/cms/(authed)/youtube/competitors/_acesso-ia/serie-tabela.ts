@@ -38,6 +38,8 @@ export const hojeSp = (agora: number): string => isoDe(agora - SP_MS)
 /** O dia de hoje no Pacífico (o dia do YouTube; com horário de verão). `en-CA` formata `aaaa-mm-dd`. */
 const FMT_PACIFICO = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
 export const hojePacifico = (agora: number): string => FMT_PACIFICO.format(new Date(agora))
+/** acessoir-11: o dia em curso no fuso da tabela (Pacífico nas privadas do próprio; São Paulo no resto); esse dia nunca sai como medido. */
+export const diaAbertoDe = (t: { fuso?: string }, agora: number): string => (t.fuso === 'pacifico' ? hojePacifico(agora) : hojeSp(agora))
 const ms = (d: string): number => Date.parse(`${d}T00:00:00Z`)
 export const somaDias = (d: string, n: number): string => isoDe(ms(d) + n * DIA_MS)
 /** Segunda-feira da semana (segunda a domingo) do dia `AAAA-MM-DD`. */
@@ -214,7 +216,7 @@ function pontosDaSeriePorMedida(s: Serie, canalId: string, apelido: string, p: {
   if (p.grao === 'dia') {
     // I2: o dia em curso (São Paulo no concorrente, Pacífico no canal próprio) sai vazio, como a semana aberta
     const pacifico = t.fuso === 'pacifico'
-    const diaAberto = pacifico ? hojePacifico(agora) : hoje
+    const diaAberto = diaAbertoDe(t, agora)
     return [...fora, ...datasDoPedido(deDentro, ateDentro, 'dia').map((d): PontoCsv => {
       const c = celulas.get(d)
       if (d === diaAberto) return ponto(d, null, 'nao_medido', pacifico ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO)

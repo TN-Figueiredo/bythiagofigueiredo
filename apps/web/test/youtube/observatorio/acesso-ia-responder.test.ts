@@ -233,6 +233,44 @@ describe('responder: o limite próprio de cada ação', () => {
   })
 })
 
+/** acessoir-11: `n` dias terminando em `fim` (aaaa-mm-dd), todos medidos (valor 1234), com o fuso da tabela. */
+function serieAte(fim: string, n: number, fuso: 'sao_paulo' | 'pacifico', semana: 'soma' | 'ultima' = 'soma'): Tabela {
+  const f = Date.parse(`${fim}T00:00:00Z`)
+  return {
+    id: 'serie', titulo: 'Views por dia', tipo: 'dia_a_dia', nomeNoCorte: 'views por dia', privada: false, colunas: ['Dia', 'Views'], semana, fuso,
+    linhas: Array.from({ length: n }, (_, i): Celula[] => {
+      const d = new Date(f - i * 86_400_000)
+      return [rotulo(`${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`, `p.s[${i}].dia`), medido('1.234', 1234, `p.s[${i}].v`)]
+    }),
+  }
+}
+
+describe('responder: serie, dia em curso (acessoir-11)', () => {
+  it('concorrente (São Paulo): a linha de hoje sai "dia ainda aberto", sem o número parcial; a de ontem fica medida', async () => {
+    dobra('canal', modeloSerie(serieAte('2026-10-13', 5, 'sao_paulo')))
+    const r = await responder(SERIE, abrir, AGORA) // 17:32 UTC = 14:32 em São Paulo, 13/10
+    const hoje = linhasDaSerie(r.texto).find((l) => l.includes('13/10/2026'))!
+    const ontem = linhasDaSerie(r.texto).find((l) => l.includes('12/10/2026'))!
+    expect(hoje).toContain('dia ainda aberto (termina às 23:59 de São Paulo)')
+    expect(hoje).not.toContain('1.234')
+    expect(ontem).toContain('1.234')
+  })
+  it('próprio (Pacífico) às 02:00 de São Paulo: o dia aberto é o de ontem em SP, com o motivo do Pacífico; o dia seguinte de SP não aparece como aberto', async () => {
+    dobra('canal', modeloSerie(serieAte('2026-10-13', 5, 'pacifico')))
+    const r = await responder({ ...SERIE, ate: '2026-10-14' }, abrir, Date.parse('2026-10-14T05:00:00Z')) // 22:00 PDT de 13/10
+    const aberto = linhasDaSerie(r.texto).find((l) => l.includes('13/10/2026'))!
+    expect(aberto).toContain('dia ainda aberto (termina às 23:59 do Pacífico)')
+    expect(aberto).not.toContain('1.234')
+    expect(linhasDaSerie(r.texto).find((l) => l.includes('12/10/2026'))).toContain('1.234')
+  })
+  it('semana do próprio às 02:00 de São Paulo da segunda: a semana de 12 a 18/10 ainda está aberta no Pacífico', async () => {
+    dobra('canal', modeloSerie(serieAte('2026-10-18', 14, 'pacifico')))
+    const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-12', ate: '2026-10-18' }, abrir, Date.parse('2026-10-19T05:00:00Z')) // dom 22:00 PDT
+    expect(r.texto).toContain('semana incompleta')
+    expect(r.texto).not.toContain('8.638') // 7 × 1234, a soma que sairia fechada
+  })
+})
+
 describe('responder: serie', () => {
   it('401 pontos no grão dia: passa ao grão semana e diz; 400: fica no dia', async () => {
     dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
@@ -248,9 +286,9 @@ describe('responder: serie', () => {
   it('acumulado: o grão semana é a última leitura (seleção), com o valor dela', async () => {
     dobra('canal', modeloSerie(serie(401, () => true, false, 'ultima')))
     const r = await responder(SERIE, abrir, AGORA)
-    // 13/10/2026 é terça: a semana corrente fica com o dia mais recente (valor 1000)
-    expect(r.texto).toMatch(/13\/10\/2026.*1000/)
-    expect(r.texto).not.toMatch(/12\/10\/2026/)
+    // 13/10/2026 é terça e é o dia em curso (acessoir-11: não medido); a semana corrente fica com a última linha MEDIDA, a de 12/10 (valor 1001)
+    expect(r.texto).toMatch(/12\/10\/2026.*1001/)
+    expect(r.texto).not.toMatch(/13\/10\/2026.*1000/)
     expect(r.texto).toMatch(/acumulad.*última leitura/)
   })
   it('acumulado: semana com dia vazio no fim fica com a última linha MEDIDA', async () => {
@@ -274,10 +312,10 @@ describe('responder: serie', () => {
     expect(r.texto).not.toContain('7035')
     expect(r.texto).not.toMatch(/\|\s*0\s*\|/)
   })
-  it('ganho diário: semana parcial na borda (2 dias) é "não medido" com 2 de 7', async () => {
+  it('ganho diário: semana parcial na borda (2 dias, o de hoje aberto) é "não medido" com 1 de 7', async () => {
     dobra('canal', modeloSerie(serie(401, () => true, false, 'soma')))
     const r = await responder({ ...SERIE, grao: 'semana', de: '2026-10-12', ate: '2026-10-13' }, abrir, AGORA)
-    expect(r.texto).toMatch(/2 de 7 dias medidos/)
+    expect(r.texto).toMatch(/1 de 7 dias medidos/)
     expect(r.texto).not.toMatch(/\b2001\b/)
   })
   it('semana: a Cobertura começa na segunda da 1ª semana mostrada, como a tabela', async () => {
