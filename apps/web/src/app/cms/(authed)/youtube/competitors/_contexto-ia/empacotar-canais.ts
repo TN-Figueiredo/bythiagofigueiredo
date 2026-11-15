@@ -392,7 +392,14 @@ function celulasDaLinha(l: Linha): Celula[] {
 export const VPD_POR_MIL = 'Views/dia por mil inscritos'
 export const VPD_MEDIANA = 'Views/dia, mediana dos vídeos'
 export const RITMO_COM_UNIDADE = 'Ritmo (uploads por semana, 13 semanas)'
-const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Id', 'Inscritos', 'Direção', RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, 'Outliers', 'Trocas', 'Crescimento', 'Sincronização']
+/** acessoir-6 (Yannis, 15/11): a unidade no título; a chave do CSV (`direcao_pct`, `maior_outlier_mult`, `crescimento_pct`) não muda. */
+export const DIRECAO_COM_UNIDADE = 'Direção (% das views, 28 dias contra 28 anteriores)'
+export const CRESCIMENTO_COM_UNIDADE = 'Crescimento (% de inscritos em 30 dias)'
+export const GANHO_28_COM_UNIDADE = 'Ganho em 28 dias (% de inscritos)'
+export const RITMO_SHORTS_COM_UNIDADE = 'Ritmo dos Shorts (uploads por semana, 13 semanas)'
+export const MAIOR_OUTLIER_COM_UNIDADE = 'Maior outlier (× a mediana do canal)'
+export const MAIOR_OUTLIER_SHORTS_COM_UNIDADE = 'Maior outlier dos Shorts (× a mediana do canal)'
+const colunasDaLista = (vpdUnit: string): string[] => ['Posição', 'Canal', 'Id', 'Inscritos', DIRECAO_COM_UNIDADE, RITMO_COM_UNIDADE, vpdUnit.startsWith('por mil inscritos') ? VPD_POR_MIL : VPD_MEDIANA, MAIOR_OUTLIER_COM_UNIDADE, 'Trocas', CRESCIMENTO_COM_UNIDADE, 'Sincronização']
 
 function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): Tabela[] {
   if (!ls.length) return []
@@ -419,7 +426,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 
   if (modelo.fmt === 'todos') {
     const sh = ls.filter(({ r }) => r.cells.cadence2 && r.cells.vpd2 && r.cells.out2)
-    out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', 'Ritmo dos Shorts', 'Views por dia dos Shorts', 'Outliers dos Shorts'],
+    out.push(tabelaLista(`${pre}canais-shorts`, `A medida dos Shorts de cada canal${suf}`, nome('tabela dos Shorts'), ['Canal', RITMO_SHORTS_COM_UNIDADE, 'Views por dia dos Shorts', MAIOR_OUTLIER_SHORTS_COM_UNIDADE],
       sh.map(({ r, p }) => {
         const k = r.cells.cadence2!, v = r.cells.vpd2!, o = r.cells.out2!
         return [terceiros(r.name, `${p}.name`),
@@ -514,7 +521,7 @@ function tabelasDeReferenciasEInscritos(m: ModeloCanais): Tabela[] {
   if (I.estado === 'ok') {
     const ordem = naOrdem<RiLinhaIns>(I.linhas, I.ordens[ri.ordem.ins].ids)
     const medida = (l: RiLinhaIns) => l.classe != null && l.barra != null
-    out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', 'Ganho em 28 dias'],
+    out.push(tabelaLista('canais-inscritos', 'Inscritos: o ganho de cada canal em 28 dias', 'tabela de inscritos', ['Canal', GANHO_28_COM_UNIDADE],
       ordem.map(({ l, k }) => [terceiros(l.nome, `modelo.ri.inscritos.linhas[${k}].nome`),
         medida(l) && l.pct !== null ? (l.classe === 'eq' && l.pctN === null ? medidoSemX(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, 'sem percentual: o canal não tinha inscritos') : medido(l.pct, `modelo.ri.inscritos.linhas[${k}].pct`, l.pctN)) : naoMedido(m.derivado.ri.inscritos[k]!.motivo, `modelo.derivado.ri.inscritos[${k}].motivo`)])))
     const notas: Celula[][] = []

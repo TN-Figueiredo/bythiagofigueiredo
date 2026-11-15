@@ -166,6 +166,13 @@ function celulaDoNumero(texto: string | number | null, origem: string, motivo: s
   return { papel: 'numero', estado: 'medido', texto: t, x, origem }
 }
 
+/** acessoir-6: a unidade no título; as chaves (`observado_pct`, `efeito_pp`…) não mudam. */
+export const OBSERVADO_COM_UNIDADE = 'Observado (% de views/dia, depois contra antes)'
+export const ESPERADO_COM_UNIDADE = 'Esperado sem a troca (%)'
+export const EFEITO_COM_UNIDADE = 'Efeito (pontos percentuais)'
+export const LIMITE_DA_FAIXA_COM_UNIDADE = 'Limite da faixa (%)'
+export const MEDIANA_DO_EFEITO_COM_UNIDADE = 'Mediana do efeito (pontos percentuais)'
+
 /** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
 const CHAVES: Record<string, string[]> = {
   'trocas': ['video', 'id', 'canal', 'nicho', 'tipo', 'quando', 'visto'],
@@ -208,7 +215,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
   // A7c1: as tabelas coluna do efeito saem mesmo vazias (o resumo conta "Sem linha"); o texto da tela não as mostra sem linha
   const medidas = trocas(m).filter(({ h }) => doEfeito(h) && h.effect.rows !== null && [h.effect.rows.observed, h.effect.rows.observedFrom, h.effect.rows.observedTo].every(real))
   {
-    saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', 'Observado', 'Antes (views/dia)', 'Depois (views/dia)'],
+    saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', OBSERVADO_COM_UNIDADE, 'Antes (views/dia)', 'Depois (views/dia)'],
       medidas.map(({ i, h }) => {
         const p = `modelo.heroes[${i}]`, r = h.effect.rows!, n = h.effect.rowsN
         return [
@@ -218,7 +225,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
       })))
     const comEsperado = medidas.filter(({ h }) => real(h.effect.rows!.expected) && real(h.effect.pp))
     {
-      saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', 'Esperado sem a troca', 'Efeito'],
+      saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE],
         comEsperado.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
           return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN?.expected ?? null), celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)]
@@ -226,7 +233,7 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
     }
     const comFaixa = medidas.filter(({ h }) => h.effect.rows!.iqr !== null)
     {
-      saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', 'Limite da faixa'],
+      saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', LIMITE_DA_FAIXA_COM_UNIDADE],
         comFaixa.flatMap(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
           return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN?.iqr?.[k] ?? null)])
@@ -299,7 +306,7 @@ function tabelaDeNotas(m: ModeloMudancas): Tabela[] {
 function tabelaDoQuadro(m: ModeloMudancas): Tabela[] {
   const L = m.ledger
   if (L.medians.length === 0) return []
-  return [tabelaFixa('quadro-de-efeito', `Efeito ajustado ${L.winLabel}`, 'quadro de efeito ajustado', ['Tipo', 'Trocas do nicho na janela', 'Com veredito (n)', 'Mediana do efeito', 'Resultado'],
+  return [tabelaFixa('quadro-de-efeito', `Efeito ajustado ${L.winLabel}`, 'quadro de efeito ajustado', ['Tipo', 'Trocas do nicho na janela', 'Com veredito (n)', MEDIANA_DO_EFEITO_COM_UNIDADE, 'Resultado'],
     L.medians.map((x, i) => {
       const p = `modelo.ledger.medians[${i}]`
       return [

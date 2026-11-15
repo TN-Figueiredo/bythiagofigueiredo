@@ -9,7 +9,7 @@ import { medidas, semX } from './contexto-ia-x-fixture'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildMudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
-import { empacotarMudancas, modeloDeMudancas } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
+import { empacotarMudancas, modeloDeMudancas, OBSERVADO_COM_UNIDADE, ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, LIMITE_DA_FAIXA_COM_UNIDADE, MEDIANA_DO_EFEITO_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
 
 const CASOS = casosDeMudancas()
 const F = OBS.fmt
@@ -27,19 +27,19 @@ describe('mudanças: toda célula medida tem x finito (1)', () => {
 describe('mudanças: o formatador da unidade da coluna aplicado a x dá o texto (2) e (2b)', () => {
   /** O modelo guarda fração (`F.pct` multiplica por 100); o `x` está em pontos, na unidade do título. */
   const FORMATADOR: Record<string, (x: number) => string> = {
-    'trocas-efeito/Observado': (x) => F.pct(x / 100),
+    [`trocas-efeito/${OBSERVADO_COM_UNIDADE}`]: (x) => F.pct(x / 100),
     'trocas-efeito/Antes (views/dia)': (x) => F.num(x),
     'trocas-efeito/Depois (views/dia)': (x) => F.num(x),
-    'trocas-esperado/Esperado sem a troca': (x) => F.pct(x / 100),
-    'trocas-esperado/Efeito': (x) => F.pp(x),
-    'trocas-faixa/Limite da faixa': (x) => F.pct(x / 100),
+    [`trocas-esperado/${ESPERADO_COM_UNIDADE}`]: (x) => F.pct(x / 100),
+    [`trocas-esperado/${EFEITO_COM_UNIDADE}`]: (x) => F.pp(x),
+    [`trocas-faixa/${LIMITE_DA_FAIXA_COM_UNIDADE}`]: (x) => F.pct(x / 100),
     'trocas-base/Vídeos na base (n)': (x) => String(x),
     'trocas-descricoes/Linhas novas': (x) => String(x),
     'trocas-descricoes/Linhas removidas': (x) => String(x),
     'trocas-descricoes/Trocas de UTM ocultas': (x) => String(x),
     'quadro-de-efeito/Trocas do nicho na janela': (x) => String(x),
     'quadro-de-efeito/Com veredito (n)': (x) => String(x),
-    'quadro-de-efeito/Mediana do efeito': (x) => F.pp(x),
+    [`quadro-de-efeito/${MEDIANA_DO_EFEITO_COM_UNIDADE}`]: (x) => F.pp(x),
   }
   it.each(CASOS.map((c) => [c.nome, c] as const))('%s: cada coluna numérica tem formatador e o x reescreve o texto', (_n, caso) => {
     const sem: string[] = [], erradas: string[] = []
@@ -55,7 +55,7 @@ describe('mudanças: o formatador da unidade da coluna aplicado a x dá o texto 
   })
   it('o teste não passa vazio: a matriz confere células de cada coluna (exceto a mediana do quadro, que nenhuma fixture mede)', () => {
     const n = (col: string) => CASOS.reduce((s, c) => s + medidas(c.pacote).filter((m) => `${m.tabela}/${m.coluna}` === col && typeof (m.c as Cel).x === 'number').length, 0)
-    for (const col of Object.keys(FORMATADOR).filter((k) => k !== 'quadro-de-efeito/Mediana do efeito')) expect(n(col), col).toBeGreaterThan(0)
+    for (const col of Object.keys(FORMATADOR).filter((k) => k !== `quadro-de-efeito/${MEDIANA_DO_EFEITO_COM_UNIDADE}`)) expect(n(col), col).toBeGreaterThan(0)
   })
   it('(2b) observado "+12%" → x === 12 (pontos, não 0,12); a mediana do quadro "+5 pp" → x === 5', () => {
     const caso = casosDeMudancas().find((c) => c.nome === '90 dias')!

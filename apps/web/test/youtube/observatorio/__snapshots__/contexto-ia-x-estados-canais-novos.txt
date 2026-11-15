@@ -3,12 +3,12 @@ canais/Posição: MMMMMMMMMMMMMnnn 1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|10º
 canais/Canal: ................ |||||||||||||||
 canais/Id: ................ |||||||||||||||
 canais/Inscritos: MMMMMMMMMMMMMMMM 1,12 mi|341 mil|205 mil|612 mil|4,51 mi|1,93 mi|284 mil|3,72 mi|862 mil|96,4 mil|412 mil|298 mil|485 mil|128 mil|3,21 mil|412
-canais/Direção: MMMMMMMMMMMMMMnn +20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%||
+canais/Direção (% das views, 28 dias contra 28 anteriores): MMMMMMMMMMMMMMnn +20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%||
 canais/Ritmo (uploads por semana, 13 semanas): MMMMMMMMMMMMMnMM 1,2|1,0|1,0|1,0|0,5|1,6|1,3|1,3|4,0|4,4|1,8|1,5|1,8||0,6|0,2
 canais/Views/dia por mil inscritos: MMMMMMMMMMMMMnrr 4,0|2,6|2,5|2,1|1,9|1,5|1,1|1,0|0,7|0,4|0,4|0,4|0,4|||
-canais/Outliers: nMnMnMMMMnMMMnnn |3,2×||4,0×||3,1×|5,2×|3,9×|6,0×||2,5×|4,2×|3,7×|||
+canais/Maior outlier (× a mediana do canal): nMnMnMMMMnMMMnnn |3,2×||4,0×||3,1×|5,2×|3,9×|6,0×||2,5×|4,2×|3,7×|||
 canais/Trocas: ZMMMZMZMMZZMMnnn 0|1|1|2|0|2|0|1|6|0|0|1|1|||
-canais/Crescimento: MMMMMMMMMMMMMnnn sem variação|+3,3%|+2,0%|+1,5%|sem variação|+1,0%|+5,2%|+0,8%|+1,4%|+0,3%|+4,8%|+2,8%|+0,6%|||
+canais/Crescimento (% de inscritos em 30 dias): MMMMMMMMMMMMMnnn sem variação|+3,3%|+2,0%|+1,5%|sem variação|+1,0%|+5,2%|+0,8%|+1,4%|+0,3%|+4,8%|+2,8%|+0,6%|||
 canais/Sincronização: ................ |||||||||||||||
 canais-nicho/Canal: ................ |||||||||||||||
 canais-nicho/Nicho: ................ |||||||||||||||
@@ -38,7 +38,7 @@ canais-referencias/Views do vídeo típico: MMMMMMMMMMMMMnnn 2,06 mi|963,4 mil|8
 canais-referencias-notas/Canal: ............. ||||||||||||
 canais-referencias-notas/Nota: ............. ||||||||||||
 canais-inscritos/Canal: ................ |||||||||||||||
-canais-inscritos/Ganho em 28 dias: MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
+canais-inscritos/Ganho em 28 dias (% de inscritos): MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
 canais-inscritos-notas/Canal: ............. ||||||||||||
 canais-inscritos-notas/Nota: ............. ||||||||||||
 
@@ -47,12 +47,12 @@ canais/Posição: MMMMMMMMMMMMMn 3º|4º|5º|6º|7º|8º|9º|10º|11º|12º|12º
 canais/Canal: .............. |||||||||||||
 canais/Id: .............. |||||||||||||
 canais/Inscritos: MMMMMMMMMMMMMM 1,12 mi|341 mil|205 mil|612 mil|4,51 mi|1,93 mi|284 mil|3,72 mi|862 mil|96,4 mil|412 mil|298 mil|485 mil|128 mil
-canais/Direção: MMMMMfMMMMMMMM +20%|+20%|+20%|+20%|+20%||+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%
+canais/Direção (% das views, 28 dias contra 28 anteriores): MMMMMfMMMMMMMM +20%|+20%|+20%|+20%|+20%||+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%
 canais/Ritmo (uploads por semana, 13 semanas): MMMMMMMMMMMMMn 1,2|1,0|1,0|1,0|0,5|1,6|1,3|1,3|4,0|4,4|1,8|1,5|1,8|
 canais/Views/dia por mil inscritos: MMMMMMMMMMMMMn 4,0|2,6|2,5|2,1|1,9|1,5|1,1|1,0|0,7|0,4|0,4|0,4|0,4|
-canais/Outliers: nMnMnMMMMnMMMn |3,2×||4,0×||3,1×|5,2×|3,9×|6,0×||2,5×|4,2×|3,7×|
+canais/Maior outlier (× a mediana do canal): nMnMnMMMMnMMMn |3,2×||4,0×||3,1×|5,2×|3,9×|6,0×||2,5×|4,2×|3,7×|
 canais/Trocas: ZMMMZMZMMZZMMn 0|1|1|2|0|2|0|1|6|0|0|1|1|
-canais/Crescimento: MMMMMMMMMMMMMn sem variação|+3,3%|+2,0%|+1,5%|sem variação|+1,0%|+5,2%|+0,8%|+1,4%|+0,3%|+4,8%|+2,8%|+0,6%|
+canais/Crescimento (% de inscritos em 30 dias): MMMMMMMMMMMMMn sem variação|+3,3%|+2,0%|+1,5%|sem variação|+1,0%|+5,2%|+0,8%|+1,4%|+0,3%|+4,8%|+2,8%|+0,6%|
 canais/Sincronização: .............. |||||||||||||
 canais-nicho/Canal: .............. |||||||||||||
 canais-nicho/Nicho: .............. |||||||||||||
@@ -77,12 +77,12 @@ privado-canais/Posição: MM 1º|2º
 privado-canais/Canal: .. |
 privado-canais/Id: .. |
 privado-canais/Inscritos: MM 412|3,21 mil
-privado-canais/Direção: nn |
+privado-canais/Direção (% das views, 28 dias contra 28 anteriores): nn |
 privado-canais/Ritmo (uploads por semana, 13 semanas): MM 0,2|0,6
 privado-canais/Views/dia por mil inscritos: MM 10,4 mil|1,3 mil
-privado-canais/Outliers: nn |
+privado-canais/Maior outlier (× a mediana do canal): nn |
 privado-canais/Trocas: nn |
-privado-canais/Crescimento: nn |
+privado-canais/Crescimento (% de inscritos em 30 dias): nn |
 privado-canais/Sincronização: .. |
 privado-canais-nicho/Canal: .. |
 privado-canais-nicho/Nicho: .. |
@@ -114,7 +114,7 @@ canais-referencias/Views do vídeo típico: MMMMMMMMMMMMMnnn 2,06 mi|963,4 mil|8
 canais-referencias-notas/Canal: ............. ||||||||||||
 canais-referencias-notas/Nota: ............. ||||||||||||
 canais-inscritos/Canal: ................ |||||||||||||||
-canais-inscritos/Ganho em 28 dias: MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
+canais-inscritos/Ganho em 28 dias (% de inscritos): MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
 canais-inscritos-notas/Canal: ............. ||||||||||||
 canais-inscritos-notas/Nota: ............. ||||||||||||
 
@@ -123,12 +123,12 @@ canais/Posição: MMMMMMMMMMMMMn 1º|2º|5º|6º|7º|8º|9º|10º|11º|12º|13º
 canais/Canal: .............. |||||||||||||
 canais/Id: .............. |||||||||||||
 canais/Inscritos: MMMMMMMMMMMMMM 4,51 mi|1,12 mi|3,72 mi|1,93 mi|612 mil|341 mil|862 mil|205 mil|284 mil|485 mil|412 mil|298 mil|96,4 mil|128 mil
-canais/Direção: MMMMMMMMMMMMMM +20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%
+canais/Direção (% das views, 28 dias contra 28 anteriores): MMMMMMMMMMMMMM +20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%|+20%
 canais/Ritmo (uploads por semana, 13 semanas): MMMMMMMMMMMMMn 0,5|1,2|1,3|1,6|1,0|1,0|4,0|1,0|1,3|1,8|1,8|1,5|4,4|
 canais/Views/dia, mediana dos vídeos: MMMMMMMMMMMMMn 8,4 mil|4,5 mil|3,8 mil|2,8 mil|1,3 mil|874|636|503|316|211|164|110|37|
-canais/Outliers: nnMMMMMnMMMMnn ||3,9×|3,1×|4,0×|3,2×|6,0×||5,2×|3,7×|2,5×|4,2×||
+canais/Maior outlier (× a mediana do canal): nnMMMMMnMMMMnn ||3,9×|3,1×|4,0×|3,2×|6,0×||5,2×|3,7×|2,5×|4,2×||
 canais/Trocas: ZZMMMMMMZMZMZn 0|0|1|2|2|1|6|1|0|1|0|1|0|
-canais/Crescimento: MMMMMMMMMMMMMn sem variação|sem variação|+0,8%|+1,0%|+1,5%|+3,3%|+1,4%|+2,0%|+5,2%|+0,6%|+4,8%|+2,8%|+0,3%|
+canais/Crescimento (% de inscritos em 30 dias): MMMMMMMMMMMMMn sem variação|sem variação|+0,8%|+1,0%|+1,5%|+3,3%|+1,4%|+2,0%|+5,2%|+0,6%|+4,8%|+2,8%|+0,3%|
 canais/Sincronização: .............. |||||||||||||
 canais-nicho/Canal: .............. |||||||||||||
 canais-nicho/Nicho: .............. |||||||||||||
@@ -153,12 +153,12 @@ privado-canais/Posição: MM 3º|3º
 privado-canais/Canal: .. |
 privado-canais/Id: .. |
 privado-canais/Inscritos: MM 3,21 mil|412
-privado-canais/Direção: nn |
+privado-canais/Direção (% das views, 28 dias contra 28 anteriores): nn |
 privado-canais/Ritmo (uploads por semana, 13 semanas): MM 0,6|0,2
 privado-canais/Views/dia, mediana dos vídeos: MM 4,3 mil|4,3 mil
-privado-canais/Outliers: nn |
+privado-canais/Maior outlier (× a mediana do canal): nn |
 privado-canais/Trocas: nn |
-privado-canais/Crescimento: nn |
+privado-canais/Crescimento (% de inscritos em 30 dias): nn |
 privado-canais/Sincronização: .. |
 privado-canais-nicho/Canal: .. |
 privado-canais-nicho/Nicho: .. |
@@ -188,6 +188,6 @@ canais-referencias/Views do vídeo típico: MMMMMMMMMMMMMnnn 2,06 mi|963,4 mil|8
 canais-referencias-notas/Canal: ............. ||||||||||||
 canais-referencias-notas/Nota: ............. ||||||||||||
 canais-inscritos/Canal: ................ |||||||||||||||
-canais-inscritos/Ganho em 28 dias: MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
+canais-inscritos/Ganho em 28 dias (% de inscritos): MMMMMMMMMMnnnnnn +4,8%|+4,6%|+3,0%|+2,4%|+2,0%|+1,5%|+1,3%|+1,0%|+0,8%|+0,6%||||||
 canais-inscritos-notas/Canal: ............. ||||||||||||
 canais-inscritos-notas/Nota: ............. ||||||||||||

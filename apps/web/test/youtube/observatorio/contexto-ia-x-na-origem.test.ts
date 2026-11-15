@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { casosDeCanais, casosNovosDeCanais, mundoComCanais, pacoteDe, modeloDe, privadoDe, extrasDe, mapaDeEstados, medidas, semX, type CasoCanais } from './contexto-ia-x-fixture'
 import { nbMilMi, numNb } from '@/app/cms/(authed)/youtube/competitors/_canal/formato'
 import { vpdText } from '@/app/cms/(authed)/youtube/competitors/_canal/numeros'
-import { empacotarCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
+import { empacotarCanais, DIRECAO_COM_UNIDADE, CRESCIMENTO_COM_UNIDADE, RITMO_SHORTS_COM_UNIDADE, MAIOR_OUTLIER_SHORTS_COM_UNIDADE, GANHO_28_COM_UNIDADE, MAIOR_OUTLIER_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
@@ -59,7 +59,7 @@ describe('portão do JSON do diálogo (D3): linhas da principal que ficam no di�
     expect([r.n200.linhasDaPrincipal, r.n200.degrau, r.n200.linhasNoJson]).toEqual([198, 3, 3])
     for (const m of [r.n60, r.n200]) expect(m.caracteres).toBeLessThanOrEqual(CONTEXTO_IA_RULES.limiteCopia)
     // o oráculo de tamanhos remedido com o x no JSON (antes: 23.127 / 350.817 com 60 canais e 23.193 / 1.161.863 com 200)
-    expect({ n60: [r.n60.caracteres, r.n60.totalSemCorte], n200: [r.n200.caracteres, r.n200.totalSemCorte] }).toEqual({ n60: [23663, 359217], n200: [23731, 1190273] })
+    expect({ n60: [r.n60.caracteres, r.n60.totalSemCorte], n200: [r.n200.caracteres, r.n200.totalSemCorte] }).toEqual({ n60: [24431, 366454], n200: [24499, 1213890] }) // acessoir-6 (15/11): os títulos com unidade somam 768 caracteres no JSON do diálogo (era 23663 / 359217 e 23731 / 1190273)
   })
   it('o JSON do diálogo leva "x" em cada número medido (K3)', () => {
     const w = mundoComCanais(60)
@@ -95,26 +95,26 @@ describe('canais: o formatador da unidade da coluna aplicado a x dá o texto (2)
   const FORMATADOR: Record<string, (x: number) => string> = {
     'canais/Posição': (x) => `${x}º`,
     'canais/Inscritos': (x) => nbMilMi(F.subs(x)),
-    'canais/Direção': (x) => `${sinal(Math.round(x))}${Math.abs(Math.round(x))}%`,
+    [`canais/${DIRECAO_COM_UNIDADE}`]: (x) => `${sinal(Math.round(x))}${Math.abs(Math.round(x))}%`,
     'canais/Ritmo (uploads por semana, 13 semanas)': pw,
     'canais/Views/dia por mil inscritos': vpd,
     'canais/Views/dia, mediana dos vídeos': vpd,
-    'canais/Outliers': (x) => F.mult(x),
+    [`canais/${MAIOR_OUTLIER_COM_UNIDADE}`]: (x) => F.mult(x),
     'canais/Trocas': (x) => String(x),
-    'canais/Crescimento': (x) => `${sinal(x)}${F.dec1(Math.abs(x))}%`,
+    [`canais/${CRESCIMENTO_COM_UNIDADE}`]: (x) => `${sinal(x)}${F.dec1(Math.abs(x))}%`,
     'canais-direcao-numeros/Views nos últimos 28 dias': (x) => numNb(F, x),
     'canais-direcao-numeros/Views nos 28 dias anteriores': (x) => numNb(F, x),
     'canais-views-por-dia/Views por dia, valor absoluto': vpd,
     'canais-views-por-dia/Vídeos na base': (x) => String(x),
     'canais-maior-outlier/Vídeos comparados': (x) => String(x),
-    'canais-shorts/Ritmo dos Shorts': pw,
+    [`canais-shorts/${RITMO_SHORTS_COM_UNIDADE}`]: pw,
     'canais-shorts/Views por dia dos Shorts': vpd,
-    'canais-shorts/Outliers dos Shorts': (x) => F.mult(x),
+    [`canais-shorts/${MAIOR_OUTLIER_SHORTS_COM_UNIDADE}`]: (x) => F.mult(x),
     'canais-shorts-views-por-dia/Views por dia dos Shorts, valor absoluto': vpd,
     'canais-shorts-views-por-dia/Vídeos na base dos Shorts': (x) => String(x),
     'canais-resumo-direcao/Canais': (x) => String(x),
     'canais-resumo-estado/Canais': (x) => String(x),
-    'canais-inscritos/Ganho em 28 dias': (x) => `${sinal(x)}${F.dec1(Math.abs(x))}%`,
+    [`canais-inscritos/${GANHO_28_COM_UNIDADE}`]: (x) => `${sinal(x)}${F.dec1(Math.abs(x))}%`,
   }
   /** Referências ("Views do vídeo típico") usa o `cmpL` privado do modelo; aqui só a unidade e a ordem de grandeza, e nunca zero (M2). */
   const REFERENCIAS = 'canais-referencias/Views do vídeo típico'
@@ -180,7 +180,7 @@ describe('canais: x é o número do modelo (3)', () => {
       if (r.cells.swap.kind === 'ok') { expect(x(l[col('Trocas')]), `trocas ${id}`).toBe(r.cells.swap.n); visto.swap += 1 }
       if (r.direcao.tipo === 'medido') {
         const d = r.direcao
-        expect(x(l[col('Direção')]), `direção ${id}`).toBe(Number((((d.ganhoRecente - d.ganhoAnterior) / d.ganhoAnterior) * 100).toPrecision(12))); visto.dir += 1
+        expect(x(l[col(DIRECAO_COM_UNIDADE)]), `direção ${id}`).toBe(Number((((d.ganhoRecente - d.ganhoAnterior) / d.ganhoAnterior) * 100).toPrecision(12))); visto.dir += 1
       }
       if (r.numero) { expect(x(l[col('Posição')]), `posição ${id}`).toBe(r.numero.pos); visto.pos += 1 }
     }
