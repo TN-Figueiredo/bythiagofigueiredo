@@ -109,6 +109,8 @@ export const FORMA_DOS_PARAMS: Readonly<Record<string, (v: unknown) => ValorDePa
   parametros_fora: (v) => (contador(v) && v > 0 ? v : undefined),
   desfecho: (v) => (daLista(DESFECHOS)(v) ? v : undefined),
   privado: (v) => (typeof v === 'boolean' ? v : undefined),
+  // acessoir-1: o estado do dado privado da `sugestoes` (lista fechada); `privado:false` sozinho juntava "sem itens", "sem direito" e "leitura falhou"
+  privado_estado: (v) => (daLista(['na', 'incluido', 'excluido_sem_direito', 'excluido_nao_conferido', 'excluido_leitura_falhou'])(v) ? v : undefined),
   comentarios: (v) => (typeof v === 'boolean' ? v : undefined),
   cortes: (v) => (contador(v) ? v : undefined),
   pares: (v) => (contador(v) ? v : undefined),

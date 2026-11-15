@@ -383,6 +383,12 @@ const comTopo = (texto: string, topo: string, primeiraLinha: string | null): str
   return `${topo}\n${texto}`
 }
 
+/** acessoir-1: o estado do dado privado que o registro grava (lista fechada, nunca texto). */
+function privadoEstadoDoRegistro(p: PacoteModelo['privado']): 'na' | 'incluido' | 'excluido_sem_direito' | 'excluido_nao_conferido' | 'excluido_leitura_falhou' {
+  if (p.estado === 'incluido') return 'incluido'
+  if (p.estado !== 'excluido') return 'na'
+  return p.motivo === 'sem_direito' ? 'excluido_sem_direito' : p.motivo === 'leitura_falhou' ? 'excluido_leitura_falhou' : 'excluido_nao_conferido'
+}
 const privadoIncluido = (m: PacoteModelo): boolean => m.privado.estado === 'incluido' || m.comentarios.estado === 'incluido'
 
 /* ------------------------------------------------------------------ a Cobertura e as próximas chamadas (A7d) */
@@ -826,6 +832,7 @@ export async function responder(entradaCrua: unknown, abrir: Abridor, agora: num
     if (lista && lista.ate < lista.total) cob.lidaAs = horaSp(agora)
     return comCobertura(cabeEm(comTopo(texto, topoFinal, primeira), tetoFinal), cob, {
       ...params, privado: incluiuDaTabela ?? modelo.privado.estado === 'incluido', comentarios: modelo.comentarios.estado === 'incluido', cortes: cortes.n,
+      ...(montado.modelo.tela === 'sugestoes' ? { privado_estado: privadoEstadoDoRegistro(modelo.privado) } : {}),
       ...(pedido.saida === 'tabela' ? { saida: saidaEfetiva, ...(saidaEfetiva === 'tabela' ? { sem_x: semXDaTabela } : {}) } : {}),
       ...(doCorte ? { linhas: doCorte.linhas, total: doCorte.total } : {}),
       ...(janelaDeLista ? { a_partir_da_linha: inicioDaJanela, sem_dona: semDona, ...(pedido.marca !== undefined ? { marca_mudou: marcaMudou } : {}) } : {}),
