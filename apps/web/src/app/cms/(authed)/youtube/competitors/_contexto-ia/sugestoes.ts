@@ -22,6 +22,8 @@ export interface ModeloSugestoes {
   textoDoVazio: string | null
   computadoEm: string | null
   desatualizado: boolean
+  /** O cálculo está ligado no ambiente; desligado, a lista é a do último cálculo e não muda (acessoir-2). */
+  calculoLigado: boolean
   contagens: Record<string, number>
   itens: ItemDoModelo[]
 }
@@ -36,6 +38,7 @@ export function modeloDeSugestoes(lista: ListaDeSinais, agora: Date): ModeloSuge
       : null,
     computadoEm: lista.computado_em,
     desatualizado: lista.desatualizado,
+    calculoLigado: lista.calculoLigado,
     contagens: lista.contagens,
     itens: lista.itens.map((i) => {
       const { proprios: _foto, ...evidence } = i.evidence
@@ -53,7 +56,7 @@ const ID = { descartado: 'identificador' } as const
 const REP = { descartado: 'repetido' } as const
 
 export const INVENTARIO_SUGESTOES: Inventario = {
-  n: 'numero', motivoVazio: 'motivo', textoDoVazio: 'base', computadoEm: 'base', desatualizado: 'base',
+  n: 'numero', motivoVazio: 'motivo', textoDoVazio: 'base', computadoEm: 'base', desatualizado: 'base', calculoLigado: 'base',
   'contagens.*': 'numero',
   'itens[].id': ID, 'itens[].kind': 'rotulo', 'itens[].subject_key': 'base', 'itens[].acao': 'base', 'itens[].rotulo_acao': REP,
   'itens[].n_proprios': 'numero', 'itens[].acao_gravada': { descartado: 'repetido' },
@@ -215,6 +218,7 @@ export function empacotarSugestoes(modelo: ModeloSugestoes, privado: EstadoDoPri
   const regras = [...new Set(modelo.itens.map((i) => i.rule_version))]
   if (regras.length > 0) avisos.push(`Regra de cálculo: ${regras.join(', ')}.`)
   if (modelo.n > modelo.itens.length) avisos.push(`A lista leva as ${modelo.itens.length} mais fortes de ${modelo.n} sugestões abertas.`)
+  if (!modelo.calculoLigado && modelo.n > 0) avisos.push('O cálculo das sugestões está desligado: a lista é a do último cálculo e não muda.')
   if (modelo.desatualizado && modelo.computadoEm !== null) avisos.push('O último cálculo tem mais de 36 horas: o que está aqui pode já ter mudado.')
   // o estado do dado privado (seção 4.4): só o que a leitura entregou. Sem itens não há tabela de tráfego: `na`.
   const leitura = Object.values(privado.acessoPorCanal)[0]?.diario
