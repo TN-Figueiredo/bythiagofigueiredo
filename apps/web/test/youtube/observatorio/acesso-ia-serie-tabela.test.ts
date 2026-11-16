@@ -678,6 +678,15 @@ describe('acessoir-14: pedido até hoje, dado só até 07/11 (o YouTube entrega 
     expect(r.texto).toContain('Pedido até 10/11/2026; o dado do seu canal vai só até 07/11/2026')
     expect(r.texto).toContain('linhas: 10 de 10')
   })
+  it('acessoir-11: o próprio em texto leva os dias sem dado como LINHA da tabela (não só no aviso), com o motivo', async () => {
+    dobra('canal-proprio', modelo([priv()], incluido, 'canal-proprio'))
+    const r = await responder(PEDIDO, abrir, AGORA)
+    const linhas = r.texto.split('\n')
+    const de = (rot: string) => linhas.find((l) => l.includes(rot))
+    expect(de('seg 09/11')).toContain('sem leitura depois de 07/11/2026')
+    expect(de('ter 10/11')).toContain('dia ainda aberto (termina às 23:59 do Pacífico)')
+    expect(de('dom 08/11')).toContain('sem leitura depois de 07/11/2026')
+  })
   it('pontosDaSerie: sem linhas além de hoje (ate 9999 dá os dias até hoje + 1 resumo)', () => {
     const ps = pontosDaSerie(modelo([priv()], incluido, 'canal-proprio'), C1, 'c1', { de: '2026-11-01', ate: '9999-12-31', grao: 'dia' }, AGORA, N)
     expect(ps.filter((p) => p.resumo !== true).map((p) => p.data)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'])

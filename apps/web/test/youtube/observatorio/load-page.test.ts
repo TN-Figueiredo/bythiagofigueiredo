@@ -418,6 +418,45 @@ describe('loadChannelDataset — um canal só', () => {
   })
 })
 
+describe('acessoir-15: loadChannelDataset aceita o id do YouTube (UC...) e o resolve para o uuid, no site certo', () => {
+  const UC_CONC = 'UC'+'a'.repeat(22)
+  const UC_PROPRIO = 'UCm2XfYsEgbAQPyMA8QRjYew'
+  const UC_OUTRO_SITE = 'UC'+'b'.repeat(22)
+  const tabelas = () => {
+    const t = merged(buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }), buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 }))
+    t.competitor_channels!.find(r => r.id === ids.channel('a', 1))!.channel_id = UC_CONC
+    t.competitor_channels!.find(r => r.id === ids.channel('b', 0))!.channel_id = UC_OUTRO_SITE
+    t.youtube_channels!.find(r => r.id === 'a-own')!.channel_id = UC_PROPRIO
+    return t
+  }
+  it('concorrente por UC: o mesmo conjunto do uuid, com o id resolvido', async () => {
+    const { loadChannelDataset } = await setup(tabelas())
+    const porUc = (await loadChannelDataset('a', UC_CONC, NOW))!, porUuid = (await loadChannelDataset('a', ids.channel('a', 1), NOW))!
+    expect(porUc.channels.map(c => c.id)).toEqual([ids.channel('a', 1)])
+    expect(porUc.channels).toEqual(porUuid.channels)
+    expect(porUc.videos).toEqual(porUuid.videos)
+  })
+  it('próprio por UC: o mesmo conjunto do uuid, com os vídeos do canal', async () => {
+    const { loadChannelDataset } = await setup(tabelas())
+    const porUc = (await loadChannelDataset('a', UC_PROPRIO, NOW))!
+    expect(porUc.channels.map(c => [c.id, c.own])).toEqual([['a-own', true]])
+    expect(porUc.videos.map(v => v.ch)).toEqual(['a-own'])
+  })
+  it('o UC é sensível a maiúsculas: o mesmo UC em minúsculas não é canal de ninguém', async () => {
+    const { loadChannelDataset } = await setup(tabelas())
+    expect(await loadChannelDataset('a', UC_PROPRIO.toLowerCase(), NOW)).toBeNull()
+  })
+  it('UC de canal de outro site: null e nenhuma leitura pesada', async () => {
+    const { loadChannelDataset, db } = await setup(tabelas())
+    expect(await loadChannelDataset('a', UC_OUTRO_SITE, NOW)).toBeNull()
+    expect(heavy(db)).toBe(0)
+  })
+  it('UC que não existe: null', async () => {
+    const { loadChannelDataset } = await setup(tabelas())
+    expect(await loadChannelDataset('a', 'UC'+'z'.repeat(22), NOW)).toBeNull()
+  })
+})
+
 describe('loadChannelDataset — igualdade nos ramos que a leitura de um canal toca', () => {
   const base = { siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }
   const id = ids.channel('a', 1)

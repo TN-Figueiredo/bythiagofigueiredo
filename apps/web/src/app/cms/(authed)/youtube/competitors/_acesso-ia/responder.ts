@@ -173,6 +173,15 @@ function limitarLinhas(m: PacoteModelo, n: number, tela: TelaId, cortes: Cortes,
   return { modelo: { ...m, tabelas, citados, avisos }, totais, avisoDaPrincipal }
 }
 
+const SEMANA_ABREV = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+/** O rótulo de um dia sem linha, no formato do rótulo das linhas da própria tabela (com ou sem dia da semana, com ou sem ano, ou ISO). */
+function rotuloDoDia(modelo: string, dia: string): string {
+  const dm = `${dia.slice(8, 10)}/${dia.slice(5, 7)}`
+  const sem = /^[a-záéíóúç]{3}\.?\s/i.test(modelo.trim()) ? `${SEMANA_ABREV[new Date(`${dia}T00:00:00Z`).getUTCDay()]} ` : ''
+  if (/\d{4}-\d{2}-\d{2}/.test(modelo)) return `${sem}${dia}`
+  return /\d{1,2}\/\d{1,2}\/\d{4}/.test(modelo) ? `${sem}${dmy(dia)}` : `${sem}${dm}`
+}
+
 /** `serie`: só as tabelas `dia_a_dia`, no intervalo `de..ate`; acima de `n` pontos passa ao grão semana (tabela de ganho diário: soma dos 7 dias só com os 7 medidos; acumulada: última leitura; tipo não declarado: \"não medido\") e depois aos `n` mais recentes. */
 function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes, inteira = false): PacoteModelo {
   const n = p.limite.n
@@ -259,13 +268,33 @@ function recortarSerie(m: PacoteModelo, p: Pedido, agora: number, cortes: Cortes
     const atrasoNormal = buraco !== null && Math.round((Date.parse(`${pedidoAte}T00:00:00Z`) - Date.parse(`${ultimoComDado}T00:00:00Z`)) / 86_400_000) <= 3
     if (buraco) avisos.push(`série "${t.titulo}": ${fimDoDado(m, pedidoAte, ultimoComDado)}${semDado && atrasoNormal ? `; ${dmy(semDado.de)} a ${dmy(semDado.ate)} ainda não chegaram` : ''}`)
     const faltam = semDado ? Math.round((Date.parse(`${semDado.ate}T00:00:00Z`) - Date.parse(`${semDado.de}T00:00:00Z`)) / 86_400_000) + 1 : 0
+    // acessoir-11: os dias que o dado do próprio ainda não alcança saem como LINHA da tabela (o dia em curso "dia ainda aberto"; os outros "não medido" com o motivo), como no CSV
+    let preenchidos = 0
+    if (semDado && dentro.length > 0) {
+      const ord = [...dentro].sort((a, b) => a.i - b.i)
+      const modeloDeLinha = ord[0]!.linha
+      const descendente = ord.length > 1 && ord[0]!.dia > ord[ord.length - 1]!.dia
+      const aberto = diaAbertoDe(t, agora)
+      const fimLido = ultimoComDado
+      const novos: typeof dentro = []
+      for (let d = semDado.de; d <= semDado.ate; d = somaDias(d, 1)) {
+        const motivo = d === aberto ? (t.fuso === 'pacifico' ? F.DIA_ABERTO_PACIFICO : F.DIA_ABERTO) : F.SERIE_DEPOIS_DO_FIM(dmy(fimLido))
+        const linha = modeloDeLinha.map((c, j): Celula =>
+          j === 0 ? { papel: 'rotulo', texto: rotuloDoDia(c.papel === 'numero' ? '' : c.texto, d), origem: c.origem }
+            : c.papel === 'numero' ? { papel: 'numero', estado: 'nao_medido', motivo, origem: c.origem }
+              : { papel: 'base', texto: 'sem dado', origem: c.origem })
+        novos.push({ linha, i: descendente ? -1 - novos.length : Number.MAX_SAFE_INTEGER - 1000 + novos.length, dia: d })
+      }
+      dentro.push(...novos)
+      preenchidos = novos.length // a Cobertura conta os pontos que o dado trouxe; as linhas de dia sem dado entram em `total`, não em `pontos`
+    }
     dentro.sort((a, b) => a.i - b.i)
     tabelas.push({ ...t, linhas: dentro.map((x) => x.linha) })
     if (!cortes.serie || totalDaSerie + semData + faltam > cortes.serie.total) {
       const dts = dentro.map((x) => x.dia).sort()
       // grão semana: o `dia` de cada ponto é o último dia medido da semana; a Cobertura começa na segunda da 1ª semana mostrada, como a tabela
       const deMostrado = dts[0] === undefined ? de : grao === 'semana' ? segundaDe(dts[0]) : dts[0]
-      cortes.serie = { pontos: dentro.length, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData + faltam, ...(semDado ? { semDado, ate: pedidoAte, medidos: dentro.filter((x) => medidaNaLinha(x.linha)).length } : {}) }
+      cortes.serie = { pontos: dentro.length - preenchidos, de: deMostrado, ate: dts[dts.length - 1] ?? ate, grao: grao === 'semana' ? 'semana' : 'dia', convertida, semData, total: totalDaSerie + semData + faltam, ...(semDado ? { semDado, ate: pedidoAte, medidos: dentro.filter((x) => medidaNaLinha(x.linha)).length } : {}) }
     }
   }
   // só a série: sem bloco citado, sem comentário; o privado só fica se alguma tabela privada ficou

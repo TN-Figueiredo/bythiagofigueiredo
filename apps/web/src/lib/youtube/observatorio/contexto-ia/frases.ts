@@ -269,5 +269,5 @@ export const DIRECAO_FRASES = (sobe: number, estavel: number, desce: number, nao
 export const DIRECAO_LEITURA_FALHOU = (k: number) => `A leitura falhou em ${pluralDe(k, 'canal', 'canais')}, fora desta conta.`
 export const DIRECAO_ROTULO_NAO_MEDIDA = 'direção não medida'
 export const DIRECAO_NOTA_NAO_MEDIDA = (primeira: string | undefined) =>
-  `canais cuja direção o painel não calculou (poucos dias de leitura, sem views no período anterior ou fora do YouTube); não quer dizer parado nem sem mudança${primeira ? `; a primeira medida sai em ${primeira}` : ''}`
+  `canais cuja direção o painel não calculou (poucos dias de leitura, sem views no período anterior ou fora do YouTube); não quer dizer parado nem sem mudança${primeira ? `; a primeira direção medida em algum canal sai a partir de ${primeira}` : ''}`
 export const DIRECAO_DICIONARIO_NAO_MEDIDA = `- ${DIRECAO_ROTULO_NAO_MEDIDA}: canais sem leitura de direção; não é "parado" nem "sem mudança"`

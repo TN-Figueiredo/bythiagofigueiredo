@@ -14,7 +14,7 @@ import { buildRiView } from '@/app/cms/(authed)/youtube/competitors/_canais/ri-m
 import { empacotarCanais, modeloDeCanais } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canais'
 import { blocoDaTabela, csvDaTabela, novaLegenda } from '@/lib/youtube/observatorio/contexto-ia/tabela-csv'
 
-type Casas = { sobe: number | null; estavel: number | null; desce: number | null; naoMedido: number | null; falhou?: number; data?: string | null }
+type Casas = { sobe: number | null; estavel: number | null; desce: number | null; naoMedido: number | null; falhou?: number; data?: string | null; primeiraEm?: string | null }
 
 function bloco(c: Casas) {
   const { obs } = a3World()
@@ -22,7 +22,7 @@ function bloco(c: Casas) {
   const ri = buildRiView(obs, { agoraMs: obs.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
   const modelo = modeloDeCanais(view, ri)
   const n = [c.sobe, c.estavel, c.desce, c.naoMedido]
-  modelo.resumo.casas = modelo.resumo.casas.map((x, i) => ({ ...x, n: n[i] ?? null, data: i === 3 ? (c.data === undefined ? 'fecha em 16/11' : c.data) : null }))
+  modelo.resumo.casas = modelo.resumo.casas.map((x, i) => ({ ...x, n: n[i] ?? null, data: i === 3 ? (c.data === undefined ? 'fecha em 16/11' : c.data) : null, primeiraEm: i === 3 ? (c.primeiraEm === undefined ? (c.data === null ? null : '16/11') : c.primeiraEm) : null }))
   modelo.resumo.direcao = { ...modelo.resumo.direcao, naoCarregou: c.falhou ?? 0 }
   const t = empacotarCanais(modelo, { acessoPorCanal: {}, negativa: null }).tabelas.find((x) => x.id === 'canais-resumo-direcao')!
   const csv = csvDaTabela(t, novaLegenda())!
@@ -43,7 +43,7 @@ describe('pizza da direção (acessoir-16)', () => {
     const ultima = csv.linhas[3]!
     expect(ultima.startsWith('direção não medida,30,')).toBe(true)
     expect(ultima).toContain('canais: canais cuja direção o painel não calculou')
-    expect(ultima).toContain('não quer dizer parado nem sem mudança; a primeira medida sai em 16/11')
+    expect(ultima).toContain('não quer dizer parado nem sem mudança; a primeira direção medida em algum canal sai a partir de 16/11')
     expect(texto).not.toContain('\nnão medido,')
   })
   it('as chaves do CSV não mudam', () => {
@@ -74,7 +74,22 @@ describe('pizza da direção (acessoir-16)', () => {
     expect(texto).toContain('A leitura falhou em 3 canais, fora desta conta.')
     expect(bloco({ sobe: 2, estavel: 1, desce: 1, naoMedido: 42, falhou: 1 }).texto).toContain('A leitura falhou em 1 canal, fora desta conta.')
   })
+  it('leitura do canal falhou em todas as casas: título e frase dizem que falhou, sem "medida em X de N" nem "toda parte foi medida"', () => {
+    const { t, csv, texto } = bloco({ sobe: null, estavel: null, desce: null, naoMedido: null, falhou: 2 })
+    expect(t.titulo).toBe('Direção dos canais em 28 dias: a leitura falhou, sem o seu canal')
+    expect(t.titulo).not.toContain('medida em')
+    expect(texto).not.toContain('toda parte foi medida')
+    expect(texto).not.toContain('Os outros')
+    expect(texto).toContain('A leitura falhou em 2 canais, fora desta conta.')
+    expect(csv.linhas.every((l) => !/^[^,]+,\d+,/.test(l))).toBe(true)
+  })
   it('sem data de fechamento a nota não promete a primeira medida', () => {
-    expect(bloco({ sobe: 1, estavel: 0, desce: 0, naoMedido: 2, data: null }).csv.linhas[3]).not.toContain('primeira medida')
+    expect(bloco({ sobe: 1, estavel: 0, desce: 0, naoMedido: 2, data: null }).csv.linhas[3]).not.toContain('primeira direção')
+  })
+  it('a data vem do campo do modelo, não do texto da tela: apagar o campo tira o trecho sem quebrar, mesmo com texto de data', () => {
+    const sem = bloco({ sobe: 1, estavel: 0, desce: 0, naoMedido: 2, data: 'fecha em 16/11', primeiraEm: null }).csv.linhas[3]!
+    expect(sem).not.toContain('primeira direção')
+    expect(sem).toContain('não quer dizer parado')
+    expect(bloco({ sobe: 1, estavel: 0, desce: 0, naoMedido: 2, data: 'qualquer frase nova', primeiraEm: '27/11' }).csv.linhas[3]).toContain('a partir de 27/11')
   })
 })

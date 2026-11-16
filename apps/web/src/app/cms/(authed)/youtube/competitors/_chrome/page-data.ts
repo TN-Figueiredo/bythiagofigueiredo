@@ -73,6 +73,8 @@ export async function openObservatoryPage<T = undefined>(extra?: (siteId: string
 
 export interface ChannelPage {
   siteId: string; now: number; obs: Observatory | null; canEdit: boolean
+  /** acessoir-15: o uuid RESOLVIDO do canal (o id pedido pode ser o UC do YouTube); ausente = canal não encontrado. Só ele vale daqui em diante (cache, leituras). */
+  canalId?: string
   /** A prova de que o visitante pode LER o desempenho privado do site (edita, ou tem o direito concedido), ou null. É a única chave do dado privado do canal próprio: objeto de servidor, nunca vai para um componente cliente. Não autoriza escrita. */
   leitura: LeituraPrivadaDoSite | null
   /** Por que não há leitura (`sem_direito` ou `nao_foi_possivel_conferir`); null se há leitura. Só para a frase do pacote "Perguntar a uma IA": nunca libera dado. */
@@ -115,6 +117,8 @@ export async function carregarCanal(a: {
   ])
   const obs = ds ? createObservatory(ds) : null
   // o carregador casa o id sem distinguir maiúsculas (uuid): o canal próprio é achado do mesmo jeito
-  const proprio = obs ? (obs.channel(channelId.toLowerCase()) ?? obs.channel(channelId)) : undefined
-  return { siteId, now, obs, canEdit: acesso.edita, leitura: acesso.leitura, negativa: acesso.negativa, ownYtIds: obs && proprio?.own ? longosAcompanhadosDe(obs, proprio.id) : [], meuCanalLembrado, owns: ownMenuFromRows(ownRows, obs ? obs.fmt : createFmt(createClock(now, now, now)), { lembrado: meuCanalLembrado, agora: now }) }
+  // acessoir-15: o conjunto é de UM canal; o carregador já trocou o UC pelo uuid, e é esse uuid que segue
+  const canalId = obs?.channels[0]?.id
+  const proprio = obs ? (obs.channel((canalId ?? channelId).toLowerCase()) ?? obs.channel(canalId ?? channelId)) : undefined
+  return { siteId, now, obs, ...(canalId ? { canalId } : {}), canEdit: acesso.edita, leitura: acesso.leitura, negativa: acesso.negativa, ownYtIds: obs && proprio?.own ? longosAcompanhadosDe(obs, proprio.id) : [], meuCanalLembrado, owns: ownMenuFromRows(ownRows, obs ? obs.fmt : createFmt(createClock(now, now, now)), { lembrado: meuCanalLembrado, agora: now }) }
 }

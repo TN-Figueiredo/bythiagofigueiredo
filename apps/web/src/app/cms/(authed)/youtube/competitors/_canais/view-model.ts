@@ -254,7 +254,9 @@ export interface MedidasParaLista {
 }
 const MEASURE_QUEDA_JANELAS = MEASURE_RULES.decline.windows, MEASURE_JANELA_DIAS = MEASURE_RULES.direction.windowDays
 export type DirecaoFiltro = 'sobe' | 'estavel' | 'desce' | 'nao-medido'
-export interface CasaDoResumo { chave: DirecaoFiltro; n: number | null; palavra: string; leitor: string; pressed: boolean; data: string | null }
+export interface CasaDoResumo { chave: DirecaoFiltro; n: number | null; palavra: string; leitor: string; pressed: boolean; data: string | null
+  /** Só em `nao-medido`: o dia mais cedo (DD/MM) em que algum canal passa a ter direção medida; a data de "a partir de", como campo e não tirada do texto de `data`. */
+  primeiraEm: string | null }
 export interface FiltroDoResumo { chave: FiltroDeEstado; rotulo: string; n: number | null; ainda: string | null; naoMedido: string | null; pressed: boolean; leitor: string
   /** Só nos filtros de estado, quando parte das linhas não teve o estado lido: o número vale para `medidos` de `de` canais. */
   base: { medidos: number; de: number } | null }
@@ -842,7 +844,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const pressed = direcaoFiltro === chave
       const datas = chave === 'nao-medido' ? celulas.flatMap(c => (c.tipo === 'nao_medido' && c.fechaEm ? [c.fechaEm] : [])).sort() : []
       const data = datas.length ? (datas.length === 1 || datas[0] === datas[datas.length - 1] ? `fecha em ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)}` : `fecham de ${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)} a ${datas[datas.length - 1]!.slice(8, 10)}/${datas[datas.length - 1]!.slice(5, 7)}`) : null
-      return { chave, n, palavra, pressed, data,
+      const primeiraEm = datas.length ? `${datas[0]!.slice(8, 10)}/${datas[0]!.slice(5, 7)}` : null
+      return { chave, n, palavra, pressed, data, primeiraEm,
         leitor: n === null ? `${palavra}: a leitura falhou` : `${n} ${palavra}${pressed ? ', filtro ligado' : ''}` }
     }
     const casas = [casa('sobe', dirRes.sobe, 'subindo'), casa('estavel', dirRes.estavel, 'sem mudança'), casa('desce', dirRes.desce, 'descendo'), casa('nao-medido', dirRes.naoMedido, 'não medido')]

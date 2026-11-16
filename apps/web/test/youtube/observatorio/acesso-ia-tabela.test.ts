@@ -391,9 +391,9 @@ describe('(10) inventário das tabelas expostas', () => {
     expect(chavesDe('canais')).toEqual(['posicao', 'canal', 'id', 'inscritos', 'direcao_pct', 'ritmo_por_semana', 'views_dia_por_mil', 'maior_outlier_mult', 'trocas', 'crescimento_pct', 'sincronizacao'])
     expect(chavesDe('canais-shorts')).toEqual(['canal', 'ritmo_shorts', 'views_dia_shorts', 'outliers_shorts'])
     expect(chavesDe('outliers')).toEqual(['grupo', 'video', 'id', 'canal', 'nicho', 'multiplicador', 'base_do_multiplicador', 'views', 'views_dia_7d', 'publicado', 'duracao'])
-    expect(chavesDe('trocas-efeito')).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'])
-    expect(chavesDe('trocas-esperado')).toEqual(['video', 'esperado_sem_a_troca_pct', 'efeito_pp'])
-    expect(chavesDe('trocas-faixa')).toEqual(['video', 'limite_da_faixa_pct'])
+    expect(chavesDe('trocas-efeito')).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia', 'quando'])
+    expect(chavesDe('trocas-esperado')).toEqual(['video', 'esperado_sem_a_troca_pct', 'efeito_pp', 'base_n', 'tipo', 'quando'])
+    expect(chavesDe('trocas-faixa')).toEqual(['video', 'faixa_min_pct', 'faixa_max_pct', 'base_n', 'tipo', 'quando'])
     expect(chavesDe('quadro-de-efeito')).toEqual(['tipo', 'trocas_do_nicho_na_janela', 'com_veredito_n', 'mediana_do_efeito_pp', 'resultado'])
   })
   it('caso negativo: a coluna numérica "Ritmo" sem unidade é apontada', () => {

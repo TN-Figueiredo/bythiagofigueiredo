@@ -171,15 +171,19 @@ export const OBSERVADO_COM_UNIDADE = 'Observado (% de views/dia, depois contra a
 export const ESPERADO_COM_UNIDADE = 'Esperado sem a troca (%)'
 export const EFEITO_COM_UNIDADE = 'Efeito (pontos percentuais)'
 export const LIMITE_DA_FAIXA_COM_UNIDADE = 'Limite da faixa (%)'
+export const FAIXA_MIN_COM_UNIDADE = 'Menor limite da faixa (%)'
+export const FAIXA_MAX_COM_UNIDADE = 'Maior limite da faixa (%)'
+/** Phil 16/11 (b): a base de menos vídeos do que a medida pede não sustenta esperado, efeito nem faixa; o número da tela segue (paridade), com esta ressalva na célula. */
+export const BASE_PEQUENA = (n: number, minN: number): string => `base de ${n} ${n === 1 ? 'vídeo' : 'vídeos'}; a medida pede ${minN}; não conclui`
 export const MEDIANA_DO_EFEITO_COM_UNIDADE = 'Mediana do efeito (pontos percentuais)'
 
 /** A5: a chave de máquina de cada coluna (snake_case, paralela a `colunas`). O instantâneo do teste torna a mudança deliberada. */
 const CHAVES: Record<string, string[]> = {
   'trocas': ['video', 'id', 'canal', 'nicho', 'tipo', 'quando', 'visto'],
-  'trocas-efeito': ['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'],
-  'trocas-esperado': ['video', 'esperado_sem_a_troca_pct', 'efeito_pp'],
-  'trocas-faixa': ['video', 'limite_da_faixa_pct'],
-  'trocas-base': ['video', 'videos_na_base', 'faixa_de_idade', 'metodo'],
+  'trocas-efeito': ['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia', 'quando'],
+  'trocas-esperado': ['video', 'esperado_sem_a_troca_pct', 'efeito_pp', 'base_n', 'tipo', 'quando'],
+  'trocas-faixa': ['video', 'faixa_min_pct', 'faixa_max_pct', 'base_n', 'tipo', 'quando'],
+  'trocas-base': ['video', 'videos_na_base', 'faixa_de_idade', 'metodo', 'tipo', 'quando'],
   'trocas-titulos': ['video', 'titulo_de_antes', 'titulo_de_depois'],
   'trocas-thumbs': ['video', 'imagem', 'periodo'],
   'trocas-descricoes': ['video', 'linhas_novas', 'linhas_removidas', 'trocas_de_utm_ocultas'],
@@ -194,6 +198,8 @@ const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: s
 // ───────────────────────── tabelas
 const trocas = (m: ModeloMudancas): Array<{ i: number; h: Hero }> => m.heroes.map((h, i) => ({ i, h }))
 const doEfeito = (h: Hero): boolean => h.video.observed
+/** Phil 16/11 (a): o evento (tipo e quando) em cada tabela de apoio, para duas trocas do mesmo vídeo não parecerem linha repetida. */
+const eventoDe = (i: number, h: Hero): Celula[] => [rotulo(h.typeLabel, `modelo.heroes[${i}].typeLabel`), base(h.when.text, `modelo.heroes[${i}].when.text`)]
 
 function tabelaDeTrocas(m: ModeloMudancas): Tabela[] {
   if (m.heroes.length === 0) return []
@@ -215,36 +221,44 @@ function tabelasDeEfeito(m: ModeloMudancas): Tabela[] {
   // A7c1: as tabelas coluna do efeito saem mesmo vazias (o resumo conta "Sem linha"); o texto da tela não as mostra sem linha
   const medidas = trocas(m).filter(({ h }) => doEfeito(h) && h.effect.rows !== null && [h.effect.rows.observed, h.effect.rows.observedFrom, h.effect.rows.observedTo].every(real))
   {
-    saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', OBSERVADO_COM_UNIDADE, 'Antes (views/dia)', 'Depois (views/dia)'],
+    saida.push(tabelaLista('trocas-efeito', 'O efeito medido de cada troca (views/dia antes e depois)', 'tabela de efeitos', ['Vídeo', 'Tipo', 'Veredito', OBSERVADO_COM_UNIDADE, 'Antes (views/dia)', 'Depois (views/dia)', 'Quando'],
       medidas.map(({ i, h }) => {
         const p = `modelo.heroes[${i}]`, r = h.effect.rows!, n = h.effect.rowsN
         return [
           terceiros(h.video.title, `${p}.video.title`), rotulo(h.typeLabel, `${p}.typeLabel`), base(h.effect.label, `${p}.effect.label`),
           celulaDoNumero(r.observed, `${p}.effect.rows.observed`, undefined, n?.observed ?? null), celulaDoNumero(r.observedFrom, `${p}.effect.rows.observedFrom`, undefined, n?.observedFrom ?? null), celulaDoNumero(r.observedTo, `${p}.effect.rows.observedTo`, undefined, n?.observedTo ?? null),
+          base(h.when.text, `${p}.when.text`),
         ]
       })))
+    const minN = m.ledger.minN
+    const pequena = (h: Hero): boolean => h.effect.rows!.n < minN
+    const comRessalva = (h: Hero, c: Celula): Celula => (pequena(h) && c.papel === 'numero' && (c.estado === 'medido' || c.estado === 'zero_medido') && c.semXMotivo === undefined ? { ...c, nota: BASE_PEQUENA(h.effect.rows!.n, minN) } : c)
     const comEsperado = medidas.filter(({ h }) => real(h.effect.rows!.expected) && real(h.effect.pp))
     {
-      saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE],
+      saida.push(tabelaLista('trocas-esperado', 'O esperado sem a troca e o efeito ajustado', 'tabela do esperado e do efeito', ['Vídeo', ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, 'Vídeos na base (n)', 'Tipo', 'Quando'],
         comEsperado.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN?.expected ?? null), celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)]
+          return [terceiros(h.video.title, `${p}.video.title`),
+            comRessalva(h, celulaDoNumero(h.effect.rows!.expected, `${p}.effect.rows.expected`, undefined, h.effect.rowsN?.expected ?? null)),
+            comRessalva(h, celulaDoNumero(h.effect.pp, `${p}.effect.pp`, undefined, h.effect.ppN)),
+            celulaDoNumero(h.effect.rows!.n, `${p}.effect.rows.n`), ...eventoDe(i, h)]
         })))
     }
     const comFaixa = medidas.filter(({ h }) => h.effect.rows!.iqr !== null)
     {
-      saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (menor limite, depois o maior)', 'tabela de faixas esperadas', ['Vídeo', LIMITE_DA_FAIXA_COM_UNIDADE],
-        comFaixa.flatMap(({ i, h }) => {
+      saida.push(tabelaLista('trocas-faixa', 'A faixa esperada sem a troca (uma linha por troca: menor e maior limite)', 'tabela de faixas esperadas', ['Vídeo', FAIXA_MIN_COM_UNIDADE, FAIXA_MAX_COM_UNIDADE, 'Vídeos na base (n)', 'Tipo', 'Quando'],
+        comFaixa.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`
-          return [0, 1].map((k) => [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(h.effect.rows!.iqr![k]!, `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN?.iqr?.[k] ?? null)])
+          const lim = (k: 0 | 1): Celula => comRessalva(h, celulaDoNumero(h.effect.rows!.iqr![k], `${p}.effect.rows.iqr[${k}]`, undefined, h.effect.rowsN?.iqr?.[k] ?? null))
+          return [terceiros(h.video.title, `${p}.video.title`), lim(0), lim(1), celulaDoNumero(h.effect.rows!.n, `${p}.effect.rows.n`), ...eventoDe(i, h)]
         })))
     }
     const comBase = medidas.filter(({ i }) => m.derivado.heroes[i]?.effect.noBase == null)
     {
-      saida.push(tabelaLista('trocas-base', 'A base do esperado de cada troca', 'tabela de bases do esperado', ['Vídeo', 'Vídeos na base (n)', 'Faixa de idade', 'Método'],
+      saida.push(tabelaLista('trocas-base', 'A base do esperado de cada troca', 'tabela de bases do esperado', ['Vídeo', 'Vídeos na base (n)', 'Faixa de idade', 'Método', 'Tipo', 'Quando'],
         comBase.map(({ i, h }) => {
           const p = `modelo.heroes[${i}]`, r = h.effect.rows!
-          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(r.n, `${p}.effect.rows.n`), base(r.band, `${p}.effect.rows.band`), base(r.methodShort, `${p}.effect.rows.methodShort`)]
+          return [terceiros(h.video.title, `${p}.video.title`), celulaDoNumero(r.n, `${p}.effect.rows.n`), base(r.band, `${p}.effect.rows.band`), base(r.methodShort, `${p}.effect.rows.methodShort`), ...eventoDe(i, h)]
         })))
     }
   }

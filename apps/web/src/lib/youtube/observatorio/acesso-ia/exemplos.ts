@@ -20,7 +20,7 @@ export const TODOS_OS_CAMPOS: readonly string[] = Object.freeze(['acao', ...new 
 export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   definicoes: 'sem campos além de acao',
   listar_canais: 'formato (todos, longos ou shorts) e nicho opcionais; a_partir_da_linha (1 em diante: a 1ª linha da janela) e marca (a que a Cobertura devolveu) opcionais; saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcional; janela é aceita, mas a tela Canais não a aplica',
-  canal: 'canal_id (uuid da coluna Id de listar_canais) obrigatório; formato (todos, longos ou shorts) opcional; janela é aceita, mas a tela Canal não a aplica',
+  canal: 'canal_id (uuid da coluna Id de listar_canais, ou o id do YouTube do canal: UC...) obrigatório; formato (todos, longos ou shorts) opcional; janela é aceita, mas a tela Canal não a aplica',
   video: 'video_id (uuid ou id de 11 caracteres) obrigatório',
   comparar: 'canal_ids (de 2 a 6; o 1º pode ser proprio) obrigatório; janela e formato são aceitos, mas a tela Comparar não os aplica',
   destaques: 'janela (7, 30, 90 ou todas), formato (todos, longos ou shorts), nicho, a_partir_da_linha (a 1ª linha da janela) e marca (a que a Cobertura devolveu) opcionais; saida (texto ou tabela: tabela devolve CSV para gráfico e planilha) opcional',
@@ -28,7 +28,7 @@ export const FORMATO_DA_ACAO: Readonly<Record<Acao, string>> = {
   mudancas: 'canal_id, janela (7, 30, 90 ou todas), formato (todos, longos ou shorts) e nicho opcionais; a_partir_da_linha e marca (da Cobertura) opcionais; saida (texto ou tabela: tabela devolve CSV) opcional; desde (AAAA-MM-DD) é aceito, mas não filtra: use janela',
   sugestoes: 'sem campos além de acao',
   pacote_da_tela: 'tela obrigatória; id e parametros (pares chave:valor) opcionais',
-  consultar: 'todos opcionais: lugar (local:<slug> ou pais:<XX>, os de definicoes), formato (todos, longos ou shorts), janela_idade (todas, uma faixa ou lista: 0-30, 31-90, 91-180, 181-365, 365+), canal_ids (até 6 uuids), nicho, publicado_nos_ultimos_dias (1 a 365; 7 = esta semana, hoje e os 6 dias anteriores, horário de Brasília) ou publicado_de e publicado_ate (AAAA-MM-DD, dia de Brasília; não vêm junto), metricas (views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos), ordenar_por (uma delas; padrão multiplicador), direcao (desc ou asc), limite (1 a 50; padrão 20), incluir_base_fraca (true ou false) e saida (texto ou tabela: tabela devolve CSV, uma tabela por formato; limite vale no total) opcionais; entidade só "video"; a lista não tem janela',
+  consultar: 'todos opcionais: lugar (local:<slug> ou pais:<XX>, os de definicoes), formato (todos, longos ou shorts), janela_idade (todas, uma faixa ou lista: 0-30, 31-90, 91-180, 181-365, 365+), canal_ids (até 6: uuid ou id do YouTube UC...), nicho, publicado_nos_ultimos_dias (1 a 365; 7 = esta semana, hoje e os 6 dias anteriores, horário de Brasília) ou publicado_de e publicado_ate (AAAA-MM-DD, dia de Brasília; não vêm junto), metricas (views, likes, comentarios, vpd7, multiplicador, engajamento, inscritos), ordenar_por (uma delas; padrão multiplicador), direcao (desc ou asc), limite (1 a 50; padrão 20), incluir_base_fraca (true ou false) e saida (texto ou tabela: tabela devolve CSV, uma tabela por formato; limite vale no total) opcionais; entidade só "video"; a lista não tem janela',
 }
 
 export const EXEMPLO_DA_ACAO: Readonly<Record<Acao, string>> = {
