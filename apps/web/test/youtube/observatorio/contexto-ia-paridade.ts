@@ -55,7 +55,11 @@ function destinoCompativel(c: Celula, destino: Destino | undefined, daSerie: boo
 }
 
 /** Os índices de lista que a origem atravessa, na ordem. */
-const indicesDaOrigem = (origem: string): number[] => passosDaOrigem(origem).flatMap((p) => ('indice' in p && p.indice !== null ? [p.indice] : []))
+/** A faixa é um par (menor, maior) do mesmo elemento: duas colunas da mesma linha podem apontar `iqr[0]` e `iqr[1]`; o índice do par não conta como elemento de lista (Phil 16/11, a). */
+const indicesDaOrigem = (origem: string): number[] => {
+  const todos = passosDaOrigem(origem).flatMap((p) => ('indice' in p && p.indice !== null ? [p.indice] : []))
+  return /\.iqr\[\d+\]$/.test(origem) ? todos.slice(0, -1) : todos
+}
 
 function lerJsonDoPacote(textoDoPacote: string): { medidas: Array<{ tabela: string; valores: Record<string, unknown> }> } | null {
   const a = textoDoPacote.indexOf('## 8. Bloco estruturado\n')

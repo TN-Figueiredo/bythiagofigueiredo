@@ -9,7 +9,7 @@ import { medidas, semX } from './contexto-ia-x-fixture'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildMudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
-import { empacotarMudancas, modeloDeMudancas, OBSERVADO_COM_UNIDADE, ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, LIMITE_DA_FAIXA_COM_UNIDADE, MEDIANA_DO_EFEITO_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
+import { empacotarMudancas, modeloDeMudancas, OBSERVADO_COM_UNIDADE, ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, FAIXA_MIN_COM_UNIDADE, FAIXA_MAX_COM_UNIDADE, MEDIANA_DO_EFEITO_COM_UNIDADE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
 
 const CASOS = casosDeMudancas()
 const F = OBS.fmt
@@ -32,7 +32,10 @@ describe('mudanças: o formatador da unidade da coluna aplicado a x dá o texto 
     'trocas-efeito/Depois (views/dia)': (x) => F.num(x),
     [`trocas-esperado/${ESPERADO_COM_UNIDADE}`]: (x) => F.pct(x / 100),
     [`trocas-esperado/${EFEITO_COM_UNIDADE}`]: (x) => F.pp(x),
-    [`trocas-faixa/${LIMITE_DA_FAIXA_COM_UNIDADE}`]: (x) => F.pct(x / 100),
+    [`trocas-faixa/${FAIXA_MIN_COM_UNIDADE}`]: (x) => F.pct(x / 100),
+    [`trocas-faixa/${FAIXA_MAX_COM_UNIDADE}`]: (x) => F.pct(x / 100),
+    'trocas-esperado/Vídeos na base (n)': (x) => String(x),
+    'trocas-faixa/Vídeos na base (n)': (x) => String(x),
     'trocas-base/Vídeos na base (n)': (x) => String(x),
     'trocas-descricoes/Linhas novas': (x) => String(x),
     'trocas-descricoes/Linhas removidas': (x) => String(x),
@@ -92,9 +95,10 @@ describe('mudanças: x é o número do motor (3)', () => {
         expect((l[2] as Cel).x, `pp ${h.id}`).toBe(g12(e.effectPp!)); visto.pp += 1
       }
       const faixa = porTitulo('trocas-faixa')
-      for (let k = 0; k < faixa.length; k += 1) {
-        const h = doHero(faixa[k]!), e = OBS.effect(h.id)!
-        expect((faixa[k]![1] as Cel).x, `faixa ${h.id}`).toBe(g12(e.iqr![k % 2]! * 100)); visto.faixa += 1
+      for (const l of faixa) {
+        const h = doHero(l), e = OBS.effect(h.id)!
+        expect((l[1] as Cel).x, `faixa min ${h.id}`).toBe(g12(e.iqr![0]! * 100))
+        expect((l[2] as Cel).x, `faixa max ${h.id}`).toBe(g12(e.iqr![1]! * 100)); visto.faixa += 1
       }
       for (const l of porTitulo('trocas-base')) { const h = doHero(l); expect((l[1] as Cel).x).toBe(OBS.effect(h.id)!.n); visto.n += 1 }
       const quadro = porTitulo('quadro-de-efeito')
@@ -165,6 +169,8 @@ describe('mudanças: chaves (4)', () => {
           "videos_na_base",
           "faixa_de_idade",
           "metodo",
+          "tipo",
+          "quando",
         ],
         "trocas-descricoes": [
           "video",
@@ -179,15 +185,23 @@ describe('mudanças: chaves (4)', () => {
           "observado_pct",
           "antes_views_dia",
           "depois_views_dia",
+          "quando",
         ],
         "trocas-esperado": [
           "video",
           "esperado_sem_a_troca_pct",
           "efeito_pp",
+          "base_n",
+          "tipo",
+          "quando",
         ],
         "trocas-faixa": [
           "video",
-          "limite_da_faixa_pct",
+          "faixa_min_pct",
+          "faixa_max_pct",
+          "base_n",
+          "tipo",
+          "quando",
         ],
         "trocas-notas": [
           "video",
@@ -209,6 +223,6 @@ describe('mudanças: chaves (4)', () => {
   it('as chaves de `trocas` e `trocas-efeito` são as do plano', () => {
     const p = CASOS.find((c) => c.nome === '90 dias')!.pacote
     expect(p.tabelas.find((x) => x.id === 'trocas')!.chaves).toEqual(['video', 'id', 'canal', 'nicho', 'tipo', 'quando', 'visto'])
-    expect(p.tabelas.find((x) => x.id === 'trocas-efeito')!.chaves).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia'])
+    expect(p.tabelas.find((x) => x.id === 'trocas-efeito')!.chaves).toEqual(['video', 'tipo', 'veredito', 'observado_pct', 'antes_views_dia', 'depois_views_dia', 'quando'])
   })
 })

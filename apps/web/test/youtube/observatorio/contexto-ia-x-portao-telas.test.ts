@@ -77,7 +77,7 @@ describe('Destaques e Mudanças: degrau e linhas de JSON na cópia (portão 8)',
         [
           "um canal",
           10,
-          61,
+          57,
         ],
         [
           "Shorts, 90 dias",
@@ -107,12 +107,12 @@ describe('Destaques e Mudanças: degrau e linhas de JSON na cópia (portão 8)',
         [
           "30 dias, só títulos",
           25,
-          67,
+          64,
         ],
         [
           "90 dias, só descrições",
           null,
-          62,
+          61,
         ],
         [
           "IA, 90 dias",

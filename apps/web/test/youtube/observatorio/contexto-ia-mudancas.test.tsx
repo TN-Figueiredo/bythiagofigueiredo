@@ -13,7 +13,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildMudancasView, type MudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 import { MudancasScreen } from '@/app/cms/(authed)/youtube/competitors/_mudancas/mudancas-screen'
 import {
-  empacotarMudancas, OBSERVADO_COM_UNIDADE, ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, LIMITE_DA_FAIXA_COM_UNIDADE, MEDIANA_DO_EFEITO_COM_UNIDADE, AVISO_DE_ESCOPO, INVENTARIO_MUDANCAS, modeloDeMudancas, SEM_FOLHA_NA_MATRIZ_MUDANCAS, SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS, type ModeloMudancas,
+  empacotarMudancas, OBSERVADO_COM_UNIDADE, ESPERADO_COM_UNIDADE, EFEITO_COM_UNIDADE, FAIXA_MIN_COM_UNIDADE, FAIXA_MAX_COM_UNIDADE, MEDIANA_DO_EFEITO_COM_UNIDADE, AVISO_DE_ESCOPO, INVENTARIO_MUDANCAS, modeloDeMudancas, SEM_FOLHA_NA_MATRIZ_MUDANCAS, SEM_PROVA_POR_IGUALDADE_DIRETA_MUDANCAS, type ModeloMudancas,
 } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-mudancas'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
@@ -53,10 +53,10 @@ async function montar(params: Params, desenhar = true): Promise<Montado> {
 const COLUNAS: Record<string, Record<string, string | readonly string[]>> = {
   'quadro-de-efeito': { Tipo: '.typeLabel', 'Trocas do nicho na janela': '.poolN', 'Com veredito (n)': '.n', [MEDIANA_DO_EFEITO_COM_UNIDADE]: ['.median', '.semMediana'], Resultado: '.text' },
   trocas: { Vídeo: '.video.title', Id: '.video.id', Canal: '.video.channel', Nicho: '.video.nicheLabel', Tipo: '.typeLabel', Quando: '.when.text', Visto: '.when.rel' },
-  'trocas-efeito': { Vídeo: '.video.title', Tipo: '.typeLabel', Veredito: '.effect.label', [OBSERVADO_COM_UNIDADE]: '.rows.observed', 'Antes (views/dia)': '.rows.observedFrom', 'Depois (views/dia)': '.rows.observedTo' },
-  'trocas-esperado': { Vídeo: '.video.title', [ESPERADO_COM_UNIDADE]: '.rows.expected', [EFEITO_COM_UNIDADE]: '.effect.pp' },
-  'trocas-faixa': { Vídeo: '.video.title', [LIMITE_DA_FAIXA_COM_UNIDADE]: ['.iqr[0]', '.iqr[1]'] },
-  'trocas-base': { Vídeo: '.video.title', 'Vídeos na base (n)': '.rows.n', 'Faixa de idade': '.rows.band', Método: '.rows.methodShort' },
+  'trocas-efeito': { Vídeo: '.video.title', Tipo: '.typeLabel', Veredito: '.effect.label', [OBSERVADO_COM_UNIDADE]: '.rows.observed', 'Antes (views/dia)': '.rows.observedFrom', 'Depois (views/dia)': '.rows.observedTo', Quando: '.when.text' },
+  'trocas-esperado': { Vídeo: '.video.title', [ESPERADO_COM_UNIDADE]: '.rows.expected', [EFEITO_COM_UNIDADE]: '.effect.pp', 'Vídeos na base (n)': '.rows.n', Tipo: '.typeLabel', Quando: '.when.text' },
+  'trocas-faixa': { Vídeo: '.video.title', [FAIXA_MIN_COM_UNIDADE]: '.iqr[0]', [FAIXA_MAX_COM_UNIDADE]: '.iqr[1]', 'Vídeos na base (n)': '.rows.n', Tipo: '.typeLabel', Quando: '.when.text' },
+  'trocas-base': { Vídeo: '.video.title', 'Vídeos na base (n)': '.rows.n', 'Faixa de idade': '.rows.band', Método: '.rows.methodShort', Tipo: '.typeLabel', Quando: '.when.text' },
   'trocas-titulos': { Vídeo: '.video.title', 'Título de antes': '.title.beforeText', 'Título de depois': '.title.afterText' },
   'trocas-thumbs': { Vídeo: '.video.title', Imagem: ['.thumbs[0].label', '.thumbs[1].label'], Período: ['.thumbs[0].period', '.thumbs[1].period'] },
   'trocas-descricoes': { Vídeo: '.video.title', 'Linhas novas': '.desc.add', 'Linhas removidas': '.desc.rem', 'Trocas de UTM ocultas': '.desc.noiseHidden' },
