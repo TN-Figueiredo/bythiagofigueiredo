@@ -74,6 +74,15 @@ describe('pizza da direção (acessoir-16)', () => {
     expect(texto).toContain('A leitura falhou em 3 canais, fora desta conta.')
     expect(bloco({ sobe: 2, estavel: 1, desce: 1, naoMedido: 42, falhou: 1 }).texto).toContain('A leitura falhou em 1 canal, fora desta conta.')
   })
+  it('leitura do canal falhou em todas as casas: título e frase dizem que falhou, sem "medida em X de N" nem "toda parte foi medida"', () => {
+    const { t, csv, texto } = bloco({ sobe: null, estavel: null, desce: null, naoMedido: null, falhou: 2 })
+    expect(t.titulo).toBe('Direção dos canais em 28 dias: a leitura falhou, sem o seu canal')
+    expect(t.titulo).not.toContain('medida em')
+    expect(texto).not.toContain('toda parte foi medida')
+    expect(texto).not.toContain('Os outros')
+    expect(texto).toContain('A leitura falhou em 2 canais, fora desta conta.')
+    expect(csv.linhas.every((l) => !/^[^,]+,\d+,/.test(l))).toBe(true)
+  })
   it('sem data de fechamento a nota não promete a primeira medida', () => {
     expect(bloco({ sobe: 1, estavel: 0, desce: 0, naoMedido: 2, data: null }).csv.linhas[3]).not.toContain('primeira medida')
   })
