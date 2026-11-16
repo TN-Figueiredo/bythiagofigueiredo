@@ -198,7 +198,7 @@ export const INVENTARIO_CANAIS: Inventario = {
   'nicheRows[].id': ID, 'nicheRows[].name': CTRL, 'nicheRows[].niche': CTRL,
   'forja.*': CTRL, forjaBar: CTRL, 'forjaBar.lines': 'base', 'forjaBar.text': 'base',
   // o resumo
-  'resumo.frase': 'base', 'resumo.carregou': CTRL, 'resumo.casas[].chave': CTRL, 'resumo.casas[].n': 'numero', 'resumo.casas[].palavra': 'rotulo', 'resumo.casas[].leitor': REP, 'resumo.casas[].pressed': CTRL, 'resumo.casas[].data': 'base',
+  'resumo.frase': 'base', 'resumo.carregou': CTRL, 'resumo.casas[].chave': CTRL, 'resumo.casas[].n': 'numero', 'resumo.casas[].palavra': 'rotulo', 'resumo.casas[].leitor': REP, 'resumo.casas[].pressed': CTRL, 'resumo.casas[].data': 'base', 'resumo.casas[].primeiraEm': CTRL,
   'resumo.filtros[].chave': CTRL, 'resumo.filtros[].rotulo': 'rotulo', 'resumo.filtros[].n': 'numero', 'resumo.filtros[].ainda': REP, 'resumo.filtros[].naoMedido': 'motivo', 'resumo.filtros[].pressed': CTRL,
   'resumo.filtros[].leitor': REP, 'resumo.filtros[].base': CTRL, 'resumo.filtros[].base.medidos': REP, 'resumo.filtros[].base.de': REP,
   'resumo.avisoDeContagem': CTRL, 'resumo.avisoDeContagem.ate': 'base', 'resumo.contagem.*': REP, 'resumo.direcao.*': REP, 'resumo.direcao.frase': REP, 'resumo.semRetrato': CTRL, 'resumo.semRetrato.desde': 'base',
@@ -488,7 +488,7 @@ function tabelaDaDirecao(m: ModeloCanais, casas: ModeloCanais['resumo']['casas']
   const falhou = m.resumo.direcao.naoCarregou
   const titulo = F.DIRECAO_TITULO(JANELA, medidos, canais, todasFalharam)
   const frases = todasFalharam ? (falhou > 0 ? [F.DIRECAO_LEITURA_FALHOU(falhou)] : []) : F.DIRECAO_FRASES(sobe, estavel, desce, naoM, falhou)
-  const primeira = casas.find((c) => c.chave === 'nao-medido')?.data?.match(/\d\d\/\d\d/)?.[0]
+  const primeira = casas.find((c) => c.chave === 'nao-medido')?.primeiraEm ?? undefined
   const nota = F.DIRECAO_NOTA_NAO_MEDIDA(primeira)
   const idx = casas.findIndex((c) => c.chave === 'nao-medido')
   const linhas = casas.map((c, i): Celula[] => {
