@@ -509,6 +509,7 @@ async function firstRow<T>(table: string, build: () => RangeQuery): Promise<T | 
 const DAILY_SITE_COLS = 'snap_date, taken_at, competitor_videos!inner(competitor_channels!inner(site_id))'
 interface DailySiteRow { snap_date: string; taken_at: string }
 /** Postgres: invalid input syntax for type uuid. */
+const CANAL_YT = /^UC[A-Za-z0-9_-]{22}$/
 const INVALID_UUID = '22P02'
 const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at, thumbnail_url'
 /** Postgres 42703 (undefined_column) / PostgREST PGRST204: a migration do nicho ainda não chegou a este banco. */
@@ -677,19 +678,23 @@ export async function readSiteScope(sb: SupabaseClient, siteId: string, seriesSt
  * that are not in the set).
  */
 export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, channelId: string, now: number): Promise<(LiveRows & { seriesStartAt: number | null }) | null> {
+  // acessoir-15: the tools accept the YouTube id (UC…) next to the uuid. A UC is looked up ONCE here, by `channel_id` AND `site_id` (the site filter stays the
+  // access boundary), with no case folding (a UC is case-sensitive); from here on only the resolved uuid is used. A UC of another site or unknown: null.
+  const porUc = CANAL_YT.test(channelId)
   // Postgres compares a uuid without regard to case, a string comparison does not: the own-channel match below needs one spelling
-  const id = channelId.toLowerCase()
-  const ch = await sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).eq('id', id).maybeSingle()
+  const id = porUc ? channelId : channelId.toLowerCase()
+  const campo = porUc ? 'channel_id' : 'id'
+  const ch = await sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).eq(campo, id).maybeSingle()
   // a URL id that is not a uuid is not a channel of anybody (Postgres says 22P02): null, never a server error
   if (ch.error && ch.error.code !== INVALID_UUID) throw new ObservatoryLoadError('competitor_channels', ch.error.code, ch.error.message)
   const channel = ch.error ? null : (ch.data as ChannelRow | null) ?? null
-  const own = channel ? null : (await readOwnChannels(sb, siteId)).find(c => c.id === id) ?? null
+  const own = channel ? null : (await readOwnChannels(sb, siteId)).find(c => (porUc ? c.channel_id : c.id) === id) ?? null
   if (!channel && !own) return null
 
   // competitor_changes has no channel column, so the trade rows are the site's; only a competitor's videos can have them
   const { settings, ssAt, specificRows: [siteScope, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches, onlineDesde } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
     readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
-    own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
+    own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', own.id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
     readOwnSnapshots(sb, own ? [own] : [], now),
   ] as const), channel != null)
   return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, onlineDesde, seriesStartAt: seriesStartAt(ssAt), siteScope }

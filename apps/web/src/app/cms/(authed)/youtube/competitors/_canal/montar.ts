@@ -109,7 +109,8 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
   const { obs, siteId, now, leitura: leituraPrivada, ownYtIds, canEdit, owns } = pagina
   if (!obs) return { tipo: 'nao_encontrado', pagina, recente: null }
   // o carregador casa o id sem distinguir maiúsculas; o canal é achado do mesmo jeito, e a partir daqui só vale o id RESOLVIDO dele
-  const proprio = obs.channel(id.toLowerCase()) ?? obs.channel(id)
+  const uuid = pagina.canalId ?? id // acessoir-15: o pedido pode ter vindo como UC; o carregador devolve o uuid
+  const proprio = obs.channel(uuid.toLowerCase()) ?? obs.channel(uuid)
   if (proprio?.own) {
     if (!canalTemVideos(obs, proprio.id)) return { tipo: 'proprio_sem_videos', pagina, obs, proprio, recente: recenteDe(obs) }
     // erro de leitura LANÇA (D5): a error.tsx da rota aparece, nunca um canal sem número
@@ -141,7 +142,7 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
       return { tipo: 'proprio', pagina, obs, proprio, flat: sp, pv, comoEsta, periodosProps, origemProps, recente: recenteDe(obs), estado: sp, privado: privadoDoCanalProprio(proprio.id, dados, pagina.negativa) }
     }
   }
-  const view = buildCanalView(obs, id, sp)
+  const view = buildCanalView(obs, uuid, sp)
   if (!view) return { tipo: 'nao_encontrado', pagina, recente: null }
   const medidas = opcoes.iniciarMedidas ? opcoes.iniciarMedidas({ pagina, obs, view }) : null
   // por chave a pessoa não administra (e a guarda é de sessão): falso, sem chamar `canAdminSiteUsers`
